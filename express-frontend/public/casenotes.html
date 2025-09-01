@@ -7,6 +7,33 @@
     <link rel="stylesheet" href="retro.css">
     <script src="navbar.js"></script>
     <script src="navbar-auth.js"></script>
+    <style>
+        .note-success-message {
+            color: #1b7e3c;
+            font-weight: bold;
+            font-size: 1em;
+            transition: opacity 0.3s;
+        }
+        .note-success-message.error {
+            color: #a05a5a;
+        }
+        .custom-file-label {
+            background: #222 !important;
+            color: #6fcf6f !important;
+            border: none !important;
+            border-radius: 4px !important;
+            padding: 0.4em 1.4em !important;
+            font-weight: bold !important;
+            cursor: pointer;
+            font-size: 1em;
+            margin-bottom: 0.3em;
+            display: inline-block;
+            transition: background 0.2s;
+        }
+        .custom-file-label:hover {
+            background: #444 !important;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -30,30 +57,51 @@
                 </div>
                 <div class="upload-box">
                     <form id="uploadFileForm" enctype="multipart/form-data" class="upload-box-form">
-                        <input type="file" name="file" required>
+                        <input type="file" name="file" id="fileInput" required style="display: none;">
+                        <label for="fileInput" id="fileInputLabel" class="custom-file-label" style="background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; padding: 0.2em 0.7em; cursor: pointer; margin-bottom: 0.3em; display: inline-block;">Choose File</label>
+                        <span id="selectedFileName" style="min-width: 120px; display: block; margin-top: 0.2em; margin-bottom: 0.5em; word-break: break-all;"></span>
                         <button type="submit">Upload File</button>
                     </form>
-                    <div id="filesList"></div>
+                    <div id="uploadError" style="color: red; margin-top: 0.5em;"></div>
+                    <div id="filesList" style="background: #000; max-height: 8.5em; overflow-y: auto; border-radius: 6px; padding: 0.5em 0.7em; margin-top: 0.5em;"></div>
                 </div>
             </div>
             <hr style="border: none; border-top: 3px solid #444; margin-bottom: 1.2em; margin-top: 2em;">
-                    <h1>Case Notes</h1>
-                    <div class="notes-flex-row">
-                        <div style="flex: 1.2 1 0; min-width: 260px; max-width: 600px;">
-                                    <form id="addNoteForm" class="note-form-vertical">
-                                        <textarea name="noteText" placeholder="Add a new note..." required class="wide-note-textarea"></textarea>
-                                        <div class="add-note-btn-row">
-                                            <button type="submit" class="add-note-btn">Add Note</button>
-                                        </div>
-                                    </form>
-                                    <div id="message"></div>
-                                </div>
-                                <div style="flex: 1 1 0; min-width: 180px; max-width: 540px; margin-left: 1em;">
-                                    <div id="notesList"></div>
-                                </div>
+                    <div style="display: flex; flex-direction: row; align-items: flex-start; gap: 0.5em;">
+                        <h1 style="margin: 0 1em 0 0; padding: 0; font-size: 1.5em; line-height: 1.2; white-space: nowrap;">Case Notes</h1>
+                        <form id="addNoteForm" class="note-form-vertical" style="margin-bottom: 0; max-width: 1000px; align-items: flex-start; display: flex; flex-direction: row; gap: 1em; justify-content: flex-start;">
+                            <textarea name="noteText" placeholder="Add a new note..." required class="wide-note-textarea" style="flex: 2 1 700px; min-width: 400px; max-width: 1000px; margin-left: 0; height: 2.2em; resize: vertical; margin-right: 1em;"></textarea>
+                            <button type="submit" class="add-note-btn" style="background: #222; color: #6fcf6f; border: none; border-radius: 4px; padding: 0.4em 1.4em; font-weight: bold; font-size: 1em; cursor: pointer; min-width: 120px; margin-left: 0; margin-right: 1em; transition: background 0.2s;">Add Note</button>
+                            <span id="message" class="note-success-message" style="display:inline-block; min-width: 90px; min-height: 1.2em; margin-left: 0.5em; opacity: 0;"></span>
+                        </form>
                     </div>
+                    <div id="notesList" style="width: 100%; max-width: 900px; margin-top: 1.5em;"></div>
+                    <div id="notesList" style="width: 100%; max-width: 900px; margin-top: 1.5em;"></div>
         </main>
                 <style>
+        /* Make file links in the upload area green by default, blue and underlined on hover */
+        #filesList a.upload-list-link {
+            color: #1b7e3c;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1em;
+            transition: color 0.2s;
+        }
+        #filesList a.upload-list-link:hover {
+            color: #1976d2;
+            text-decoration: underline;
+        }
+        /* Make file upload links in notes always blue and underlined, darker blue on hover */
+        .file-upload-link {
+            color: #1976d2 !important;
+            text-decoration: underline;
+            font-weight: bold;
+            font-size: 1em;
+            transition: color 0.2s;
+        }
+        .file-upload-link:hover {
+            color: #0d47a1 !important;
+        }
         .case-header-flex-row {
             display: flex;
             flex-direction: row;
@@ -71,17 +119,59 @@
             background: none !important;
             box-shadow: none !important;
         }
+        /* Popup message for note added */
+        .popup-message {
+            position: fixed;
+            left: 50%;
+            top: 2.5em;
+            transform: translateX(-50%);
+            background: #222;
+            color: #fff;
+            padding: 0.8em 2.2em;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 500;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.18);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9999;
+            transition: opacity 0.4s cubic-bezier(.4,0,.2,1);
+        }
+        .popup-message.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .popup-message.error {
+            background: #a05a5a;
+            color: #fff;
+        }
     /* .upload-box-heading removed, now using inline style for h1 to match other headers */
         .upload-box {
-            max-width: 340px;
-            min-width: 234px;
+            max-width: 520px;
+            min-width: 320px;
             width: 100%;
         }
         #filesList {
-            max-width: 340px;
-            min-width: 234px;
+            max-width: 520px;
+            background: #000;
+            max-height: 8.5em;
+            overflow-y: auto;
+            border-radius: 6px;
+            padding: 0.5em 0.7em;
+        }
+        #filesList::-webkit-scrollbar {
+            width: 10px;
+            background: #222;
+        }
+        #filesList::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 6px;
+        }
+        #filesList::-webkit-scrollbar-thumb:hover {
+            background: #aaa;
+            min-width: 320px;
             width: 100%;
-            word-break: break-word;
+            word-break: break-all;
         }
         .case-flex-row {
             display: flex;
@@ -160,7 +250,8 @@
             }
             .upload-box-form {
                 display: flex;
-                align-items: center;
+                flex-direction: column;
+                align-items: flex-start;
                 gap: 0.5em;
                 margin-bottom: 1em;
             }
@@ -172,29 +263,51 @@
                 padding: 0.2em 0.4em;
             }
             .upload-box button {
-                background: #6fcf6f;
-                color: #111;
+                background: #222;
+                color: #6fcf6f;
                 border: none;
                 border-radius: 4px;
-                padding: 0.4em 1em;
+                padding: 0.4em 1.4em;
                 font-weight: bold;
                 cursor: pointer;
                 transition: background 0.2s;
+                min-width: 120px;
+                white-space: nowrap;
             }
             .upload-box button:hover {
-                background: #57b957;
+                background: #444;
             }
             .upload-box ul, .upload-box li, .upload-box a, .upload-box span {
+            /* Popup message for note added */
+            .popup-message {
+                position: fixed;
+                left: 50%;
+                top: 2.5em;
+                transform: translateX(-50%);
+                background: #222;
+                color: #fff;
+                padding: 0.8em 2.2em;
+                border-radius: 8px;
+                font-size: 1.1em;
+                font-weight: 500;
+                box-shadow: 0 2px 16px rgba(0,0,0,0.18);
+                opacity: 0;
+                pointer-events: none;
+                z-index: 9999;
+                transition: opacity 0.4s cubic-bezier(.4,0,.2,1);
+            }
+            .popup-message.show {
+                opacity: 1;
+                pointer-events: auto;
+            }
+            .popup-message.error {
+                background: #a05a5a;
+                color: #fff;
+            }
                 /* color: #fff !important; */
             /* Note: file link color and underline are now set in CSS below for the file list. */
             }
 
-            .upload-box a {
-                color: #1b7e3c !important;
-                text-decoration: none !important;
-                font-weight: bold;
-                font-size: 1em;
-            }
 
             .upload-box ul {
                 margin: 0.5em 0 0 0;
@@ -203,6 +316,34 @@
             }
         </style>
         <script>
+    // Allowed MIME types for client-side validation
+    const allowedTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword',
+        'image/jpeg',
+        'image/png',
+        'image/gif'
+    ];
+
+    // Warn user immediately if file type is not allowed
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        const errorDiv = document.getElementById('uploadError');
+        const fileNameSpan = document.getElementById('selectedFileName');
+        if (file) {
+            fileNameSpan.textContent = file.name;
+        } else {
+            fileNameSpan.textContent = '';
+        }
+        if (file && !allowedTypes.includes(file.type)) {
+            errorDiv.textContent = 'Only PDF, DOCX, DOC, JPG, PNG, and GIF files are allowed.';
+            e.target.value = '';
+            fileNameSpan.textContent = '';
+        } else {
+            errorDiv.textContent = '';
+        }
+    });
     // Fetch and display files for the case
     async function fetchFiles(caseId) {
         const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/files`, {
@@ -234,10 +375,7 @@
             link.href = `/uploads/${file.filename}`;
             link.textContent = file.originalname;
             link.target = '_blank';
-            link.style.textDecoration = 'none';
-            link.style.fontWeight = 'bold';
-            link.style.fontSize = '1em';
-            link.style.color = '#1b7e3c'; // Use the same green as other text
+            link.className = 'upload-list-link';
             li.appendChild(link);
             if (isAdmin) {
                 const delBtn = document.createElement('button');
@@ -285,20 +423,32 @@
         const caseId = getCaseId();
         const form = e.target;
         const fileInput = form.file;
+        const errorDiv = document.getElementById('uploadError');
+        errorDiv.textContent = '';
         if (!fileInput.files.length) return;
+        const file = fileInput.files[0];
+        if (!allowedTypes.includes(file.type)) {
+            errorDiv.textContent = 'Only PDF, DOCX, DOC, JPG, PNG, and GIF files are allowed.';
+            return;
+        }
         const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
-        const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/upload`, {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + getToken() },
-            body: formData
-        });
-        const result = await res.json();
-        document.getElementById('message').textContent = result.success ? 'File uploaded!' : (result.error || 'Failed to upload file.');
-        if (result.success) {
-            form.reset();
-            // Only update the files list, not the layout
-            await fetchFiles(caseId);
+        formData.append('file', file);
+        try {
+            const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/upload`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + getToken() },
+                body: formData
+            });
+            const result = await res.json();
+            if (!res.ok) {
+                errorDiv.textContent = result.error || 'File upload failed.';
+            } else {
+                form.reset();
+                await fetchFiles(caseId);
+                await fetchNotes(caseId);
+            }
+        } catch (err) {
+            errorDiv.textContent = 'File upload failed.';
         }
     });
     // Get caseId from query string
@@ -325,7 +475,7 @@
             }
             html += '</div>';
         }
-        // Show related LovedOne(s) info if present
+        // Show related LovedOne(s) info if present, else show warning
         if (Array.isArray(data.lovedOnes) && data.lovedOnes.length > 0) {
             html += `<div style="margin-bottom:1.5em;">
                 <b>Missing Person(s) Info:</b><br>`;
@@ -338,6 +488,8 @@
                 html += `</div>`;
             });
             html += `</div>`;
+        } else {
+                html += `<div style="margin-bottom:1.5em; color: #a05a5a; font-weight: normal;">⚠️ No missing person (Loved One) is attached to this case.</div>`;
         }
         if (data.referringOrg) {
             html += `<b>Referring Organization:</b> ${data.referringOrg.name || ''}`;
@@ -354,27 +506,71 @@
         document.getElementById('caseInfo').innerHTML = html;
     }
     async function fetchNotes(caseId) {
-        const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/notes`, {
-            headers: { 'Authorization': 'Bearer ' + getToken() }
-        });
+        // Fetch both notes and events, merge and sort by timestamp
+        const [notesRes, eventsRes] = await Promise.all([
+            fetch(`/api/cases/${encodeURIComponent(caseId)}/notes`, {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            }),
+            fetch(`/api/cases/${encodeURIComponent(caseId)}/events`, {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            })
+        ]);
         const notesDiv = document.getElementById('notesList');
         notesDiv.innerHTML = '';
-        if (!res.ok) {
-            notesDiv.innerHTML = '<i>No notes found or failed to load.</i>';
+        if (!notesRes.ok && !eventsRes.ok) {
+            notesDiv.innerHTML = '<i>No notes or events found or failed to load.</i>';
             return;
         }
-        const data = await res.json();
-        if (!data.notes || data.notes.length === 0) {
-            notesDiv.innerHTML = '<i>No notes yet.</i>';
+        let notes = [];
+        if (notesRes.ok) {
+            const data = await notesRes.json();
+            if (data.notes) {
+                notes = data.notes.map(n => ({
+                    type: 'note',
+                    text: n.text,
+                    author: n.author,
+                    timestamp: n.timestamp
+                }));
+            }
+        }
+        let events = [];
+        if (eventsRes.ok) {
+            const data = await eventsRes.json();
+            if (data.events) {
+                events = data.events.map(e => ({
+                    type: e.type || 'event',
+                    text: e.description,
+                    author: e.user,
+                    timestamp: e.timestamp,
+                    filename: e.filename,
+                    originalname: e.originalname
+                }));
+            }
+        }
+        const allItems = [...notes, ...events];
+        if (allItems.length === 0) {
+            notesDiv.innerHTML = '<i>No notes or events yet.</i>';
             return;
         }
-        // Sort notes so newest first
-        data.notes.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        data.notes.forEach(note => {
-            const div = document.createElement('div');
-            div.className = 'note';
-            div.innerHTML = `<div class="note-meta">${note.author || 'Unknown'} &mdash; ${new Date(note.timestamp).toLocaleString()}</div><div>${note.text}</div>`;
-            notesDiv.appendChild(div);
+        // Sort newest first
+        allItems.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            allItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'note';
+                let label = item.type === 'note' ? 'Note' : (item.type === 'file_upload' ? 'File Upload' : 'Event');
+                let content = item.text;
+                if (item.type === 'file_upload' && item.filename && item.originalname) {
+                    const url = `/uploads/${encodeURIComponent(item.filename)}`;
+                    // Try to extract uploader from the description
+                    let uploader = '';
+                    const match = item.text.match(/uploaded by (.+)$/);
+                    if (match) {
+                        uploader = match[1];
+                    }
+                    content = `File <a href="${url}" target="_blank" rel="noopener" class="file-upload-link">${item.originalname}</a> uploaded by ${uploader}`;
+                }
+                div.innerHTML = `<div class="note-meta"><b>${label}</b> &mdash; ${item.author || 'Unknown'} &mdash; ${new Date(item.timestamp).toLocaleString()}</div><div>${content}</div>`;
+                notesDiv.appendChild(div);
         });
     }
     document.getElementById('addNoteForm').addEventListener('submit', async function(e) {
@@ -388,7 +584,26 @@
             body: JSON.stringify({ text })
         });
         const result = await res.json();
-        document.getElementById('message').textContent = result.success ? 'Note added!' : (result.error || 'Failed to add note.');
+        const msgDiv = document.getElementById('message');
+        if (result.success) {
+            msgDiv.textContent = 'Note added';
+            msgDiv.style.opacity = '1';
+            setTimeout(() => {
+                msgDiv.style.opacity = '0';
+                setTimeout(() => { msgDiv.textContent = ''; }, 300);
+            }, 900);
+            e.target.reset();
+            await fetchNotes(caseId);
+        } else {
+            msgDiv.textContent = result.error || 'Failed to add note.';
+            msgDiv.classList.add('error');
+            msgDiv.style.opacity = '1';
+            setTimeout(() => {
+                msgDiv.classList.remove('error');
+                msgDiv.style.opacity = '0';
+                setTimeout(() => { msgDiv.textContent = ''; }, 300);
+            }, 1800);
+        }
         if (result.success) {
             e.target.reset();
             await fetchNotes(caseId);
