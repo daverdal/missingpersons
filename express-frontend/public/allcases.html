@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Cases - Missing Persons App</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Missing Persons Case Management</h1>
+    <!-- Navigation will be injected here -->
+    </header>
+    <main>
+    <script>
+    // --- Auth check and logout logic ---
+    function getToken() {
+        return localStorage.getItem('token') || sessionStorage.getItem('token');
+    }
+    if (!getToken()) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        var logoutLink = document.querySelector('a[href="#"]');
+        if (logoutLink) {
+            logoutLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                localStorage.removeItem('token');
+                sessionStorage.removeItem('token');
+                window.location.href = 'login.html';
+            });
+        }
+    });
+    </script>
+    <!-- Removed duplicate nav box with Login link -->
+        <div id="message"></div>
+        <table id="casesTable">
+            <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Assigned To</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </main>
+        <script>
+    // --- Auth and Admin Nav Logic ---
+        // --- Fetch and display all cases ---
+        async function fetchAllCases() {
+            const token = getToken();
+            if (!token) {
+                document.getElementById('message').textContent = 'You must be logged in to view cases.';
+                return;
+            }
+            const res = await fetch('/api/cases', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) {
+                document.getElementById('message').textContent = 'Failed to load cases.';
+                return;
+            }
+            const data = await res.json();
+            const tbody = document.querySelector('#casesTable tbody');
+            tbody.innerHTML = '';
+            if (!data.cases || data.cases.length === 0) {
+                document.getElementById('message').textContent = 'No cases found.';
+                return;
+            }
+            document.getElementById('message').textContent = '';
+            data.cases.forEach(c => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${c.name || '(no name)'}<br><a href="casenotes.html?caseId=${encodeURIComponent(c.id)}">View/Add Notes</a></td><td>${c.email || ''}</td><td>${c.status || ''}</td><td>${(c.assignedTo && c.assignedTo.length > 0) ? c.assignedTo.join(', ') : ''}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+        fetchAllCases();
+        function parseJwt(token) {
+            try {
+                return JSON.parse(atob(token.split('.')[1]));
+            } catch (e) { return null; }
+        }
+        function getToken() {
+            return localStorage.getItem('token') || sessionStorage.getItem('token');
+        }
+        function isAdmin() {
+            const token = getToken();
+            if (!token) return false;
+            const payload = parseJwt(token);
+            return payload && Array.isArray(payload.roles) && payload.roles.includes('admin');
+        }
+        function updateAuthLinks() {
+            const token = getToken();
+            const loginLink = document.getElementById('loginLink');
+            const logoutLink = document.getElementById('logoutLink');
+            const myCasesLink = document.getElementById('myCasesLink');
+            const allCasesLink = document.getElementById('allCasesLink');
+            const intakeFormLink = document.getElementById('intakeFormLink');
+            if (token) {
+                if (loginLink) loginLink.style.display = 'none';
+                if (logoutLink) logoutLink.style.display = '';
+                if (myCasesLink) myCasesLink.style.display = '';
+                if (allCasesLink) allCasesLink.style.display = '';
+                if (intakeFormLink) intakeFormLink.style.display = '';
+            } else {
+                if (loginLink) loginLink.style.display = '';
+                if (logoutLink) logoutLink.style.display = 'none';
+                if (myCasesLink) myCasesLink.style.display = 'none';
+                if (allCasesLink) allCasesLink.style.display = 'none';
+                if (intakeFormLink) intakeFormLink.style.display = 'none';
+            }
+        }
+        updateAuthLinks();
+        // Hide Admin Panel link if user is not admin
+        if (!isAdmin()) {
+            const adminLink = document.getElementById('adminLink');
+            if (adminLink) adminLink.style.display = 'none';
+        }
+        // Logout handler
+        document.getElementById('logoutLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.removeItem('token');
+            sessionStorage.removeItem('token');
+            window.location.href = 'login.html';
+        });
+        </script>
+    </body>
+</body>
+</html>

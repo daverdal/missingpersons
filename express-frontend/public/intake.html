@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intake Form - Support Services for Families</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Missing Persons Case Management</h1>
+    <!-- Navigation will be injected here -->
+    </header>
+    <main>
+    <script>
+    // --- Auth check and logout logic ---
+    function getToken() {
+        return localStorage.getItem('token') || sessionStorage.getItem('token');
+    }
+    if (!getToken()) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        var logoutLinks = document.querySelectorAll('a[href="#"], #logoutLink');
+        logoutLinks.forEach(function(logoutLink) {
+            logoutLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                localStorage.removeItem('token');
+                sessionStorage.removeItem('token');
+                window.location.href = 'login.html';
+            });
+        });
+    });
+    </script>
+    <h1>Intake Form</h1>
+    <form id="intakeForm" autocomplete="off">
+            
+
+            <!-- Department Name field hidden: all staff work in the same department -->
+            <input type="hidden" name="intakeDate" id="intakeDateAuto" />
+            <!-- Date of Intake field hidden: will be set automatically -->
+
+            <div class="section-title">Client Information</div>
+            <div class="two-col-form">
+                <label>Name: <input type="text" name="applicantName"></label>
+                <label>Kinship Role<input type="text" name="kinshipRole"></label>
+                <label>Contact Number: <input type="tel" name="contact"></label>
+                <label>Email Address: <input type="email" name="email"></label>
+                <label>Mailing Address: <input type="text" name="address"></label>
+                <label>First Nation:
+                    <select name="community" id="communityDropdown">
+                        <option value="">-- Select Community / Nation (optional) --</option>
+                        <!-- Options will be populated by JS -->
+                        <option value="Other">Other (not listed)</option>
+                    </select>
+                </label>
+                <label>Preferred Language(s): <input type="text" name="language"></label>
+                <label>Best Way and Time to Contact You: <input type="text" name="contactTime"></label>
+                <label style="grid-column:1/-1;">Referring Organization:
+                    <select name="referringOrganization" id="referringOrganizationDropdown">
+                        <option value="">-- Select Referring Organization --</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="section-title">Missing Loved One</div>
+            <label>Name of Loved One: <input type="text" name="lovedOneName"></label>
+            <label>Client's Relationship to Loved One: <input type="text" name="relationship"></label>
+            <label>Date of Incident (if known): <input type="date" name="incidentDate"></label>
+            <label>Location of Incident or Last Known Location: <input type="text" name="lastLocation"></label>
+            <div class="checkbox-group">
+                <label><input type="checkbox" name="investigation" value="Police/RCMP Investigation"> Police/RCMP Investigation</label>
+                <label><input type="checkbox" name="investigation" value="Community Search Efforts"> Community Search Efforts</label>
+                <label><input type="checkbox" name="investigation" value="Independent Advocacy"> Independent Advocacy</label>
+                <label><input type="checkbox" name="investigation" value="Inquest or Legal Action"> Inquest or Legal Action</label>
+                <label><input type="checkbox" name="investigation" value="Other"> Other: <input type="text" name="otherInvestigation"></label>
+            </div>
+
+            <div class="section-title">Support, Advocacy, and Requests</div>
+            <div class="checkbox-group">
+                <label><input type="checkbox" name="support" value="Emotional or Cultural Support"> Emotional or Cultural Support</label>
+                <label><input type="checkbox" name="support" value="Grief Counseling or Mental Health Support"> Grief Counseling or Mental Health Support</label>
+                <label><input type="checkbox" name="support" value="Legal Advocacy or Representation"> Legal Advocacy or Representation</label>
+                <label><input type="checkbox" name="support" value="Help Navigating Police or Justice System"> Help Navigating Police or Justice System</label>
+                <label><input type="checkbox" name="support" value="Media or Public Awareness Support"> Media or Public Awareness Support</label>
+                <label><input type="checkbox" name="support" value="Help Organizing Vigils or Community Events"> Help Organizing Vigils or Community Events</label>
+                <label><input type="checkbox" name="support" value="Financial Assistance or Guidance"> Financial Assistance or Guidance</label>
+                <label><input type="checkbox" name="support" value="Transportation or Housing Support"> Transportation or Housing Support</label>
+                <label><input type="checkbox" name="support" value="Translation or Language Services"> Translation or Language Services</label>
+                <label><input type="checkbox" name="support" value="Youth or Family Support Services"> Youth or Family Support Services</label>
+                <label><input type="checkbox" name="support" value="Access to Religious or Spiritual Services"> Access to Religious or Spiritual Services</label>
+                <label><input type="checkbox" name="support" value="Access to Traditional Healing or Medicine"> Access to Traditional Healing or Medicine</label>
+                <label><input type="checkbox" name="support" value="Ongoing Case Updates or Advocacy"> Ongoing Case Updates or Advocacy</label>
+                <label><input type="checkbox" name="support" value="Accommodation"> Accommodation</label>
+                <label><input type="checkbox" name="support" value="Other"> Other Needs or Requests: <input type="text" name="otherSupport"></label>
+            </div>
+
+            <div class="section-title">Additional Notes or Story (optional)</div>
+            <textarea name="notes" rows="4" placeholder="Share anything about your loved one, your family’s journey, or the support you hope to receive."></textarea>
+
+            <div class="section-title">Consent & Confidentiality</div>
+            <div class="consent">
+                <label><input type="checkbox" name="consentStore" required> I consent to the department storing my information securely for the purpose of service and support.</label><br>
+                <label><input type="checkbox" name="consentShare" required> I understand that my information will not be shared without my permission.</label><br>
+                <label>Signature: <input type="text" name="signature"></label>
+                <label>Date: <input type="date" name="consentDate"></label>
+            </div>
+            <button type="submit">Submit Intake</button>
+    </form>
+    <div id="formMessage" style="margin-top:1.5rem;font-weight:bold;"></div>
+    <div id="dbStatusBox"></div>
+    </main>
+<style>
+#dbStatusBox {
+    display: none;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    max-width: 800px;
+    background: #000;
+    color: #4aff4a;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.9rem;
+    padding: 0.9rem 1.2rem 0.9rem 1.2rem;
+    border-top: 2px solid #4aff4a;
+    z-index: 9999;
+    text-align: left;
+    letter-spacing: 0.03em;
+    box-shadow: 0 -2px 12px #000a;
+    user-select: none;
+    left: 50%;
+    transform: translateX(-50%);
+}
+@keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
+.green-cursor {
+    display:inline-block;
+    width:0.7em;
+    background:transparent;
+    color:#4aff4a;
+    font-weight:bold;
+    animation: blink 1s steps(1) infinite;
+}
+</style>
+</body>
+<script>
+// --- DB Health Check: Show retro warning if DB is unavailable ---
+function showDbStatusBox(msg) {
+    const box = document.getElementById('dbStatusBox');
+    box.innerHTML =
+        '<span style="color:#4aff4a;">[DB STATUS]</span> ' +
+        msg +
+        ' <span class="green-cursor">█</span>';
+    box.style.display = 'block';
+}
+
+fetch('/api/health/db')
+    .then(r => {
+        if (!r.ok) throw new Error('DB unavailable');
+        return r.json();
+    })
+    .then(data => {
+        if (data.db !== 'available') {
+            showDbStatusBox('Database unavailable. Please try again later.');
+        }
+    })
+    .catch(() => {
+        showDbStatusBox('Database unavailable. Please try again later.');
+    });
+// Helper to get JWT token from storage
+function getToken() {
+    return localStorage.getItem('token') || sessionStorage.getItem('token');
+}
+// Populate Referring Organization dropdown dynamically from API (with auth)
+fetch('/api/organizations', {
+    headers: { 'Authorization': 'Bearer ' + getToken() }
+})
+    .then(r => r.json())
+    .then(data => {
+        const list = data.organizations || [];
+        const dropdown = document.getElementById('referringOrganizationDropdown');
+        if (!dropdown) return;
+        list.forEach(org => {
+            const opt = document.createElement('option');
+            opt.value = org.name;
+            opt.textContent = org.name;
+            dropdown.appendChild(opt);
+        });
+    })
+    .catch(() => {
+        const dropdown = document.getElementById('referringOrganizationDropdown');
+        if (dropdown) {
+            dropdown.innerHTML = '<option value="">(Unable to load organizations)</option>';
+        }
+    });
+fetch('/api/communities')
+    .then(r => r.json())
+    .then(data => {
+        // If backend returns {communities: [...]}, use that; else use array directly
+        const list = data.communities || data || [];
+        const dropdown = document.getElementById('communityDropdown');
+        if (!dropdown) return;
+        // Insert options before the 'Other' option
+        const otherOpt = dropdown.querySelector('option[value="Other"]');
+        list.forEach(community => {
+            // If community is an object, use .name; else use as string
+            const name = community && community.name ? community.name : community;
+            if (!name) return;
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            dropdown.insertBefore(opt, otherOpt);
+        });
+    })
+    .catch(() => {
+        const dropdown = document.getElementById('communityDropdown');
+        if (dropdown) {
+            dropdown.innerHTML = '<option value="">(Unable to load communities)</option>';
+        }
+    });
+// Set the intake date to today automatically
+document.getElementById('intakeDateAuto').value = new Date().toISOString().slice(0, 10);
+
+
+// --- Autosave/restore form fields ---
+const form = document.getElementById('intakeForm');
+const AUTOSAVE_KEY = 'intakeFormAutosave';
+// Restore fields on load
+window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem(AUTOSAVE_KEY);
+    if (saved) {
+        try {
+            const data = JSON.parse(saved);
+            for (const [k, v] of Object.entries(data)) {
+                const el = form.elements[k];
+                if (!el) continue;
+                if (el.type === 'checkbox') {
+                    el.checked = !!v;
+                } else if (el.type === 'radio') {
+                    if (el.value === v) el.checked = true;
+                } else {
+                    el.value = v;
+                }
+            }
+        } catch {}
+    }
+});
+// Save fields on input
+form.addEventListener('input', () => {
+    const data = {};
+    for (const el of form.elements) {
+        if (!el.name) continue;
+        if (el.type === 'checkbox') {
+            data[el.name] = el.checked;
+        } else if (el.type === 'radio') {
+            if (el.checked) data[el.name] = el.value;
+        } else {
+            data[el.name] = el.value;
+        }
+    }
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+});
+// Clear autosave on successful submit
+form.addEventListener('submit', function(e) {
+    setTimeout(() => localStorage.removeItem(AUTOSAVE_KEY), 1000);
+});
+// Helper to get all checked values for a group
+function getCheckedValues(name) {
+    return Array.from(document.querySelectorAll('input[name="' + name + '"]:checked')).map(cb => cb.value);
+}
+
+document.getElementById('intakeForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const data = {
+        intakeDate: new Date().toISOString(),
+        applicantName: form.applicantName.value,
+        kinshipRole: form.kinshipRole.value,
+        contact: form.contact.value,
+        email: form.email.value,
+        address: form.address.value,
+        community: form.community.value,
+        language: form.language.value,
+        contactTime: form.contactTime.value,
+        lovedOneName: form.lovedOneName.value,
+        relationship: form.relationship.value,
+        incidentDate: form.incidentDate.value,
+        lastLocation: form.lastLocation.value,
+        investigation: getCheckedValues('investigation'),
+        support: getCheckedValues('support'),
+        otherInvestigation: form.otherInvestigation.value,
+        otherSupport: form.otherSupport.value,
+        notes: form.notes.value,
+        consentStore: form.consentStore.checked,
+        consentShare: form.consentShare.checked,
+        signature: form.signature.value,
+        consentDate: form.consentDate.value,
+        referringOrganization: form.referringOrganization.value
+    };
+    // Basic consent check
+    // Consent check removed for testing/demo purposes
+    try {
+        const res = await fetch('/api/intake', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + getToken()
+            },
+            body: JSON.stringify(data)
+        });
+        let result = {};
+        try {
+            result = await res.json();
+        } catch {}
+        if (res.ok && result.success) {
+            document.getElementById('formMessage').textContent = 'Intake form submitted successfully!';
+            document.getElementById('formMessage').style.color = '#7fffa7';
+            form.reset();
+        } else {
+            let msg = 'Submission failed.';
+            if (result && result.error) msg = result.error;
+            else if (!res.ok && res.status === 400) msg = 'Please check your input and try again.';
+            else if (!res.ok && res.status === 401) msg = 'You are not authorized. Please log in again.';
+            document.getElementById('formMessage').textContent = msg;
+            document.getElementById('formMessage').style.color = '#ff7f7f';
+        }
+    } catch (err) {
+        document.getElementById('formMessage').textContent = 'Network error. Please try again.';
+        document.getElementById('formMessage').style.color = '#ff7f7f';
+    }
+});
+</script>
+</html>

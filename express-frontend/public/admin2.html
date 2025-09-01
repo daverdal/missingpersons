@@ -1,0 +1,493 @@
+<!-- ...existing HTML content... -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Admin Panel 2 - Missing Persons App</title>
+        <link rel="stylesheet" href="retro.css">
+        <script>
+        // --- Admin role check: redirect non-admins ---
+        (function() {
+            var token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+            try {
+                var payload = JSON.parse(atob(token.split('.')[1]));
+                var roles = payload.roles || payload.groups || payload.roles_claim || [];
+                if (!Array.isArray(roles)) roles = [roles];
+                if (!roles.includes('admin')) {
+                    window.location.href = 'index.html';
+                }
+            } catch (e) {
+                window.location.href = 'login.html';
+            }
+        })();
+        </script>
+        <script src="navbar.js"></script>
+        <script src="navbar-auth.js"></script>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Missing Persons Case Management</h1>
+    <!-- Navigation will be injected here -->
+    </header>
+    <main>
+    <script>
+    // --- Auth check and logout logic ---
+    function getToken() {
+        return localStorage.getItem('token') || sessionStorage.getItem('token');
+    }
+    // Redirect to login if not authenticated
+    if (!getToken()) {
+        window.location.href = 'login.html';
+    }
+    // Logout logic
+    document.addEventListener('DOMContentLoaded', function() {
+        var logoutLink = document.getElementById('logoutLink');
+        if (logoutLink) {
+            logoutLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                localStorage.removeItem('token');
+                sessionStorage.removeItem('token');
+                window.location.href = 'login.html';
+            });
+        }
+    <script>
+    // --- Organization Management ---
+    document.addEventListener('DOMContentLoaded', function() {
+        const orgForm = document.getElementById('addOrganizationForm');
+        if (orgForm) {
+            orgForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const token = getToken();
+                const name = document.getElementById('organizationName').value.trim();
+                const contact = document.getElementById('organizationContact').value.trim();
+                const phone = document.getElementById('organizationPhone').value.trim();
+                if (!name) {
+                    alert('Name is required');
+                    return;
+                }
+                fetch('/api/organizations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ name, contact, phone })
+                })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success) {
+                        orgForm.reset();
+                        loadOrganizations();
+                    } else {
+                        alert(result.error || 'Failed to add organization');
+                    }
+                })
+                .catch(err => {
+                    alert('Error submitting organization form: ' + err);
+                });
+            });
+        }
+        // Initial load
+        loadOrganizations();
+        loadFirstNations();
+    });
+    </script>
+</body>
+</html>
+        // Remove or guard logoutBtn event listener to prevent errors
+        var logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                localStorage.removeItem('token');
+                sessionStorage.removeItem('token');
+                window.location.href = 'login.html';
+            });
+        }
+    });
+    </script>
+        <div style="display:flex;gap:2rem;justify-content:center;margin-bottom:2rem;align-items:center;">
+            <a href="#" id="showUsers" class="admin2-nav-link">Advocate Logins</a>
+            <a href="#" id="showClients" class="admin2-nav-link">Assign case to Advocate</a>
+            <a href="#" id="showSettings" class="admin2-nav-link">System Settings</a>
+        </div>
+    <div id="message"></div>
+    <section id="users" style="display:block;">
+
+            <h2>Create new user account</h2>
+            <div id="createUserFormBox" style="background:#181818;padding:0.25em 2em 0.25em 2em;border-radius:10px;max-width:800px;margin:0 0 2em 0;">
+            <form id="createUserForm" autocomplete="off">
+                <div class="form-row" style="display:flex;flex-wrap:wrap;gap:1em;">
+                    <label>Name: <input type="text" name="name" required></label>
+                    <label>Email: <input type="email" name="email" required></label>
+                </div>
+                <div class="form-row" style="display:flex;gap:1em;">
+                    <label>Password: <input type="password" name="password" id="password" required minlength="6"></label>
+                    <label>Confirm Password: <input type="password" name="confirmPassword" id="confirmPassword" required minlength="6"></label>
+                </div>
+                <div class="form-row" style="display:flex;gap:1em;margin-top:0.5em;align-items:center;justify-content:center;">
+                    <label style="margin-bottom:0;">Role:
+                        <select name="role" required>
+                            <option value="case_worker">Case Worker</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </label>
+                    <button type="submit">Create User</button>
+                </div>
+                <div id="passwordError" style="color:#ff6666;margin-top:0.5em;display:none;">Passwords do not match.</div>
+            </form>
+            </div>
+            <table id="usersTable" style="border:none; border-collapse:collapse;">
+                <thead><tr><th style="border:none !important;">Name</th><th style="border:none !important;">Email</th><th style="border:none !important;">Roles</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <style>
+                #usersTable th, #usersTable td {
+                    border: none !important;
+                }
+            </style>
+        </section>
+        <section id="clients" style="display:none;">
+            <h2>Assign Client</h2>
+            <table id="casesTable">
+                <thead><tr><th>Name</th><th>Current Case Worker / Unassign</th><th>Assign to Case Worker</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </section>
+        <section id="settings" style="display:none;">
+            <h2>System Settings</h2>
+            <div style="display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;">
+                <div style="flex:1;min-width:280px;max-width:340px;background:#23272b;padding:1rem;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                    <h3>Organizations</h3>
+                    <form id="addOrganizationForm">
+                        <div class="fields">
+                            <div style="display:flex;align-items:center;gap:0.5em;margin-bottom:0.5em;">
+                                <label for="organizationName" style="min-width:70px;">Name*:</label>
+                                <input type="text" id="organizationName" required style="flex:1;">
+                            </div>
+                            <div style="display:flex;align-items:center;gap:0.5em;margin-bottom:0.5em;">
+                                <label for="organizationContact" style="min-width:70px;">Contact:</label>
+                                <input type="text" id="organizationContact" style="flex:1;">
+                            </div>
+                            <div style="display:flex;align-items:center;gap:0.5em;margin-bottom:0.5em;">
+                                <label for="organizationPhone" style="min-width:70px;">Phone:</label>
+                                <input type="text" id="organizationPhone" style="flex:1;">
+                            </div>
+                        </div>
+                        <button type="submit">Add Organization</button>
+                    </form>
+                    <h4 style="margin-top:1.5rem;">Current Organizations:</h4>
+                    <div class="list" id="organizationList"></div>
+                </div>
+                <div style="flex:1;min-width:280px;max-width:340px;background:#23272b;padding:1rem;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                    <h3>First Nations</h3>
+                    <form id="addCommunityForm">
+                        <div class="fields">
+                            <label>Name*:<br><input type="text" id="communityName" required></label>
+                            <label>Band Number:<br><input type="text" id="bandNumber"></label>
+                            <label>Address*:<br><input type="text" id="address" required></label>
+                            <label>Phone*:<br><input type="text" id="phone" required></label>
+                            <label>Fax:<br><input type="text" id="fax"></label>
+                            <label>Latitude*:<br><input type="number" id="latitude" step="any" required></label>
+                            <label>Longitude*:<br><input type="number" id="longitude" step="any" required></label>
+                        </div>
+                        <button type="submit">Add First Nation</button>
+                    </form>
+                    <h4 style="margin-top:1.5rem;">Current First Nations:</h4>
+                    <div class="list" id="communityList"></div>
+                    <ul id="firstNationsList" style="margin-top:1em;"></ul>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script>
+        // --- Password match validation for create user form ---
+        document.addEventListener('DOMContentLoaded', function() {
+            var form = document.getElementById('createUserForm');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    var pw = document.getElementById('password').value;
+                    var cpw = document.getElementById('confirmPassword').value;
+                    var errorDiv = document.getElementById('passwordError');
+                    if (pw !== cpw) {
+                        e.preventDefault();
+                        errorDiv.style.display = 'block';
+                    } else {
+                        errorDiv.style.display = 'none';
+                    }
+                });
+            }
+        });
+    document.addEventListener('DOMContentLoaded', function() {
+    // Show System Settings (organizations) on page load
+    showSection('settings');
+        // --- Advocate Logins Management ---
+        function loadUsers() {
+            const token = getToken();
+            fetch('/api/users', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const users = data.users || [];
+                const tbody = document.querySelector('#usersTable tbody');
+                tbody.innerHTML = '';
+                if (users.length === 0) {
+                    const tr = document.createElement('tr');
+                    const td = document.createElement('td');
+                    td.colSpan = 3;
+                    td.textContent = 'No users found.';
+                    tr.appendChild(td);
+                    tbody.appendChild(tr);
+                    return;
+                }
+                users.forEach(u => {
+                    const tr = document.createElement('tr');
+                    const nameTd = document.createElement('td');
+                    nameTd.textContent = u.name || '';
+                    tr.appendChild(nameTd);
+                    const emailTd = document.createElement('td');
+                    emailTd.textContent = u.email || '';
+                    tr.appendChild(emailTd);
+                    const rolesTd = document.createElement('td');
+                    rolesTd.textContent = Array.isArray(u.roles) ? u.roles.join(', ') : (u.roles || '');
+                    tr.appendChild(rolesTd);
+                    tbody.appendChild(tr);
+                });
+            });
+        }
+        // Section toggling
+        function showSection(section) {
+            document.getElementById('users').style.display = 'none';
+            document.getElementById('clients').style.display = 'none';
+            document.getElementById('settings').style.display = 'none';
+            document.getElementById(section).style.display = 'block';
+            if(section === 'settings') {
+                loadOrganizations();
+                loadFirstNations();
+            }
+        }
+
+        // --- First Nations (Communities) List ---
+        function loadFirstNations() {
+            const token = getToken();
+            fetch('/api/communities', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const list = data.communities || [];
+                const ul = document.getElementById('firstNationsList');
+                ul.innerHTML = '';
+                if (list.length === 0) {
+                    const li = document.createElement('li');
+                    li.textContent = 'No First Nations found.';
+                    ul.appendChild(li);
+                    return;
+                }
+                // Sort alphabetically by name
+                list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                list.forEach(c => {
+                    const li = document.createElement('li');
+                    li.textContent = c.name + (c.band_number ? ' (Band ' + c.band_number + ')' : '');
+                    ul.appendChild(li);
+                });
+            });
+        }
+                document.getElementById('showUsers').addEventListener('click', function(e) {
+                        e.preventDefault();
+                        showSection('users');
+                        loadUsers();
+                });
+                document.getElementById('showClients').addEventListener('click', function(e) {
+                        e.preventDefault();
+                        showSection('clients');
+                        loadCases();
+                });
+                document.getElementById('showSettings').addEventListener('click', function(e) {
+                        e.preventDefault();
+                        showSection('settings');
+                });
+
+        document.getElementById('logoutBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.removeItem('token');
+            sessionStorage.removeItem('token');
+            window.location.href = 'login.html';
+        });
+
+        // --- Organization Management ---
+
+        // --- Case Assignment Management ---
+        function loadCases() {
+            const token = getToken();
+            fetch('/api/cases', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const cases = data.cases || [];
+                const table = document.getElementById('casesTable').getElementsByTagName('tbody')[0];
+                table.innerHTML = '';
+                if (cases.length === 0) {
+                    const tr = document.createElement('tr');
+                    const td = document.createElement('td');
+                    td.colSpan = 3;
+                    td.textContent = 'No cases found.';
+                    tr.appendChild(td);
+                    table.appendChild(tr);
+                    return;
+                }
+                cases.forEach(c => {
+                    const tr = document.createElement('tr');
+                    // Name column
+                    const nameTd = document.createElement('td');
+                    nameTd.textContent = c.name || c.id || '(no name)';
+                    tr.appendChild(nameTd);
+                    // Current Case Worker / Unassign column
+                    const currentTd = document.createElement('td');
+                    let assigned = c.assignedTo && c.assignedTo.length > 0;
+                    if (assigned) {
+                        currentTd.textContent = c.assignedTo.join(', ');
+                    } else {
+                        currentTd.textContent = 'Unassigned';
+                    }
+                    tr.appendChild(currentTd);
+                    // Assign to Case Worker column
+                    const assignTd = document.createElement('td');
+                    if (assigned) {
+                        // Show Unassign button if already assigned
+                        const unassignBtn = document.createElement('button');
+                        unassignBtn.textContent = 'Unassign';
+                        unassignBtn.addEventListener('click', function(ev) {
+                            ev.preventDefault();
+                            fetch(`/api/cases/${encodeURIComponent(c.id)}/unassign`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Bearer ' + token
+                                }
+                            })
+                            .then(r => r.json())
+                            .then(result => {
+                                if (result.success) {
+                                    loadCases();
+                                } else {
+                                    alert(result.error || 'Failed to unassign');
+                                }
+                            });
+                        });
+                        assignTd.appendChild(unassignBtn);
+                    } else {
+                        // Show assign dropdown and button if unassigned
+                        const select = document.createElement('select');
+                        select.innerHTML = '<option value="">-- Select --</option>';
+                        fetch('/api/users', {
+                            headers: { 'Authorization': 'Bearer ' + token }
+                        })
+                        .then(r => r.json())
+                        .then(usersData => {
+                            (usersData.users || []).filter(u => u.roles && u.roles.includes('case_worker')).forEach(u => {
+                                const opt = document.createElement('option');
+                                opt.value = u.email;
+                                opt.textContent = u.name + ' (' + u.email + ')';
+                                select.appendChild(opt);
+                            });
+                        });
+                        const assignBtn = document.createElement('button');
+                        assignBtn.textContent = 'Assign';
+                        assignBtn.addEventListener('click', function(ev) {
+                            ev.preventDefault();
+                            const email = select.value;
+                            if (!email) return alert('Select a case worker');
+                            fetch(`/api/cases/${encodeURIComponent(c.id)}/assign`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': 'Bearer ' + token
+                                },
+                                body: JSON.stringify({ email })
+                            })
+                            .then(r => r.json())
+                            .then(result => {
+                                if (result.success) {
+                                    loadCases();
+                                } else {
+                                    alert(result.error || 'Failed to assign');
+                                }
+                            });
+                        });
+                        assignTd.appendChild(select);
+                        assignTd.appendChild(assignBtn);
+                    }
+                    tr.appendChild(assignTd);
+                    table.appendChild(tr);
+                });
+            });
+        }
+        function getToken() {
+            return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        }
+        function loadOrganizations() {
+            const token = getToken();
+            fetch('/api/organizations', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const list = data.organizations || [];
+                const container = document.getElementById('organizationList');
+                container.innerHTML = '';
+                list.forEach(org => {
+                    const div = document.createElement('div');
+                    div.className = 'list-item';
+                    div.textContent = `${org.name}${org.contact ? ' - ' + org.contact : ''}${org.phone ? ' (' + org.phone + ')' : ''}`;
+                    // Delete button
+                    const delBtn = document.createElement('button');
+                    delBtn.textContent = 'Delete';
+                    delBtn.style.textDecoration = 'underline';
+                    delBtn.style.color = '#f7c873';
+                    delBtn.style.background = 'none';
+                    delBtn.style.border = 'none';
+                    delBtn.style.cursor = 'pointer';
+                    delBtn.style.marginLeft = '1rem';
+                    delBtn.addEventListener('click', function() {
+                        if (confirm('Delete this organization?')) {
+                            fetch('/api/organizations', {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': 'Bearer ' + token
+                                },
+                                body: JSON.stringify({ name: org.name })
+                            })
+                            .then(r => r.json())
+                            .then(() => loadOrganizations());
+                        }
+                    });
+                    div.appendChild(delBtn);
+                    container.appendChild(div);
+                });
+            });
+        }
+        document.getElementById('addOrganizationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const token = getToken();
+            const name = document.getElementById('organizationName').value.trim();
+            const contact = document.getElementById('organizationContact').value.trim();
+            const phone = document.getElementById('organizationPhone').value.trim();
+            if (!name) {
+                alert('Name is required');
+                return;
+            }
+            fetch('/api/organizations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+</body>
+</html>
+

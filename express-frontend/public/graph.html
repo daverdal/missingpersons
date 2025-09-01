@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Neo4j Graph Visualization</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+  <style>
+    #viz {
+      width: 1000px;
+      height: 600px;
+      background: #111;
+      margin: 40px auto 0 auto;
+      border-radius: 8px;
+      box-shadow: 0 0 24px #000a;
+      padding: 0;
+    }
+    .retro-box {
+      width: 1100px;
+      margin: 40px auto 0 auto;
+      background: #181818;
+      border-radius: 8px;
+      box-shadow: 0 0 24px #000a;
+      padding: 32px 40px 40px 40px;
+      color: #6fcf6f;
+      font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+    }
+    .retro-link {
+      color: #4fa3ff;
+      text-decoration: none;
+      font-weight: bold;
+      margin-right: 32px;
+    }
+    .retro-link:visited {
+      color: #4fa3ff;
+    }
+  </style>
+  <!-- vis.js CDN for network visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/vis-network.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/vis-network.min.css" rel="stylesheet" />
+</head>
+<body>
+  <header>
+    <h1 style="text-align:center;">Missing Persons Case Management</h1>
+    <nav>
+      <div style="text-align:center;">
+  
+  <a href="#" id="logoutLink" class="admin2-nav-link" style="margin-right: 2em;">Logout</a>
+  <script>
+    // Logout button logic
+    document.addEventListener('DOMContentLoaded', function() {
+      var logoutLink = document.getElementById('logoutLink');
+      if (logoutLink) {
+        logoutLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          localStorage.removeItem('token');
+          sessionStorage.removeItem('token');
+          window.location.href = 'login.html';
+        });
+      }
+    });
+  </script>
+      </div>
+    </nav>
+  </header>
+  <div class="retro-box">
+    <div id="viz"></div>
+  </div>
+  <script>
+    // Cypher query for the graph
+    const cypher = `MATCH (u:User)-[r:ASSIGNED_TO]->(a:Applicant)
+OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
+OPTIONAL MATCH (a)-[n:HAS_NOTE]->(note:Note)
+RETURN u, r, a, rel, l, n, note LIMIT 100`;
+
+    async function fetchGraph() {
+      const res = await fetch('/api/graph-cypher', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cypher })
+      });
+      return res.json();
+    }
+
+    function nodeLabel(node) {
+      if (!node._labels) return node.name || node.id || 'Node';
+      if (node._labels.includes('User')) return `👤 ${node.name}`;
+      if (node._labels.includes('Applicant')) return `📁 ${node.name}`;
+      if (node._labels.includes('LovedOne')) return `🧑 ${node.name}`;
+      if (node._labels.includes('Community')) return `🏠 ${node.name}`;
+      return node.name || node.id || 'Node';
+    }
+
+    function nodeColor(node) {
+      if (!node._labels) return '#6fcf6f';
+      if (node._labels.includes('User')) return '#4fa3ff';
+      if (node._labels.includes('Applicant')) return '#f7c873';
+      if (node._labels.includes('LovedOne')) return '#e74c3c';
+      if (node._labels.includes('Community')) return '#b983ff';
+      return '#6fcf6f';
+    }
+
+    function relLabel(rel) {
+      if (rel.type === 'ASSIGNED_TO') return 'assigned to';
+      if (rel.type === 'HAS_NOTE') return 'has note';
+      if (rel.type === 'RELATED_TO') return rel.properties && rel.properties.relationship ? rel.properties.relationship : 'related to';
+      return rel.type;
+    }
+
+    async function renderGraph() {
+      const data = await fetchGraph();
+      if (!data.nodes || !data.relationships) {
+        document.getElementById('viz').innerHTML = '<div style="color:#e74c3c;padding:2em;text-align:center;">No graph data found.</div>';
+        return;
+      }
+      const nodes = data.nodes.map(n => ({
+        id: n._id,
+        label: nodeLabel(n),
+        color: nodeColor(n),
+        shape: 'dot',
+        size: 24,
+        font: { color: '#fff', size: 18 }
+      }));
+      const edges = data.relationships.map(r => ({
+        id: r.id,
+        from: r.start,
+        to: r.end,
+        label: relLabel(r),
+        color: '#6fcf6f',
+        font: { color: '#111', size: 14, align: 'middle' },
+        arrows: 'to',
+        width: 2
+      }));
+      const container = document.getElementById('viz');
+      const networkData = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+      const options = {
+        nodes: { borderWidth: 2 },
+        edges: { smooth: true },
+        physics: { stabilization: true },
+        layout: { improvedLayout: true }
+      };
+      new vis.Network(container, networkData, options);
+    }
+    renderGraph();
+  </script>
+</body>
+</html>

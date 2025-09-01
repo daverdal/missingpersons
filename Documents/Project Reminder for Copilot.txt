@@ -1,0 +1,14 @@
+Project Reminder for Copilot:
+
+This is a Node.js/Express/Neo4j app for managing Missing Persons cases.
+Key features:
+
+Secure staff login (JWT)
+Case assignment to case workers
+Case notes (view/add)
+“All Cases” and “My Cases” pages
+Neo4j database for users, applicants, and relationships
+Static HTML/CSS/JS frontend in public
+Main backend in server.js
+Test data in purge_and_seed.cypher
+Please review the codebase and help me continue development or debugging from where I left off.

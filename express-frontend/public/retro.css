@@ -1,0 +1,410 @@
+/* Nav highlighting styles */
+.nav-link.active, .nav-link[aria-current="page"] {
+  color: #d2691e !important;
+  font-weight: bold;
+  transition: color 0.2s;
+}
+/* Always style the Graph Visualization link the same, regardless of visited/clicked state */
+/* Style all admin2 navigation links the same, regardless of visited/clicked state */
+.admin2-nav-link,
+.admin2-nav-link:link,
+.admin2-nav-link:visited,
+.admin2-nav-link:active,
+.admin2-nav-link:hover {
+  color: #f7c873 !important;
+  text-decoration: underline !important;
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+/* Retro grey checkboxes */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #23272b;
+  border: 2px solid #888;
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 3px;
+  margin-right: 0.4em;
+  position: relative;
+  cursor: pointer;
+  vertical-align: middle;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+input[type="checkbox"]:checked {
+  background-color: #444;
+  border-color: #6fcf6f;
+}
+input[type="checkbox"]:focus {
+  box-shadow: 0 0 0 2px #6fcf6f44;
+}
+input[type="checkbox"]:checked::after {
+  content: "";
+  display: block;
+  position: absolute;
+  left: 0.28em;
+  top: 0.08em;
+  width: 0.4em;
+  height: 0.7em;
+  border: solid #6fcf6f;
+  border-width: 0 0.18em 0.18em 0;
+  transform: rotate(45deg);
+}
+/* Make the Additional Notes textarea wider */
+textarea[name="notes"] {
+  width: 75%;
+  min-width: 300px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+/* Two-column grid for intake form fields */
+.two-col-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2em 2em;
+  margin-bottom: 1.5em;
+}
+.two-col-form label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 0;
+  gap: 0.8em;
+}
+.two-col-form label[style*="grid-column"] {
+  grid-column: 1 / -1;
+}
+/* Make all links and visited links the same blue color and remove underline */
+a:link, a:visited {
+  color: #4da6ff;
+  text-decoration: none;
+}
+a:hover, a:active {
+  color: #82cfff;
+  text-decoration: none;
+}
+/* Ensure Graph Visualization link is always the same color, even if visited */
+/* Style file input (Browse button) to match retro theme */
+input[type="file"]::-webkit-file-upload-button {
+  background: #23272b;
+  color: #6fcf6f;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5em 1.2em;
+  font-family: inherit;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+input[type="file"]::-ms-browse {
+  background: #23272b;
+  color: #6fcf6f;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5em 1.2em;
+  font-family: inherit;
+  font-size: 1em;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button {
+  background: #23272b;
+  color: #6fcf6f;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5em 1.2em;
+  font-family: inherit;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+input[type="file"]:hover::file-selector-button,
+input[type="file"]:focus::file-selector-button {
+  background: #333;
+  color: #aaffaa;
+}
+/* Muted retro red for delete buttons */
+.deleteFileBtn, .delete-btn, button.delete {
+  color: #a86a6a !important;
+  background: none !important;
+  border: none !important;
+  cursor: pointer;
+  font-weight: normal;
+  opacity: 0.85;
+  transition: color 0.2s, opacity 0.2s;
+}
+.deleteFileBtn:hover, .delete-btn:hover, button.delete:hover {
+  color: #e6b0b0 !important;
+  opacity: 1;
+}
+/* Make case notes use full width and improve spacing */
+.note {
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  color: inherit;
+  margin-bottom: 1.5em;
+  padding: 0.7em 0.2em 0.7em 0.2em;
+  border: none;
+  border-radius: 0;
+  font-size: 1.08em;
+  word-break: break-word;
+}
+.note-meta {
+  color: #8fbc8f;
+  font-size: 0.98em;
+  margin-bottom: 0.3em;
+}
+h2 {
+  font-size: 2.1em;
+  margin-bottom: 0.5em;
+}
+h3 {
+  font-size: 1.5em;
+  margin-bottom: 0.4em;
+}
+/* More vertical spacing between lines and sections */
+.form-row, .form-group, .input-row {
+  margin-bottom: 1.5em !important;
+}
+label {
+  margin-bottom: 0.5em;
+}
+section, form {
+  margin-bottom: 2.5em !important;
+  margin-top: 2.5em !important;
+}
+main > section:not(:first-child) {
+  margin-top: 3.5em !important;
+}
+/* Improve label spacing for checkboxes and text fields */
+label {
+  display: inline-flex;
+  align-items: center;
+  padding-right: 1.2em;
+  padding-left: 0.2em;
+  cursor: pointer;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+label > input[type="checkbox"] {
+  margin-right: 0.6em;
+}
+input[type="text"], input[type="email"], input[type="password"], select, textarea {
+  margin-right: 1.2em;
+}
+/* Custom retro grey checkboxes */
+.section-title {
+  font-size: 1.7em;
+  font-weight: bold;
+  color: #6fcf6f;
+  margin: 2em 0 1.5em 0;
+  letter-spacing: 0.03em;
+}
+input[type="checkbox"]:checked::after {
+  content: "";
+  display: block;
+  position: absolute;
+  left: 0.28em;
+  top: 0.08em;
+  width: 0.4em;
+  height: 0.7em;
+  border: solid #6fcf6f;
+  border-width: 0 0.18em 0.18em 0;
+  transform: rotate(45deg);
+}
+/* Custom style for checkboxes to match grey field look */
+input[type="checkbox"] {
+  accent-color: #23272b;
+  background-color: #23272b;
+  border: 1px solid #333;
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 3px;
+  margin-right: 0.4em;
+}
+/* Fixed width for create user form and horizontal layout for fields and button */
+#createUserForm {
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 2rem;
+}
+#createUserForm .form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1.2rem 2rem;
+  width: 100%;
+}
+#createUserForm label {
+  flex: 1 1 180px;
+  margin-bottom: 0;
+  min-width: 160px;
+}
+#createUserForm button[type="submit"] {
+  flex: 0 0 160px;
+  margin-top: 0;
+  align-self: flex-end;
+  min-width: 140px;
+}
+#createUserForm .form-row > * {
+  min-width: 0;
+}
+@media (max-width: 650px) {
+  #createUserForm {
+    width: 99vw;
+    min-width: 0;
+    padding: 0 0.5rem;
+  }
+  #createUserForm .form-row {
+    flex-direction: column;
+    gap: 0.7rem 0;
+  }
+  #createUserForm button[type="submit"] {
+    width: 100%;
+    min-width: 0;
+  }
+}
+/* retro.css - Global retro terminal theme */
+body {
+  background: #000;
+  color: #6fcf6f;
+  font-family: 'Fira Mono', 'Consolas', 'Roboto Mono', 'Courier New', monospace;
+  margin: 0;
+  padding: 0;
+  font-size: 1.08rem;
+}
+main, header, nav, section, table, form, input, select, textarea, button, label, h1, h2, h3, h4, h5, h6, th, td, div {
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  border: none;
+  box-shadow: none;
+}
+main {
+  max-width: 1200px;
+  margin: 2.5rem auto;
+  border-radius: 10px;
+  border: 2px solid #6fcf6f;
+  padding: 2.2rem 2.5rem;
+  box-shadow: 0 0 8px #6fcf6f22;
+}
+h1, h2, h3, h4, h5, h6 {
+  color: #6fcf6f;
+  text-shadow: 0 0 1px #6fcf6f, 0 0 2px #4a7a4a;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+label {
+  font-weight: bold;
+  margin-bottom: 0.2rem;
+}
+input, select, textarea {
+  background: #000;
+  color: #6fcf6f;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-size: 1rem;
+  margin-bottom: 0.7rem;
+}
+input, select, textarea {
+  background: #23272b; /* subtle retro grey */
+  color: #6fcf6f;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 0.5em 0.7em;
+  font-family: inherit;
+  font-size: 1em;
+  margin-bottom: 0.7em;
+  box-shadow: none;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid #6fcf6f;
+  border-color: #6fcf6f;
+}
+button {
+  background: #000;
+  color: #6fcf6f;
+  border: none;
+  border-radius: 4px;
+  padding: 0.7rem 2rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: background 0.2s, color 0.2s;
+  box-shadow: 0 0 8px #6fcf6f22;
+}
+button:hover, button:focus {
+  background: #23272b;
+  color: #aaffaa;
+}
+main {
+  background: #111;
+  color: #6fcf6f;
+  border-radius: 10px;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 2.5em auto 2em auto;
+  padding: 2.5em 2.5em 2em 2.5em;
+  max-width: 1200px;
+  min-width: 320px;
+}
+#intake-form, form#intake-form, .intake-form, .main-content-box {
+  border: none !important;
+  box-shadow: none !important;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 2rem;
+  background: transparent;
+  border: none !important;
+}
+th, td {
+  border: none !important;
+  padding: 0.5rem 1rem;
+  text-align: left;
+}
+th {
+  background: #000;
+  color: #6fcf6f;
+}
+tr:nth-child(even) {
+  background: #0a0a0a;
+}
+tr:nth-child(odd) {
+  background: #000;
+}
+#dbStatusBox, .retro-warning {
+  background: #000;
+  color: #6fcf6f;
+  border: 2px solid #6fcf6f;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 1.1rem;
+  text-align: center;
+  margin: 1.5rem auto 0 auto;
+  padding: 1.2rem 1.5rem 1.2rem 1.5rem;
+  max-width: 500px;
+  box-shadow: 0 0 6px #6fcf6f22;
+  position: relative;
+  z-index: 10;
+}
+.blinker {
+  animation: blink 1s steps(2, start) infinite;
+  color: #6fcf6f;
+}
+@keyframes blink {
+  to { visibility: hidden; }
+}
+::-webkit-scrollbar {
+  width: 10px;
+  background: #000;
+}
+::-webkit-scrollbar-thumb {
+  background: #6fcf6f;
+}

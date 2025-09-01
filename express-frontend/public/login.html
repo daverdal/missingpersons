@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Login - Missing Persons App</title>
+    <link rel="stylesheet" href="retro.css">
+        <style>
+        #dbStatusBox {
+            display: none;
+            background: #000;
+            color: #4aff4a;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            border: 2px solid #4aff4a;
+            margin: 1.5rem auto 0 auto;
+            padding: 1.2rem 1.5rem 1.2rem 1.5rem;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 10;
+        }
+        #dbStatusBox .blinker {
+            animation: blink 1s steps(2, start) infinite;
+            color: #4aff4a;
+        }
+        @keyframes blink {
+            to { visibility: hidden; }
+        }
+        #loginForm[aria-disabled="true"] {
+            pointer-events: none;
+            opacity: 0.5;
+        }
+        #loginForm[aria-disabled="true"] button {
+            background: #888;
+            color: #23272b;
+            cursor: not-allowed;
+        }
+        .login-center {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 2.5rem auto 0 auto;
+            max-width: 400px;
+        }
+        .login-center h1 {
+            text-align: center;
+        }
+        .login-center form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.1em;
+            width: 100%;
+        }
+        .login-center label {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            font-size: 1.1em;
+            gap: 0.8em;
+        }
+        .login-center input[type="email"],
+        .login-center input[type="password"] {
+            flex: 1 1 0;
+            font-size: 1em;
+            padding: 0.3em 0.5em;
+        }
+        .login-center button {
+            margin-top: 0.7em;
+        }
+        </style>
+</head>
+<body>
+    <header>
+    <h1 style="text-align:center;">Case Management</h1>
+    <!-- Removed page heading from login.html -->
+    <div id="dbStatusBox">
+        <span style="font-weight:bold;">Database Connection Error</span><br>
+        <span style="font-size:0.98em;">The database is currently unavailable.<br>
+        Please try again later or contact support.<br>
+        <span class="blinker">█</span></span>
+    </div>
+    <div class="login-center">
+        <h1>Staff Login</h1>
+        <form id="loginForm" autocomplete="off">
+            <label>Email: <input type="email" name="email" required></label>
+            <label>Password: <input type="password" name="password" required></label>
+            <button type="submit">Login</button>
+        </form>
+        <div id="loginMessage"></div>
+    </div>
+    </main>
+        <script>
+        async function checkDbHealth() {
+            try {
+                const res = await fetch('/api/health/db', { cache: 'no-store' });
+                if (!res.ok) throw new Error('DB down');
+                const data = await res.json();
+                if (data.status !== 'ok') throw new Error('DB down');
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
+        function showDbErrorBox() {
+            const box = document.getElementById('dbStatusBox');
+            box.style.display = 'block';
+            const form = document.getElementById('loginForm');
+            form.setAttribute('aria-disabled', 'true');
+        }
+
+        function hideDbErrorBox() {
+            const box = document.getElementById('dbStatusBox');
+            box.style.display = 'none';
+            const form = document.getElementById('loginForm');
+            form.removeAttribute('aria-disabled');
+        }
+
+        async function updateDbStatus() {
+            const healthy = await checkDbHealth();
+            if (!healthy) {
+                showDbErrorBox();
+            } else {
+                hideDbErrorBox();
+            }
+        }
+
+        // Initial check and periodic polling
+        updateDbStatus();
+        setInterval(updateDbStatus, 10000);
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                if (document.getElementById('loginForm').getAttribute('aria-disabled') === 'true') {
+                    showDbErrorBox();
+                    return;
+                }
+                const form = e.target;
+                const email = form.email.value;
+                const password = form.password.value;
+                const res = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password })
+                });
+                const result = await res.json();
+                if (result.success) {
+                        localStorage.setItem('token', result.token);
+                        window.location.href = 'index.html';
+                } else {
+                        document.getElementById('loginMessage').textContent = result.error || 'Login failed.';
+                        document.getElementById('loginMessage').style.color = '#ff7f7f';
+                }
+        });
+        </script>
+</body>
+</html>

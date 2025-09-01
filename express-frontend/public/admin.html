@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Missing Persons App</title>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
+    <style>
+        body { background: #181c20; color: #e0e0e0; font-family: 'Roboto', Arial, sans-serif; margin: 0; }
+        main { max-width: 1000px; margin: 2rem auto; background: #23272b; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); padding: 2rem; }
+        h1 { color: #f7c873; text-align: center; }
+        h2 { color: #f7c873; margin-top: 2rem; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        th, td { border: 1px solid #444; padding: 0.5rem 1rem; text-align: left; }
+        th { background: #23272b; color: #f7c873; }
+        tr:nth-child(even) { background: #20242a; }
+        input, select { background: #181c20; color: #e0e0e0; border: 1px solid #444; border-radius: 4px; padding: 0.4rem; }
+        button {
+            background: none;
+            color: #f7c873;
+            border: none;
+            padding: 0;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 0;
+            text-decoration: underline;
+            font-size: 1rem;
+        }
+        button:hover {
+            color: #ffd580;
+            background: none;
+        }
+        .form-row { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; }
+        .form-row label { min-width: 120px; }
+        #message { margin: 1rem 0; font-weight: bold; }
+        @media (max-width: 700px) { main { padding: 1rem; } .form-row { flex-direction: column; align-items: stretch; } }
+    </style>
+</head>
+<body>
+    <header style="background:#23272b;padding:1rem 0 0.5rem 0;display:flex;align-items:center;justify-content:space-between;">
+        <nav style="margin-left:2rem;display:flex;gap:2rem;align-items:center;">
+            <a href="index.html" style="color:#f7c873;font-weight:700;text-decoration:none;font-size:1.1rem;">&larr; Main Page</a>
+            
+        </nav>
+        <button id="logoutBtn" style="margin-right:2rem;background:#e74c3c;color:#fff;padding:0.5rem 1.2rem;border:none;border-radius:4px;font-weight:700;cursor:pointer;">Logout</button>
+    </header>
+    <main>
+        <h1>Admin Panel</h1>
+        <div style="display:flex;gap:2rem;justify-content:center;margin-bottom:2rem;">
+            <a href="javascript:void(0)" id="showUsers" style="color:#f7c873;font-weight:700;text-decoration:underline;font-size:1.15rem;">Advocate Logins</a>
+            <a href="javascript:void(0)" id="showClients" style="color:#f7c873;font-weight:700;text-decoration:underline;font-size:1.15rem;">Assign case to Advocate</a>
+            <a href="javascript:void(0)" id="showSettings" style="color:#f7c873;font-weight:700;text-decoration:underline;font-size:1.15rem;">System Settings</a>
+        </div>
+        <div id="message"></div>
+    <section id="users" style="display:block;">
+    <h2>Advocate Logins</h2>
+    <div style="color:#4caf50;font-weight:bold;">[You are viewing: Advocate Logins]</div>
+            <form id="createUserForm">
+                <div class="form-row">
+                    <label>Name: <input type="text" name="name" required></label>
+                    <label>Email: <input type="email" name="email" required></label>
+                    <label>Password: <input type="password" name="password" required minlength="6"></label>
+                    <label>Role:
+                        <select name="role" required>
+                            <option value="case_worker">Case Worker</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </label>
+                    <button type="submit">Create User</button>
+                </div>
+            </form>
+            <table id="usersTable">
+                <thead><tr><th>Name</th><th>Email</th><th>Roles</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </section>
+        <section id="clients" style="display:none;">
+            <h2>Assign Client</h2>
+            <div style="color:#4caf50;font-weight:bold;">[You are viewing: Assign Client]</div>
+            <table id="casesTable">
+                <thead><tr><th>Name</th><th>Current Case Worker / Unassign</th><th>Assign to Case Worker</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </section>
+        <section id="settings" style="display:none;">
+            <h2>System Settings</h2>
+            <div style="color:#4caf50;font-weight:bold;">[You are viewing: System Settings]</div>
+            <div style="display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;">
+                <div style="flex:1;min-width:280px;max-width:340px;background:#23272b;padding:1rem;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                    <h3>Organizations</h3>
+                    <form id="addOrganizationForm">
+                        <div class="fields">
+                            <label>Name*:<br><input type="text" id="organizationName" required></label>
+                            <label>Contact:<br><input type="text" id="organizationContact"></label>
+                            <label>Phone:<br><input type="text" id="organizationPhone"></label>
+                        </div>
+                        <button type="submit">Add Organization</button>
+                    </form>
+                    <h4 style="margin-top:1.5rem;">Current Organizations:</h4>
+                    <div class="list" id="organizationList"></div>
+                    <h4 style="margin-top:1.5rem;">Create Organization Relationship:</h4>
+                </div>
+                <div style="flex:1;min-width:280px;max-width:340px;background:#23272b;padding:1rem;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                    <h3>Communities</h3>
+                    <form id="addCommunityForm">
+                        <div class="fields">
+                            <label>Name*:<br><input type="text" id="communityName" required></label>
+                            <label>Band Number:<br><input type="text" id="bandNumber"></label>
+                            <label>Address*:<br><input type="text" id="address" required></label>
+                            <label>Phone*:<br><input type="text" id="phone" required></label>
+                            <label>Fax:<br><input type="text" id="fax"></label>
+                            <label>Latitude*:<br><input type="number" id="latitude" step="any" required></label>
+                            <label>Longitude*:<br><input type="number" id="longitude" step="any" required></label>
+                        </div>
+                        <button type="submit">Add Community</button>
+                    </form>
+                    <h4 style="margin-top:1.5rem;">Current Communities:</h4>
+                    <div class="list" id="communityList"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script>
+    // Check for admin role in JWT (stored in localStorage or sessionStorage)
+    function parseJwt(token) {
+        try {
+            return JSON.parse(atob(token.split('.')[1]));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Section toggling for admin panel
+        function showSection(section) {
+            document.getElementById('users').style.display = 'none';
+            document.getElementById('clients').style.display = 'none';
+            document.getElementById('settings').style.display = 'none';
+            document.getElementById(section).style.display = 'block';
+            if(section === 'settings') {
+                loadCommunities();
+                loadOrganizations();
+            }
+        }
+        // --- Navigation and Logout ---
+        document.getElementById('showUsers').addEventListener('click', function(e) {
+            e.preventDefault();
+            showSection('users');
+        });
+        document.getElementById('showClients').addEventListener('click', function(e) {
+            e.preventDefault();
+            showSection('clients');
+            fetchCases();
+        });
+        document.getElementById('showSettings').addEventListener('click', function(e) {
+            e.preventDefault();
+            showSection('settings');
+        });
+        document.getElementById('logoutBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.removeItem('token');
+            sessionStorage.removeItem('token');
+            window.location.href = 'login.html';
+        });
+
+        // --- Organization Management ---
+        document.getElementById('addOrganizationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const token = getToken();
+            const name = document.getElementById('organizationName').value.trim();
+            const contact = document.getElementById('organizationContact').value.trim();
+            const phone = document.getElementById('organizationPhone').value.trim();
+            if (!name) {
+                alert('Name is required');
+                return;
+            }
+            fetch('/api/organizations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ name, contact, phone })
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    document.getElementById('addOrganizationForm').reset();
+                    loadOrganizations();
+                } else {
+                    alert(result.error || 'Failed to add organization');
+                }
+            });
+        });
+
+        document.getElementById('orgRelateTargetType').addEventListener('change', loadOrgRelateTargets);
+        loadOrgRelateTargets();
+        document.getElementById('orgRelateForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const token = getToken();
+            const orgName = document.getElementById('orgRelateOrg').value;
+            const targetType = document.getElementById('orgRelateTargetType').value;
+            const targetId = document.getElementById('orgRelateTarget').value;
+            const relType = document.getElementById('orgRelateRelType').value;
+            const msgDiv = document.getElementById('orgRelateMsg');
+            if (!orgName || !targetType || !targetId || !relType) {
+                msgDiv.textContent = 'Please fill in all fields.';
+                msgDiv.style.color = '#ff4d4d';
+                return;
+            }
+            const res = await fetch('/api/organization-relate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ orgName, targetId, targetType, relType })
+            });
+            const result = await res.json();
+            if (result.success) {
+                msgDiv.textContent = 'Relationship created!';
+                msgDiv.style.color = '#4caf50';
+            } else {
+                msgDiv.textContent = result.error || 'Failed to create relationship.';
+                msgDiv.style.color = '#ff4d4d';
+            }
+        });
+    });
+        // Sort: unassigned cases first
+        cases.sort((a, b) => {
+            const aAssigned = a.assignedTo && a.assignedTo.length > 0;
+            const bAssigned = b.assignedTo && b.assignedTo.length > 0;
+            return (aAssigned === bAssigned) ? 0 : (aAssigned ? 1 : -1);
+        });
+        cases.forEach(c => {
+            const tr = document.createElement('tr');
+            let options = caseWorkers.map(w => `<option value='${w.email}'>${w.name} (${w.email}) [${w.assignedCount}]</option>`).join('');
+            const displayName = c.name ? c.name : '(no name)';
+            const tdAssigned = document.createElement('td');
+            if (c.assignedTo && c.assignedTo.length > 0) {
+                tdAssigned.textContent = c.assignedTo.join(', ');
+                const unassignBtn = document.createElement('button');
+                unassignBtn.textContent = 'Unassign';
+                unassignBtn.className = 'unassignBtn';
+                unassignBtn.style.marginLeft = '8px';
+                unassignBtn.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    const token = getToken();
+                    const res = await fetch(`/api/cases/${c.id}/unassign`, {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    const result = await res.json();
+                    document.getElementById('message').textContent = result.success ? 'Case unassigned!' : (result.error || 'Unassignment failed.');
+                    await fetchCases();
+                });
+                tdAssigned.appendChild(unassignBtn);
+            } else {
+                tdAssigned.innerHTML = '<span style="color:#888">(unassigned)</span>';
+            }
+            tr.innerHTML = `<td>${displayName}</td>`;
+            tr.appendChild(tdAssigned);
+            const tdAssign = document.createElement('td');
+            tdAssign.innerHTML = `<form class='assignForm'><select name='workerEmail' required><option value='' disabled selected>Select Case Worker</option>${options}</select><input type='hidden' name='caseId' value='${c.id || ''}'><button type='submit'>Assign</button></form>`;
+            tr.appendChild(tdAssign);
+            tbody.appendChild(tr);
+        });
+        // Add assign event listeners
+        document.querySelectorAll('.assignForm').forEach(form => {
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const caseId = form.caseId.value;
+                const email = form.workerEmail.value;
+                const token = getToken();
+                const res = await fetch(`/api/cases/${caseId}/assign`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ email })
+                });
+                const result = await res.json();
+                document.getElementById('message').textContent = result.success ? 'Case assigned!' : (result.error || 'Assignment failed.');
+                if (result.success) await fetchCases();
+            });
+        });
+    document.getElementById('createUserForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const name = form.name.value;
+        const email = form.email.value;
+        const password = form.password.value;
+        const role = form.role.value;
+        const token = getToken();
+        const res = await fetch('/api/users', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({ name, email, password, roles: [role] })
+        });
+        const result = await res.json();
+        document.getElementById('message').textContent = result.success ? 'User created!' : (result.error || 'User creation failed.');
+        if (result.success) {
+            form.reset();
+            await fetchUsers();
+            await fetchCases();
+        }
+    });
+    // Initial load
+    fetchUsers().then(fetchCases);
+
+    // Logout button logic
+    // ...existing code...
+    // Populate targets for relationship form
+    async function loadOrgRelateTargets() {
+        const token = getToken();
+        const targetType = document.getElementById('orgRelateTargetType').value;
+        const targetSelect = document.getElementById('orgRelateTarget');
+        targetSelect.innerHTML = '';
+        if (targetType === 'User') {
+            const res = await fetch('/api/users', { headers: { 'Authorization': 'Bearer ' + token } });
+            const data = await res.json();
+            (data.users || []).forEach(u => {
+                const opt = document.createElement('option');
+                opt.value = u.email;
+                opt.textContent = `${u.name} (${u.email})`;
+                opt.dataset.id = u.email;
+                targetSelect.appendChild(opt);
+            });
+        } else if (targetType === 'Applicant') {
+            const res = await fetch('/api/cases', { headers: { 'Authorization': 'Bearer ' + token } });
+            const data = await res.json();
+            (data.cases || []).forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.id;
+                opt.textContent = `${a.name || a.id}`;
+                opt.dataset.id = a.id;
+                targetSelect.appendChild(opt);
+            });
+        }
+    }
+    }
+
+    document.getElementById('addOrganizationForm').addEventListener('submit', function(e) {
+    // Organization Relationship Form logic
+    document.getElementById('orgRelateTargetType').addEventListener('change', loadOrgRelateTargets);
+    // Initial load for targets
+    loadOrgRelateTargets();
+
+    document.getElementById('orgRelateForm').addEventListener('submit', async function(e) {
+    });
+</script>
+</body>
+</html>

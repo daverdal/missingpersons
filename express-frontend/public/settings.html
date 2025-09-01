@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Admin</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+</head>
+<body>
+    <main>
+    <nav style="margin-bottom:1rem;"><a href="community-list.html" id="communityListLink">View All Communities</a></nav>
+    <h1>Settings</h1>
+        <section>
+            <h2>Communities</h2>
+            <form id="addCommunityForm">
+                <div class="fields">
+                    <label>Name*:<br><input type="text" id="communityName" required></label>
+                    <label>Band Number:<br><input type="text" id="bandNumber"></label>
+                    <label>Address*:<br><input type="text" id="address" required></label>
+                    <label>Phone*:<br><input type="text" id="phone" required></label>
+                    <label>Fax:<br><input type="text" id="fax"></label>
+                    <label>Latitude*:<br><input type="number" id="latitude" step="any" required></label>
+                    <label>Longitude*:<br><input type="number" id="longitude" step="any" required></label>
+                </div>
+                <button type="submit">Add Community</button>
+            </form>
+            <div class="list" id="communityList"></div>
+        </section>
+        <!-- Future: Organizations, etc. -->
+    </main>
+    <script>
+    // Fetch and display communities
+    function loadCommunities() {
+        fetch('/api/communities')
+            .then(r => r.json())
+            .then(data => {
+                const list = data.communities || [];
+                const container = document.getElementById('communityList');
+                container.innerHTML = '';
+                list.forEach(name => {
+                    const div = document.createElement('div');
+                    div.className = 'list-item';
+                    div.textContent = name;
+                    // Add delete button (future)
+                    container.appendChild(div);
+                });
+            });
+    }
+    loadCommunities();
+    // Add community
+    document.getElementById('addCommunityForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const name = document.getElementById('communityName').value.trim();
+        const band_number = document.getElementById('bandNumber').value.trim();
+        const address = document.getElementById('address').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        const fax = document.getElementById('fax').value.trim();
+        const latitude = document.getElementById('latitude').value;
+        const longitude = document.getElementById('longitude').value;
+        if (!name || !address || !phone || !latitude || !longitude) {
+            alert('Please fill in all required fields.');
+            return;
+        }
+        fetch('/api/communities', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, band_number, address, phone, fax, latitude, longitude })
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                document.getElementById('addCommunityForm').reset();
+                loadCommunities();
+            } else {
+                alert(result.error || 'Failed to add community');
+            }
+        });
+    });
+    </script>
+</body>
+</html>

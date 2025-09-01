@@ -1,0 +1,192 @@
+// PURGE
+
+MATCH (n) DETACH DELETE n;
+
+// USERS
+
+// All users use password 'admin'
+CREATE (admin:User {id: 'admin1', name: 'Admin User', email: 'admin1@example.com', roles: ['admin'], password: '$2b$10$dq/VX0np9ie4JYA27ppoyOfzv1DyhhXMGkzaeI.bJAB7xBBYGR586' });
+CREATE (cw1:User {id: 'cw1', name: 'Case Worker 1', email: 'caseworker1@example.com', roles: ['case_worker'], password: '$2b$10$dq/VX0np9ie4JYA27ppoyOfzv1DyhhXMGkzaeI.bJAB7xBBYGR586' });
+CREATE (cw2:User {id: 'cw2', name: 'Case Worker 2', email: 'caseworker2@example.com', roles: ['case_worker'], password: '$2b$10$dq/VX0np9ie4JYA27ppoyOfzv1DyhhXMGkzaeI.bJAB7xBBYGR586' });
+CREATE (cw3:User {id: 'cw3', name: 'Case Worker 3', email: 'caseworker3@example.com', roles: ['case_worker'], password: '$2b$10$dq/VX0np9ie4JYA27ppoyOfzv1DyhhXMGkzaeI.bJAB7xBBYGR586' });
+CREATE (user1:User {id: 'user1', name: 'Staff User 1', email: 'user1@example.com', roles: ['case_worker'], password: '$2b$10$dq/VX0np9ie4JYA27ppoyOfzv1DyhhXMGkzaeI.bJAB7xBBYGR586' });
+
+// APPLICANTS
+
+// Applicants (cases)
+CREATE (a1:Applicant {id: 'A1', name: 'Jane Doe', email: 'jane.doe@example.com', status: 'Open' });
+CREATE (a2:Applicant {id: 'A2', name: 'John Smith', email: 'john.smith@example.com', status: 'Open' });
+CREATE (a3:Applicant {id: 'A3', name: 'Mary Johnson', email: 'mary.johnson@example.com', status: 'Closed' });
+CREATE (a4:Applicant {id: 'A4', name: 'Carlos Rivera', email: 'carlos.rivera@example.com', status: 'Open' });
+CREATE (a5:Applicant {id: 'A5', name: 'Ava Patel', email: 'ava.patel@example.com', status: 'Open' });
+CREATE (a6:Applicant {id: 'A6', name: 'Liam Chen', email: 'liam.chen@example.com', status: 'Open' });
+
+// Missing Persons (LovedOne nodes)
+CREATE (m1:LovedOne {id: 'M1', name: 'Emily Doe', dateOfIncident: '2025-01-15', lastLocation: 'Vancouver'});
+CREATE (m2:LovedOne {id: 'M2', name: 'Michael Smith', dateOfIncident: '2024-11-02', lastLocation: 'Toronto'});
+CREATE (m3:LovedOne {id: 'M3', name: 'Priya Patel', dateOfIncident: '2025-03-10', lastLocation: 'Calgary'});
+CREATE (m4:LovedOne {id: 'M4', name: 'Lucas Chen', dateOfIncident: '2025-05-22', lastLocation: 'Edmonton'});
+
+
+// ASSIGN CASES
+MATCH (cw:User {email: 'caseworker1@example.com'}), (a:Applicant {id: 'A1'}) CREATE (cw)-[:ASSIGNED_TO]->(a);
+MATCH (cw:User {email: 'caseworker1@example.com'}), (a:Applicant {id: 'A2'}) CREATE (cw)-[:ASSIGNED_TO]->(a);
+MATCH (cw:User {email: 'caseworker2@example.com'}), (a:Applicant {id: 'A3'}) CREATE (cw)-[:ASSIGNED_TO]->(a);
+MATCH (cw:User {email: 'caseworker3@example.com'}), (a:Applicant {id: 'A4'}) CREATE (cw)-[:ASSIGNED_TO]->(a);
+MATCH (cw:User {email: 'caseworker3@example.com'}), (a:Applicant {id: 'A5'}) CREATE (cw)-[:ASSIGNED_TO]->(a);
+MATCH (cw:User {email: 'user1@example.com'}), (a:Applicant {id: 'A6'}) CREATE (cw)-[:ASSIGNED_TO]->(a);
+
+
+// Optionally, add initial notes
+MATCH (a:Applicant {id: 'A1'}) CREATE (n:Note {text: 'Initial note for Jane Doe', author: 'Case Worker 1', timestamp: toString(datetime())}) CREATE (a)-[:HAS_NOTE]->(n);
+MATCH (a:Applicant {id: 'A2'}) CREATE (n:Note {text: 'Urgent: John Smith last seen at bus station.', author: 'Case Worker 1', timestamp: toString(datetime())}) CREATE (a)-[:HAS_NOTE]->(n);
+MATCH (a:Applicant {id: 'A3'}) CREATE (n:Note {text: 'Case closed after safe return.', author: 'Case Worker 2', timestamp: toString(datetime())}) CREATE (a)-[:HAS_NOTE]->(n);
+MATCH (a:Applicant {id: 'A4'}) CREATE (n:Note {text: 'Carlos Rivera: Language barrier noted.', author: 'Case Worker 3', timestamp: toString(datetime())}) CREATE (a)-[:HAS_NOTE]->(n);
+MATCH (a:Applicant {id: 'A5'}) CREATE (n:Note {text: 'Ava Patel: Family in contact with support services.', author: 'Case Worker 3', timestamp: toString(datetime())}) CREATE (a)-[:HAS_NOTE]->(n);
+MATCH (a:Applicant {id: 'A6'}) CREATE (n:Note {text: 'Liam Chen: Awaiting police report.', author: 'Staff User 1', timestamp: toString(datetime())}) CREATE (a)-[:HAS_NOTE]->(n);
+
+// Relate applicants to missing persons
+MATCH (a:Applicant {id: 'A1'}), (m:LovedOne {id: 'M1'}) CREATE (a)-[:RELATED_TO {relationship: 'Mother'}]->(m);
+MATCH (a:Applicant {id: 'A2'}), (m:LovedOne {id: 'M2'}) CREATE (a)-[:RELATED_TO {relationship: 'Father'}]->(m);
+MATCH (a:Applicant {id: 'A5'}), (m:LovedOne {id: 'M3'}) CREATE (a)-[:RELATED_TO {relationship: 'Sister'}]->(m);
+MATCH (a:Applicant {id: 'A6'}), (m:LovedOne {id: 'M4'}) CREATE (a)-[:RELATED_TO {relationship: 'Brother'}]->(m);
+
+
+
+// Manitoba63Cypher.cypher
+// Purge all existing Community nodes
+MATCH (c:Community) DETACH DELETE c;
+// Cypher statements to create 63 First Nations communities as Community nodes
+
+CREATE (:Community {band_number: '260', name: 'Black River First Nation', address: "Box 190 O'Hanly P.O. Manitoba R0E 1K0", phone: '204-367-4411', fax: '204-367-2000', longitude: -96.30991, latitude: 50.83036});
+CREATE (:Community {band_number: '261', name: 'Brokenhead Ojibway Nation', address: "P.O. Box 180 Scanterbury MB, R0E 1W0", phone: '204-766-2494', fax: '204-766-2021', longitude: -96.61636, latitude: 50.36686});
+CREATE (:Community {band_number: '262', name: 'Sagkeeng First Nation', address: "P.O. Box 3, Fort Alexander MB, R0E 0P0", phone: '204-367-2287', fax: '204-367-4315', longitude: -96.30951946, latitude: 50.61128752});
+CREATE (:Community {band_number: '263', name: 'Hollow Water First Nation', address: "PO Box 2561, Wanipigow MB, R0E 2E0", phone: '204-363-7278', fax: '204-363-7418', longitude: -96.30228976, latitude: 51.19238468});
+CREATE (:Community {band_number: '264', name: 'Fisher River Cree Nation', address: "P.O. Box 367, Koostatak MB, R0C 1S0", phone: '204-645-2171', fax: '204-645-2653', longitude: -97.38721232, latitude: 51.43788941});
+CREATE (:Community {band_number: '265', name: 'Buffalo Point First Nation', address: "P.O. Box 1037, Buffalo Point MB, R0A 2W0", phone: '204-437-2133', fax: '204-437-2368', longitude: -95.23788, latitude: 49.0123});
+CREATE (:Community {band_number: '266', name: 'Berens River First Nation', address: "PO Box 131, Berens River MB, R0B 0A0", phone: '204-382-2161', fax: '204-382-2297', longitude: -96.96748281, latitude: 52.34312862});
+CREATE (:Community {band_number: '267', name: 'Bloodvein First Nation', address: "General Delivery, Bloodvein MB, R0C 0J0", phone: '204-395-2148', fax: '204-395-2099', longitude: -96.69692728, latitude: 51.78341634});
+CREATE (:Community {band_number: '268', name: 'Kinonjeoshtegon First Nation', address: "P.O. Box 210, Dallas MB R0C 0S0", phone: '204-394-2255', fax: '204-394-2305', longitude: -97.3109533, latitude: 51.91709498});
+CREATE (:Community {band_number: '269', name: 'Peguis First Nation', address: "P.O. Box 10, Peguis MB, R0C 3J0", phone: '204-645-2359', fax: '204-645-2360', longitude: -97.55859, latitude: 51.30548});
+CREATE (:Community {band_number: '270', name: 'Little Grand Rapids First Nation', address: "P.O. Box 130, Little Grand Rapids MB,R0B 0V0", phone: '204-397-2264', fax: '204-397-2340', longitude: -95.45558498, latitude: 52.01802834});
+CREATE (:Community {band_number: '271', name: 'Lake Manitoba Treaty 2 FN', address: "P.O. Box 1250, Lake Manitoba, MB, R0C 3K0", phone: '204-768-3492', fax: '204-768-3036', longitude: -98.60700357, latitude: 50.94717514});
+CREATE (:Community {band_number: '272', name: 'Pinaymootang First Nation', address: "Box 319, Fairford MB, R0C 0X0", phone: '204-659-5705', fax: '204-659-2068', longitude: -98.68369137, latitude: 51.57378742});
+CREATE (:Community {band_number: '273', name: 'Roseau River Anishinabe FN', address: "P.O. Box 30, Ginew MB, R0A 2R0", phone: '204-427-2312', fax: '204-427-2584', longitude: -97.23978551, latitude: 49.13322927});
+CREATE (:Community {band_number: '274', name: 'Little Saskatchewan First Nation', address: "P.O. Box 98, Gypsumville, Manitoba R0C 1J0", phone: '204-659-4584', fax: '204-659-2071', longitude: -98.56038123, latitude: 51.68331981});
+CREATE (:Community {band_number: '275', name: 'Lake St. Martin First Nation', address: "PO Box 69, Gypsumville MB, R0C 1J0", phone: '204-659-4539', fax: '204-659-2034', longitude: -98.43515634, latitude: 51.74853046});
+CREATE (:Community {band_number: '276', name: 'Pimicikamak Cree Nation', address: "P.O. Box 10, Cross Lake, MB. R0B 0J0", phone: '204-676-2218', fax: '204-676-2117', longitude: -97.78839389, latitude: 54.6215058});
+CREATE (:Community {band_number: '277', name: 'Poplar River First Nation', address: "P.O. Box 90, Negginan MB, R0B 0Z0", phone: '204-244-2267', fax: '204-244-2690', longitude: -97.27696859, latitude: 52.99431388});
+CREATE (:Community {band_number: '278', name: 'Norway House Cree Nation', address: "P.O. Box 250, Norway House MB, R0B 1B0", phone: '204-359-6721', fax: '204-359-4186', longitude: -97.77289371, latitude: 53.98994975});
+CREATE (:Community {band_number: '279', name: 'O-Chi-Chak-Ko-Sipi First Nation', address: "PO Box 103, Crane River, MB R0L 0M0", phone: '204-732-2490', fax: '204-732-2596', longitude: -99.2577577, latitude: 51.50349317});
+CREATE (:Community {band_number: '280', name: 'Ebb And Flow First Nation', address: "P.O. Box 159, Ebb and Flow MB, R0L 0R0", phone: '204-448-2134', fax: '204-448-2305', longitude: -99.04283125, latitude: 51.02379429});
+CREATE (:Community {band_number: '281', name: 'Skownan First Nation', address: "P.O. Box 106, Skownan MB, R0L 1Y0", phone: '204-628-3373', fax: '204-628-3289', longitude: -99.59829495, latitude: 51.96862138});
+CREATE (:Community {band_number: '282', name: 'Pine Creek First Nation', address: "P.O. Box 70, Camperville MB, R0L 0J0", phone: '204-524-2478', fax: '204-524-2801', longitude: -100.1668775, latitude: 52.0454791});
+CREATE (:Community {band_number: '283', name: 'Sandy Bay First Nation', address: "P.O. Box 109, Marius, MB R0H 0T0", phone: '204-843-2603', fax: '204-843-2706', longitude: -98.64734438, latitude: 50.54932331});
+CREATE (:Community {band_number: '284', name: 'Birdtail Sioux Dakota Nation', address: "P.O. Box 22, Beulah MB, R0M 0B0", phone: '204-568-4540', fax: '204-568-4687', longitude: -101.1492468, latitude: 50.26621876});
+CREATE (:Community {band_number: '285', name: 'Waywayseecappo First Nation', address: "P.O. Box 9, Waywayseecappo MB, R0J 1S0", phone: '204-859-2879', fax: '204-859-2403', longitude: -100.8804769, latitude: 50.67971132});
+CREATE (:Community {band_number: '286', name: 'Keeseekoowenin Ojibway  Nation', address: "P.O. Box 100, Elphinstone MB, R0J 0N0", phone: '204-625-2004', fax: '204-625-2019', longitude: -100.2995525, latitude: 50.53910135});
+CREATE (:Community {band_number: '287', name: 'Long Plain First Nation', address: "P.O. Box 430, Portage la Prairie MB, R1N 3B7", phone: '204-252-2731', fax: '204-252-2012', longitude: -98.46516606, latitude: 49.8566137});
+CREATE (:Community {band_number: '288', name: 'Dakota Plains Wahpeton Nation', address: "P.O. Box 110, Edwin, MB R0H 0G0", phone: '204-252-2300', fax: '204-252-2111', longitude: -98.52304269, latitude: 49.8175868});
+CREATE (:Community {band_number: '289', name: 'Canupawakpa Dakota Nation', address: "P.O. Box 146, Pipestone, MB R0M 1T0", phone: '204-854-2959', fax: '204-854-2525', longitude: -100.9453645, latitude: 49.62045295});
+CREATE (:Community {band_number: '290', name: 'Sioux Valley Dakota Nation', address: "P.O. Box 38, Griswold, MB R0M 0S0", phone: '204-855-2671', fax: '204-855-2544', longitude: -100.48475, latitude: 49.85911});
+CREATE (:Community {band_number: '291', name: 'Rolling River First Nation', address: "P.O. Box 145, Erickson MB, R0J 0P0", phone: '204-636-2211', fax: '204-636-7823', longitude: -99.98661394, latitude: 50.45381417});
+CREATE (:Community {band_number: '292', name: 'Tootinaowaziibeeng Treaty Reserve', address: "P.O. Box 1, Tootinaowaziibeeng, MB, R0L 2L0", phone: '204-546-3334', fax: '204-546-3090', longitude: -100.972736, latitude: 51.22785195});
+CREATE (:Community {band_number: '293', name: 'Swan Lake First Nation', address: "P.O. Box 368, Swan Lake MB, R0G 2S0", phone: '204-836-2101', fax: '204-836-2255', longitude: -98.84115, latitude: 49.397196});
+CREATE (:Community {band_number: '294', name: 'Gambler First Nation', address: "P.O. Box 250, Binscarth MB, R0J 0G0", phone: '204-773-2525', fax: '204-773-8353', longitude: -101.382376, latitude: 50.59467312});
+CREATE (:Community {band_number: '295', name: 'Dakota Tipi First Nation', address: "2020 Dakota Drive, Dakota Tipi MB, R1N 3X6", phone: '204-857-4381', fax: '204-856-0279', longitude: -98.34056859, latitude: 49.94811849});
+CREATE (:Community {band_number: '296', name: "God's Lake First Nation", address: "P.O. Box 258, God’s Lake Narrows MB, R0B 0M0", phone: '204-335-2130', fax: '204-335-2400', longitude: -94.50182983, latitude: 54.5473761});
+CREATE (:Community {band_number: '297', name: 'Garden Hill First Nation', address: "PO Box 261, Garden Hill, MB, R0B 0T0", phone: '204-456-2085', fax: '204-456-9315', longitude: -94.65354761, latitude: 53.87277927});
+CREATE (:Community {band_number: '298', name: 'St. Theresa Point First Nation', address: "General Delivery, St. Theresa Point MB, R0B 1J0", phone: '204-462-2106', fax: '204-462-2646', longitude: -94.85123575, latitude: 53.817286});
+CREATE (:Community {band_number: '299', name: 'Wasagamack First Nation', address: "P.O. Box 1, Wasagamack MB, R0B 1Z0", phone: '204-457-2339', fax: '204-457-2255', longitude: -94.92727827, latitude: 53.89540941});
+CREATE (:Community {band_number: '300', name: 'Red Sucker Lake First Nation', address: "General Delivery, Red Sucker Lake MB, R0B 1H0", phone: '204-469-5042', fax: '204-469-5966', longitude: -93.56888948, latitude: 54.15616754});
+CREATE (:Community {band_number: '301', name: 'Bunibonibee Cree Nation', address: "PO Box 235, Oxford House MB, R0B 1C0", phone: '204-538-2282', fax: '204-538-2220', longitude: -95.26475891, latitude: 54.9498235});
+CREATE (:Community {band_number: '302', name: "Manto Sipi Cree Nation (God’s River)", address: "P.O. Box 97, God’s River MB, R0B 0N0", phone: '204-366-2011', fax: '204-366-2282', longitude: -94.05295837, latitude: 54.8358401});
+CREATE (:Community {band_number: '303', name: 'Sayisi Dene First Nation', address: "General Delivery, Tadoule Lake MB, R0B 2C0", phone: '204-684-2022', fax: '204-684-2069', longitude: -98.48648543, latitude: 58.71612358});
+CREATE (:Community {band_number: '304', name: 'York Factory First Nation', address: "General Delivery, York Landing MB, R0B 2B0", phone: '204-341-2180', fax: '204-341-2322', longitude: -96.09898778, latitude: 56.0874521});
+CREATE (:Community {band_number: '305', name: 'Fox Lake Cree Nation', address: "P.O. Box 369, Gillam MB, R0B 0L0", phone: '204-486-2463', fax: '204-486-2503', longitude: -94.202867, latitude: 56.504663});
+CREATE (:Community {band_number: '306', name: 'Tataskweyak Cree Nation', address: "P.O. Box 250, Split Lake MB, R0B 1P0", phone: '204-342-2045', fax: '204-342-2270', longitude: -96.09783056, latitude: 56.24449523});
+CREATE (:Community {band_number: '307', name: 'Shamattawa First Nation', address: "P.O. Box 210, Shamattawa MB, R0B 1K0", phone: '204-565-2340', fax: '204-565-2451', longitude: -92.09889823, latitude: 55.87283406});
+CREATE (:Community {band_number: '308', name: 'Barren Lands First Nation (Brochet)', address: "P.O. Box 40, Brochet MB, R0B 0B0", phone: '204-323-2300', fax: '204-323-2275', longitude: -101.6638679, latitude: 57.88737057});
+CREATE (:Community {band_number: '309', name: 'Chemawawin Cree Nation', address: "P.O. Box 9, Easterville MB, R0C 0V0", phone: '204-329-2161', fax: '204-329-2017', longitude: -99.80756013, latitude: 53.10301087});
+CREATE (:Community {band_number: '310', name: "Misipawistik Cree Nation (Grand Rapids)", address: "P.O. Box 500, Grand Rapids MB, R0C 1E0", phone: '204-639-2219', fax: '204-639-2503', longitude: -99.25689968, latitude: 53.17924755});
+CREATE (:Community {band_number: '311', name: 'Mathias Colomb Cree Nation', address: "P.O. Box 135, Pukatawagan MB, R0B 1G0", phone: '204-553-2090', fax: '204-553-2419', longitude: -101.316897, latitude: 55.742055});
+CREATE (:Community {band_number: '312', name: 'Mosakahiken Cree Nation', address: "General Delivery, Moose Lake MB, R0B 0Y0", phone: '204-678-2113', fax: '204-678-2292', longitude: -100.3148201, latitude: 53.70558589});
+CREATE (:Community {band_number: '313', name: 'Nisichawayasihk Cree Nation', address: "General Delivery, Nelson House MB, R0B 1A0", phone: '204-484-2332', fax: '204-484-2392', longitude: -98.88575191, latitude: 55.78300161});
+CREATE (:Community {band_number: '314', name: 'Sapotaweyak Cree Nation', address: "General Delivery, Pelican Rapids MB, R0L 1L0", phone: '204-587-2012', fax: '204-587-2072', longitude: -100.692299, latitude: 52.74473335});
+CREATE (:Community {band_number: '315', name: 'Opaskwayak Cree Nation', address: "P.O. Box 10880, Opaskwayak  MB, R0B 2J0", phone: '204-627-7100', fax: '204-623-5263', longitude: -101.2713594, latitude: 53.83770331});
+CREATE (:Community {band_number: '316', name: 'Dauphin River First Nation', address: "P.O. Box 58, Gypsumville MB, R0C 1J0", phone: '204-659-5370', fax: '204-659-4458', longitude: -98.06537758, latitude: 51.96317377});
+CREATE (:Community {band_number: '317', name: 'Northlands Denesuline First Nation (Lac Brochet)', address: "P.O. Box 120, Lac Brochet MB, R0B 2E0", phone: '204-337-2270', fax: '204-337-2055', longitude: -101.4867102, latitude: 58.61925824});
+CREATE (:Community {band_number: '318', name: 'O-Pipon-Na-Piwin Cree Nation', address: "P.O. Box 139, South Indian Lake MB, R0B 1N0", phone: '204-374-2271', fax: '204-374-2350', longitude: -98.93281295, latitude: 56.77446353});
+CREATE (:Community {band_number: '323', name: 'War Lake First Nation', address: "General Delivery, Ilford MB, R0B 0S0", phone: '204-288-4315', fax: '204-288-4371', longitude: -95.59650719, latitude: 56.06842955});
+CREATE (:Community {band_number: '324', name: 'Wuskwi Sipihk First Nation', address: "PO Box 220, Birch River MB, R0L 0E0", phone: '204-236-4201', fax: '204-236-4786', longitude: -100.8705155, latitude: 52.50906928});
+CREATE (:Community {band_number: '327', name: 'Pauingassi First Nation', address: "P.O. Box 60, Pauingassi MB, R0B 2G0", phone: '204-397-2371', fax: '204-397-2145', longitude: -95.3741258, latitude: 52.15760621});
+CREATE (:Community {band_number: '328', name: 'Marcel Colomb First Nation', address: "P.O. Box 1150, Lynn Lake MB, R0B 0W0", phone: '204-356-2439', fax: '204-356-2330', longitude: -100.5830595, latitude: 56.80282521});
+
+
+// --- ADDITIONAL USERS ---
+CREATE (cw4:User {id: 'cw4', name: 'Case Worker 4', email: 'caseworker4@example.com', roles: ['case_worker'], password: '$2b$10$dq/VX0np9ie4JYA27ppoyOfzv1DyhhXMGkzaeI.bJAB7xBBYGR586' });
+CREATE (staff2:User {id: 'user2', name: 'Staff User 2', email: 'user2@example.com', roles: ['case_worker'], password: '$2b$10$dq/VX0np9ie4JYA27ppoyOfzv1DyhhXMGkzaeI.bJAB7xBBYGR586' });
+
+// --- ADDITIONAL APPLICANTS ---
+CREATE (a7:Applicant {id: 'A7', name: 'Sophia Lee', email: 'sophia.lee@example.com', status: 'Open' });
+CREATE (a8:Applicant {id: 'A8', name: 'Noah Brown', email: 'noah.brown@example.com', status: 'Closed' });
+CREATE (a9:Applicant {id: 'A9', name: 'Olivia Green', email: 'olivia.green@example.com', status: 'Open' });
+
+// --- ADDITIONAL LOVED ONES ---
+CREATE (m5:LovedOne {id: 'M5', name: 'Jacob Lee', dateOfIncident: '2025-06-01', lastLocation: 'Winnipeg'});
+CREATE (m6:LovedOne {id: 'M6', name: 'Ella Brown', dateOfIncident: '2025-07-12', lastLocation: 'Regina'});
+
+// --- ASSIGN CASES ---
+MATCH (cw:User {email: 'caseworker4@example.com'}), (a:Applicant {id: 'A7'}) CREATE (cw)-[:ASSIGNED_TO]->(a);
+MATCH (cw:User {email: 'user2@example.com'}), (a:Applicant {id: 'A8'}) CREATE (cw)-[:ASSIGNED_TO]->(a);
+MATCH (cw:User {email: 'caseworker2@example.com'}), (a:Applicant {id: 'A9'}) CREATE (cw)-[:ASSIGNED_TO]->(a);
+
+// --- ADDITIONAL NOTES ---
+MATCH (a:Applicant {id: 'A7'}) CREATE (n:Note {text: 'Sophia Lee: New case, awaiting documents.', author: 'Case Worker 4', timestamp: toString(datetime())}) CREATE (a)-[:HAS_NOTE]->(n);
+MATCH (a:Applicant {id: 'A8'}) CREATE (n:Note {text: 'Noah Brown: Case closed, person found.', author: 'Staff User 2', timestamp: toString(datetime())}) CREATE (a)-[:HAS_NOTE]->(n);
+MATCH (a:Applicant {id: 'A9'}) CREATE (n:Note {text: 'Olivia Green: Interview scheduled.', author: 'Case Worker 2', timestamp: toString(datetime())}) CREATE (a)-[:HAS_NOTE]->(n);
+
+// --- RELATE APPLICANTS TO LOVED ONES ---
+MATCH (a:Applicant {id: 'A7'}), (m:LovedOne {id: 'M5'}) CREATE (a)-[:RELATED_TO {relationship: 'Father'}]->(m);
+MATCH (a:Applicant {id: 'A8'}), (m:LovedOne {id: 'M6'}) CREATE (a)-[:RELATED_TO {relationship: 'Mother'}]->(m);
+
+// --- ADDITIONAL FILES ---
+CREATE (f1:File {filename: 'report1.pdf', originalname: 'report1.pdf', mimetype: 'application/pdf', size: 123456, path: '/uploads/report1.pdf', uploadedBy: 'caseworker4@example.com', uploadedAt: toString(datetime())});
+CREATE (f2:File {filename: 'photo1.jpg', originalname: 'photo1.jpg', mimetype: 'image/jpeg', size: 234567, path: '/uploads/photo1.jpg', uploadedBy: 'user2@example.com', uploadedAt: toString(datetime())});
+
+// --- LINK FILES TO APPLICANTS ---
+MATCH (a:Applicant {id: 'A7'}), (f:File {filename: 'report1.pdf'}) CREATE (a)-[:HAS_FILE]->(f);
+MATCH (a:Applicant {id: 'A8'}), (f:File {filename: 'photo1.jpg'}) CREATE (a)-[:HAS_FILE]->(f);
+
+
+// --- ORGANIZATIONS (Manitoba) ---
+CREATE (:Organization {name: 'Manitoba Association of Friendship Centres', type: 'Non-Profit', address: '200-141 Bannatyne Ave, Winnipeg, MB', phone: '204-942-6299', website: 'https://friendshipcentres.ca'});
+CREATE (:Organization {name: 'Ma Mawi Wi Chi Itata Centre', type: 'Indigenous Family Services', address: '445 King St, Winnipeg, MB', phone: '204-925-0300', website: 'https://www.mamawi.com'});
+CREATE (:Organization {name: 'Ka Ni Kanichihk', type: 'Indigenous Services', address: '455 McDermot Ave, Winnipeg, MB', phone: '204-953-5820', website: 'https://www.kanikanichihk.ca'});
+CREATE (:Organization {name: 'Manitoba Keewatinowi Okimakanak', type: 'First Nations Advocacy', address: '160-3553 Portage Ave, Winnipeg, MB', phone: '204-927-7500', website: 'https://mkonation.com'});
+CREATE (:Organization {name: 'Southern Chiefs’ Organization', type: 'First Nations Advocacy', address: '1572 Dublin Ave, Winnipeg, MB', phone: '204-946-1869', website: 'https://scoinc.mb.ca'});
+CREATE (:Organization {name: 'Missing and Murdered Indigenous Women and Girls Manitoba', type: 'Advocacy', address: '123 Main St, Winnipeg, MB', phone: '204-555-1234', website: 'https://mmiwg-mb.ca'});
+CREATE (:Organization {name: 'Prairie Hope Outreach', type: 'Outreach', address: '789 Portage Ave, Winnipeg, MB', phone: '204-555-5678', website: 'https://prairiehope.org'});
+CREATE (:Organization {name: 'Red River Support Services', type: 'Support Services', address: '321 Broadway, Winnipeg, MB', phone: '204-555-8765', website: 'https://redriversupport.ca'});
+
+
+// --- RELATE ORGANIZATIONS TO CASES AND COMMUNITIES ---
+// Link organizations to applicants (cases) as "SUPPORTS" and to communities as "LOCATED_IN"
+MATCH (o:Organization {name: 'Manitoba Association of Friendship Centres'}), (a:Applicant {id: 'A1'}) CREATE (o)-[:SUPPORTS]->(a);
+MATCH (o:Organization {name: 'Ma Mawi Wi Chi Itata Centre'}), (a:Applicant {id: 'A2'}) CREATE (o)-[:SUPPORTS]->(a);
+MATCH (o:Organization {name: 'Ka Ni Kanichihk'}), (a:Applicant {id: 'A3'}) CREATE (o)-[:SUPPORTS]->(a);
+MATCH (o:Organization {name: 'Manitoba Keewatinowi Okimakanak'}), (a:Applicant {id: 'A4'}) CREATE (o)-[:SUPPORTS]->(a);
+MATCH (o:Organization {name: 'Southern Chiefs’ Organization'}), (a:Applicant {id: 'A5'}) CREATE (o)-[:SUPPORTS]->(a);
+MATCH (o:Organization {name: 'Missing and Murdered Indigenous Women and Girls Manitoba'}), (a:Applicant {id: 'A6'}) CREATE (o)-[:SUPPORTS]->(a);
+MATCH (o:Organization {name: 'Prairie Hope Outreach'}), (a:Applicant {id: 'A7'}) CREATE (o)-[:SUPPORTS]->(a);
+MATCH (o:Organization {name: 'Red River Support Services'}), (a:Applicant {id: 'A8'}) CREATE (o)-[:SUPPORTS]->(a);
+
+// Link organizations to communities (using plausible matches by city or region)
+MATCH (o:Organization {name: 'Manitoba Association of Friendship Centres'}), (c:Community {name: 'Brokenhead Ojibway Nation'}) CREATE (o)-[:LOCATED_IN]->(c);
+MATCH (o:Organization {name: 'Ma Mawi Wi Chi Itata Centre'}), (c:Community {name: 'Peguis First Nation'}) CREATE (o)-[:LOCATED_IN]->(c);
+MATCH (o:Organization {name: 'Ka Ni Kanichihk'}), (c:Community {name: 'Sagkeeng First Nation'}) CREATE (o)-[:LOCATED_IN]->(c);
+MATCH (o:Organization {name: 'Manitoba Keewatinowi Okimakanak'}), (c:Community {name: 'Norway House Cree Nation'}) CREATE (o)-[:LOCATED_IN]->(c);
+MATCH (o:Organization {name: 'Southern Chiefs’ Organization'}), (c:Community {name: 'Long Plain First Nation'}) CREATE (o)-[:LOCATED_IN]->(c);
+MATCH (o:Organization {name: 'Missing and Murdered Indigenous Women and Girls Manitoba'}), (c:Community {name: 'Sandy Bay First Nation'}) CREATE (o)-[:LOCATED_IN]->(c);
+MATCH (o:Organization {name: 'Prairie Hope Outreach'}), (c:Community {name: 'Red Sucker Lake First Nation'}) CREATE (o)-[:LOCATED_IN]->(c);
+MATCH (o:Organization {name: 'Red River Support Services'}), (c:Community {name: 'Swan Lake First Nation'}) CREATE (o)-[:LOCATED_IN]->(c);

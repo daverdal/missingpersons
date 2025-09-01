@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Visualization - Missing Persons App</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/neovis.js@2.0.2/dist/neovis.js"></script>
+</head>
+<body>
+    <header>
+    <h1 style="text-align:center;">Missing Persons Case Management</h1>
+    <nav style="display:flex;gap:2rem;justify-content:center;margin:1.5em 0 2em 0;align-items:center;">
+  <a href="mycases.html" class="admin2-nav-link">My Cases</a>
+    </nav>
+    </header>
+    <main>
+
+        <section id="graph-section" style="display:block;">
+            <h2>Graph Visualization</h2>
+            <div style="display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;">
+                <div style="flex:2;min-width:600px;max-width:1100px;background:#181818;padding:1rem 2rem 2rem 2rem;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);margin:0 auto;">
+                    <div id="viz" style="width:1000px;height:600px;background:#111;border-radius:8px;box-shadow:0 0 24px #000a;"></div>
+                    <div id="legend-box" style="margin-top:1.5em;background:#181818cc;color:#6fcf6f;border:1px solid #333;border-radius:6px;padding:14px 18px;font-size:1em;font-family:'Fira Mono','Consolas','Menlo',monospace;min-width:180px;box-shadow:0 0 8px #000a;">
+                        <div style="font-weight:bold;margin-bottom:8px;color:#4fa3ff;">Legend</div>
+                        <div style="display:flex;align-items:center;margin-bottom:6px;"><span style="display:inline-block;width:16px;height:16px;background:#e74c3c;border-radius:50%;margin-right:8px;"></span>Applicant</div>
+                        <div style="display:flex;align-items:center;margin-bottom:6px;"><span style="display:inline-block;width:16px;height:16px;background:#6fcf6f;border-radius:50%;margin-right:8px;"></span>User</div>
+                        <div style="display:flex;align-items:center;margin-bottom:6px;"><span style="display:inline-block;width:16px;height:16px;background:#f1c40f;border-radius:50%;margin-right:8px;"></span>Loved One</div>
+                        <div style="display:flex;align-items:center;margin-bottom:6px;"><span style="display:inline-block;width:16px;height:16px;background:#4fa3ff;border-radius:50%;margin-right:8px;"></span>Community</div>
+                        <div style="font-size:0.95em;color:#aaa;margin-top:8px;">Node color may vary if you customized the graph.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script>
+    // --- Graph Visualization ---
+    const config = {
+      containerId: "viz",
+      neo4j: {
+        serverUrl: "bolt://localhost:7687",
+        serverUser: "neo4j",
+        serverPassword: "test" // Change if needed
+      },
+      labels: {
+        "User": {
+          caption: "name",
+          size: "20",
+          community: "roles",
+          color: "#6fcf6f"
+        },
+        "Applicant": {
+          caption: "name",
+          size: "18",
+          color: "#e74c3c"
+        },
+        "LovedOne": {
+          caption: "name",
+          size: "16",
+          color: "#f1c40f"
+        },
+        "Community": {
+          caption: "name",
+          size: "14",
+          color: "#4fa3ff"
+        }
+      },
+      relationships: {
+        "ASSIGNED_TO": {
+          caption: false,
+          thickness: "2"
+        },
+        "HAS_NOTE": {
+          caption: false,
+          thickness: "1"
+        },
+        "RELATED_TO": {
+          caption: "relationship",
+          thickness: "2"
+        }
+      },
+      initialCypher: `MATCH (u:User)-[r:ASSIGNED_TO]->(a:Applicant)
+OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
+OPTIONAL MATCH (a)-[n:HAS_NOTE]->(note:Note)
+RETURN u, r, a, rel, l, n, note LIMIT 100`,
+      visConfig: {
+        physics: false,
+        layout: {
+          improvedLayout: true
+        },
+        edges: {
+          length: 400 // Increase default edge length
+        }
+      }
+    };
+    const viz = new window.NEOVIS.Neovis(config);
+    viz.render();
+    setTimeout(() => {
+      if (viz && viz._network) {
+        viz._network.setOptions({
+          physics: false,
+          edges: { length: 400 }
+        });
+      }
+    }, 800);
+    </script>
+</body>
+</html>

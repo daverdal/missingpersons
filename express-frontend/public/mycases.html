@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Cases - Missing Persons App</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Missing Persons Case Management</h1>
+    <!-- Navigation will be injected here -->
+    </header>
+    <main>
+    <script>
+    // --- Auth check and logout logic ---
+    console.log('[DEBUG] mycases.html script loaded');
+    function getToken() {
+        return localStorage.getItem('token') || sessionStorage.getItem('token');
+    }
+    if (!getToken()) {
+        console.log('[DEBUG] No token found, redirecting to login.html');
+        window.location.href = 'login.html';
+    } else {
+        console.log('[DEBUG] Token found, continuing');
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('[DEBUG] DOMContentLoaded fired');
+        var logoutLink = document.querySelector('a[href="#"]');
+        if (logoutLink) {
+            logoutLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                localStorage.removeItem('token');
+                sessionStorage.removeItem('token');
+                window.location.href = 'login.html';
+            });
+        }
+    });
+    </script>
+        <div id="message"></div>
+        <table id="casesTable">
+            <thead><tr><th>Name</th><th>Email</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </main>
+    <script>
+    // --- Auth and Admin Nav Logic ---
+    function parseJwt(token) {
+        try {
+            return JSON.parse(atob(token.split('.')[1]));
+        } catch (e) { return null; }
+    }
+    function getToken() {
+        return localStorage.getItem('token') || sessionStorage.getItem('token');
+    }
+    function isAdmin() {
+        const token = getToken();
+        if (!token) return false;
+        const payload = parseJwt(token);
+        return payload && Array.isArray(payload.roles) && payload.roles.includes('admin');
+    }
+    function updateAuthLinks() {
+        const token = getToken();
+        const loginLink = document.getElementById('loginLink');
+        const logoutLink = document.getElementById('logoutLink');
+        const myCasesLink = document.getElementById('myCasesLink');
+        const allCasesLink = document.getElementById('allCasesLink');
+        const intakeFormLink = Array.from(document.getElementsByTagName('a')).find(a => a.getAttribute('href') === 'intake.html');
+        if (token) {
+            if (loginLink) loginLink.style.display = 'none';
+            if (logoutLink) logoutLink.style.display = '';
+            if (myCasesLink) myCasesLink.style.display = '';
+            if (allCasesLink) allCasesLink.style.display = '';
+            if (intakeFormLink) intakeFormLink.style.display = '';
+        } else {
+            if (loginLink) loginLink.style.display = '';
+            if (logoutLink) logoutLink.style.display = 'none';
+            if (myCasesLink) myCasesLink.style.display = 'none';
+            if (allCasesLink) allCasesLink.style.display = 'none';
+            if (intakeFormLink) intakeFormLink.style.display = 'none';
+        }
+    }
+    updateAuthLinks();
+    // Hide Admin Panel link if user is not admin
+    if (!isAdmin()) {
+        const adminLink = document.getElementById('adminLink');
+        if (adminLink) adminLink.style.display = 'none';
+    }
+    // Logout handler
+    const logoutLinkEl = document.getElementById('logoutLink');
+    if (logoutLinkEl) {
+        logoutLinkEl.addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.removeItem('token');
+            sessionStorage.removeItem('token');
+            window.location.href = 'login.html';
+        });
+    } else {
+        console.log('[DEBUG] No #logoutLink element found on page');
+    }
+    // --- Fetch and display cases ---
+    async function fetchMyCases() {
+        const token = getToken();
+        console.log('[DEBUG] fetchMyCases called');
+        if (!token) {
+            document.getElementById('message').textContent = 'You must be logged in to view your cases.';
+            console.log('[DEBUG] No token in fetchMyCases');
+            return;
+        }
+        try {
+            console.log('[DEBUG] Fetching /api/my-cases with token:', token.substring(0, 10) + '...');
+            const res = await fetch('/api/my-cases', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            console.log('[DEBUG] fetch /api/my-cases response status:', res.status);
+            if (!res.ok) {
+                document.getElementById('message').textContent = 'Failed to load cases.';
+                console.log('[DEBUG] fetch /api/my-cases failed');
+                return;
+            }
+            const data = await res.json();
+            console.log('[DEBUG] /api/my-cases data:', data);
+            const tbody = document.querySelector('#casesTable tbody');
+            tbody.innerHTML = '';
+            if (!data.cases || data.cases.length === 0) {
+                document.getElementById('message').textContent = 'No cases assigned to you.';
+                console.log('[DEBUG] No cases assigned to user');
+                return;
+            }
+            document.getElementById('message').textContent = '';
+            data.cases.forEach(c => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${c.name || '(no name)'}<br><a href="casenotes.html?caseId=${encodeURIComponent(c.id)}">View/Add Notes</a></td><td>${c.email || ''}</td><td>${c.status || ''}</td>`;
+                tbody.appendChild(tr);
+            });
+        } catch (err) {
+            document.getElementById('message').textContent = 'Error loading cases.';
+            console.error('[DEBUG] Exception in fetchMyCases:', err);
+        }
+    }
+    fetchMyCases();
+    </script>
+</body>
+</html>

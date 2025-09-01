@@ -1,0 +1,15 @@
+// Ensure unique case IDs
+CREATE CONSTRAINT case_id_unique IF NOT EXISTS
+FOR (c:Case) REQUIRE c.id IS UNIQUE;
+
+// Ensure unique applicant emails (if used for login/identification)
+CREATE CONSTRAINT applicant_email_unique IF NOT EXISTS
+FOR (a:Applicant) REQUIRE a.email IS UNIQUE;
+
+// Ensure unique organization names
+CREATE CONSTRAINT org_name_unique IF NOT EXISTS
+FOR (o:Organization) REQUIRE o.name IS UNIQUE;
+
+// Ensure unique community names
+CREATE CONSTRAINT community_name_unique IF NOT EXISTS
+FOR (c:Community) REQUIRE c.name IS UNIQUE;

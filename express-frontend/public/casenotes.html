@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Case Notes - Missing Persons App</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Missing Persons Case Management</h1>
+        <nav>
+            <div style="text-align:center;">
+                <a href="intake.html" style="margin-right: 2em;">Intake Form</a>
+                <a href="mycases.html" id="myCasesLink" style="display:none; margin-right: 2em;">My Cases</a>
+                <a href="allcases.html" id="allCasesLink" style="margin-right: 2em;">All Cases</a>
+                <a href="admin-clean.html" id="adminLink" style="margin-right: 2em;">Admin Panel</a>
+                <a href="login.html" id="loginLink" style="margin-right: 2em;">Login</a>
+                <a href="#" id="logoutLink" style="display:none; margin-right: 2em;">Logout</a>
+            </div>
+        </nav>
+    </header>
+        <main>
+            <!-- Attach Document header removed as requested -->
+            <div class="case-flex-row">
+                <div id="caseInfo" class="case-details-box">
+                    <!-- Case details will be loaded here -->
+                </div>
+                <div class="upload-box">
+                    <form id="uploadFileForm" enctype="multipart/form-data" class="upload-box-form">
+                        <input type="file" name="file" required>
+                        <button type="submit">Upload File</button>
+                    </form>
+                    <div id="filesList"></div>
+                </div>
+            </div>
+            <hr style="border: none; border-top: 3px solid #444; margin-bottom: 1.2em; margin-top: 2em;">
+                    <h1>Case Notes</h1>
+                    <div class="notes-flex-row">
+                        <div style="flex: 1.2 1 0; min-width: 260px; max-width: 600px;">
+                                    <form id="addNoteForm" class="note-form-vertical">
+                                        <textarea name="noteText" placeholder="Add a new note..." required class="wide-note-textarea"></textarea>
+                                        <div class="add-note-btn-row">
+                                            <button type="submit" class="add-note-btn">Add Note</button>
+                                        </div>
+                                    </form>
+                                    <div id="message"></div>
+                                </div>
+                                <div style="flex: 1 1 0; min-width: 180px; max-width: 540px; margin-left: 1em;">
+                                    <div id="notesList"></div>
+                                </div>
+                    </div>
+        </main>
+                <style>
+        .case-header-flex-row {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-end;
+            gap: 2.5em;
+            margin-bottom: 0.2em;
+        }
+        .case-header {
+            font-size: 2em;
+            font-weight: bold;
+            color: #222;
+            margin: 0;
+            border: none !important;
+            outline: none !important;
+            background: none !important;
+            box-shadow: none !important;
+        }
+    /* .upload-box-heading removed, now using inline style for h1 to match other headers */
+        .upload-box {
+            max-width: 340px;
+            min-width: 234px;
+            width: 100%;
+        }
+        #filesList {
+            max-width: 340px;
+            min-width: 234px;
+            width: 100%;
+            word-break: break-word;
+        }
+        .case-flex-row {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 2.5em;
+            margin-bottom: 2em;
+            justify-content: flex-start;
+        }
+        .case-details-box {
+            flex: 1 1 340px;
+            min-width: 300px;
+            max-width: 500px;
+        }
+                    .notes-flex-row {
+                        display: flex;
+                        flex-direction: row;
+                        align-items: flex-start;
+                            gap: 1em;
+                            margin-bottom: 1em;
+                    }
+                                                .note-form-vertical {
+                                                    display: flex;
+                                                    flex-direction: column;
+                                                    align-items: stretch;
+                            width: 90%;
+                            min-width: 234px;
+                            max-width: 340px;
+                            min-width: 234px;
+                            width: 100%;
+                            margin-left: auto;
+                                                            width: 95%;
+                                                            min-width: 210px;
+                                                            max-width: 340px;
+                                                            min-width: 234px;
+                                                            width: 100%;
+                                                            word-break: break-word;
+                                                            margin-left: auto;
+                                                            font-size: 1.1em;
+                                                            margin-bottom: 0.5em;
+                                                            box-sizing: border-box;
+                                                            resize: vertical;
+                                                        }
+                                        .add-note-btn-row {
+                                            display: flex;
+                                            flex-direction: row;
+                                            justify-content: flex-end;
+                                            width: 90%; /* match textarea width */
+                                            margin-left: 0;
+                                            margin-bottom: 0.2em;
+                                        .notes-list {
+                                            flex: 1;
+                                            min-width: 260px;
+                                            max-width: 420px;
+                                            margin-left: 16px;
+                                            background: #f7f7f7;
+                                            border-radius: 8px;
+                                            padding: 12px 8px;
+                                            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+                                            overflow-y: auto;
+                                            max-height: 340px;
+                                        }
+                                        .note-item {
+                                            background: #fff;
+                                            border-radius: 6px;
+                                            margin-bottom: 16px;
+                                            padding: 16px 16px 12px 16px;
+                                            box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+                                            font-size: 1.18em;
+                                            line-height: 1.5;
+                                            word-break: break-word;
+                                        }
+                font-weight: bold;
+                color: #6fcf6f;
+                margin-bottom: 0.7em;
+            }
+            .upload-box-form {
+                display: flex;
+                align-items: center;
+                gap: 0.5em;
+                margin-bottom: 1em;
+            }
+            .upload-box input[type="file"] {
+                color: #fff;
+                background: #222;
+                border: 1px solid #444;
+                border-radius: 4px;
+                padding: 0.2em 0.4em;
+            }
+            .upload-box button {
+                background: #6fcf6f;
+                color: #111;
+                border: none;
+                border-radius: 4px;
+                padding: 0.4em 1em;
+                font-weight: bold;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            .upload-box button:hover {
+                background: #57b957;
+            }
+            .upload-box ul, .upload-box li, .upload-box a, .upload-box span {
+                /* color: #fff !important; */
+            /* Note: file link color and underline are now set in CSS below for the file list. */
+            }
+
+            .upload-box a {
+                color: #1b7e3c !important;
+                text-decoration: none !important;
+                font-weight: bold;
+                font-size: 1em;
+            }
+
+            .upload-box ul {
+                margin: 0.5em 0 0 0;
+                padding-left: 0;
+                list-style-type: none;
+            }
+        </style>
+        <script>
+    // Fetch and display files for the case
+    async function fetchFiles(caseId) {
+        const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/files`, {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        });
+        const filesDiv = document.getElementById('filesList');
+        // Only update the contents, not the structure/layout
+        filesDiv.innerHTML = '';
+        if (!res.ok) {
+            filesDiv.innerHTML = '<i>No files found or failed to load.</i>';
+            return;
+        }
+        const data = await res.json();
+        if (!data.files || data.files.length === 0) {
+            filesDiv.innerHTML = '<i>No files uploaded yet.</i>';
+            return;
+        }
+        // Check if user is admin
+        const isAdmin = userIsAdmin();
+        // Wrap in a <ul>
+        const ul = document.createElement('ul');
+        ul.style.listStyleType = 'none';
+        ul.style.paddingLeft = '0';
+        data.files.forEach(file => {
+            const li = document.createElement('li');
+            li.style.marginBottom = '6px';
+            li.style.listStyleType = 'none';
+            const link = document.createElement('a');
+            link.href = `/uploads/${file.filename}`;
+            link.textContent = file.originalname;
+            link.target = '_blank';
+            link.style.textDecoration = 'none';
+            link.style.fontWeight = 'bold';
+            link.style.fontSize = '1em';
+            link.style.color = '#1b7e3c'; // Use the same green as other text
+            li.appendChild(link);
+            if (isAdmin) {
+                const delBtn = document.createElement('button');
+                delBtn.textContent = 'Delete';
+                delBtn.className = 'deleteFileBtn';
+                delBtn.setAttribute('data-filename', file.filename);
+                delBtn.style.marginLeft = '1em';
+                li.appendChild(delBtn);
+            }
+            ul.appendChild(li);
+        });
+        filesDiv.appendChild(ul);
+        if (isAdmin) {
+          // Add delete handlers
+          document.querySelectorAll('.deleteFileBtn').forEach(btn => {
+              btn.addEventListener('click', async function() {
+                  if (!confirm('Delete this file?')) return;
+                  const filename = btn.getAttribute('data-filename');
+                  const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/files/${encodeURIComponent(filename)}`, {
+                      method: 'DELETE',
+                      headers: { 'Authorization': 'Bearer ' + getToken() }
+                  });
+                  const result = await res.json();
+                  document.getElementById('message').textContent = result.success ? 'File deleted!' : (result.error || 'Failed to delete file.');
+                  if (result.success) await fetchFiles(caseId);
+              });
+          });
+        }
+        // Helper: check if user is admin by decoding JWT
+        function userIsAdmin() {
+            const token = getToken();
+            if (!token) return false;
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                return Array.isArray(payload.roles) && payload.roles.includes('admin');
+            } catch (e) {
+                return false;
+            }
+        }
+    }
+
+    // Handle file upload
+    document.getElementById('uploadFileForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const caseId = getCaseId();
+        const form = e.target;
+        const fileInput = form.file;
+        if (!fileInput.files.length) return;
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/upload`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + getToken() },
+            body: formData
+        });
+        const result = await res.json();
+        document.getElementById('message').textContent = result.success ? 'File uploaded!' : (result.error || 'Failed to upload file.');
+        if (result.success) {
+            form.reset();
+            // Only update the files list, not the layout
+            await fetchFiles(caseId);
+        }
+    });
+    // Get caseId from query string
+    function getCaseId() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('caseId');
+    }
+    function getToken() {
+        return localStorage.getItem('token') || sessionStorage.getItem('token');
+    }
+    async function fetchCaseInfo(caseId) {
+        const res = await fetch('/api/applicants/' + encodeURIComponent(caseId), {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        let html = '<h1>Case Details</h1>';
+        // Show all applicant fields except id and internal Neo4j fields, as a simple list
+        if (data.applicant) {
+            html += '<div style="margin:1em 0 1.5em 0;">';
+            for (const [key, value] of Object.entries(data.applicant)) {
+                if (["id", "_id", "_labels", "__v"].includes(key)) continue;
+                html += `<div style='margin-bottom:0.5em;'><span style='color:#aaa;'>${key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}:</span> <span>${value || ''}</span></div>`;
+            }
+            html += '</div>';
+        }
+        // Show related LovedOne(s) info if present
+        if (Array.isArray(data.lovedOnes) && data.lovedOnes.length > 0) {
+            html += `<div style="margin-bottom:1.5em;">
+                <b>Missing Person(s) Info:</b><br>`;
+            data.lovedOnes.forEach(lo => {
+                html += `<div style='margin:0.5em 0 1em 1em; padding:0.5em; border-left:3px solid #e6b85c;'>`;
+                if (lo.name) html += `<div><span style='color:#aaa;'>Name:</span> <span>${lo.name}</span></div>`;
+                if (lo.relationship) html += `<div><span style='color:#aaa;'>Relationship:</span> <span>${lo.relationship}</span></div>`;
+                if (lo.dateOfIncident) html += `<div><span style='color:#aaa;'>Date of Incident:</span> <span>${lo.dateOfIncident}</span></div>`;
+                if (lo.lastLocation) html += `<div><span style='color:#aaa;'>Last Location:</span> <span>${lo.lastLocation}</span></div>`;
+                html += `</div>`;
+            });
+            html += `</div>`;
+        }
+        if (data.referringOrg) {
+            html += `<b>Referring Organization:</b> ${data.referringOrg.name || ''}`;
+            if ('active' in data.referringOrg && !data.referringOrg.active) {
+                html += ' <span style="color:#e6b85c;">(deleted)</span>';
+            }
+            if (data.referringOrg.contact) {
+                html += `<br><b>Org Contact:</b> ${data.referringOrg.contact}`;
+            }
+            if (data.referringOrg.phone) {
+                html += `<br><b>Org Phone:</b> ${data.referringOrg.phone}`;
+            }
+        }
+        document.getElementById('caseInfo').innerHTML = html;
+    }
+    async function fetchNotes(caseId) {
+        const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/notes`, {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        });
+        const notesDiv = document.getElementById('notesList');
+        notesDiv.innerHTML = '';
+        if (!res.ok) {
+            notesDiv.innerHTML = '<i>No notes found or failed to load.</i>';
+            return;
+        }
+        const data = await res.json();
+        if (!data.notes || data.notes.length === 0) {
+            notesDiv.innerHTML = '<i>No notes yet.</i>';
+            return;
+        }
+        // Sort notes so newest first
+        data.notes.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        data.notes.forEach(note => {
+            const div = document.createElement('div');
+            div.className = 'note';
+            div.innerHTML = `<div class="note-meta">${note.author || 'Unknown'} &mdash; ${new Date(note.timestamp).toLocaleString()}</div><div>${note.text}</div>`;
+            notesDiv.appendChild(div);
+        });
+    }
+    document.getElementById('addNoteForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const caseId = getCaseId();
+        const text = e.target.noteText.value.trim();
+        if (!text) return;
+        const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/notes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+            body: JSON.stringify({ text })
+        });
+        const result = await res.json();
+        document.getElementById('message').textContent = result.success ? 'Note added!' : (result.error || 'Failed to add note.');
+        if (result.success) {
+            e.target.reset();
+            await fetchNotes(caseId);
+        }
+    });
+    // Initial load
+    const caseId = getCaseId();
+    if (caseId) {
+        fetchCaseInfo(caseId);
+        fetchNotes(caseId);
+        fetchFiles(caseId);
+    } else {
+        document.getElementById('caseInfo').textContent = 'No case selected.';
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Missing Persons Case Management - Staff Portal</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+    <!-- Removed stray CSS that was being rendered as text. Styles are now in retro.css -->
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Missing Persons Case Management</h1>
+    <!-- Navigation will be injected here -->
+    </header>
+    <main>
+    <script>
+    // --- Auth check and logout logic ---
+    function getToken() {
+        return localStorage.getItem('token') || sessionStorage.getItem('token');
+    }
+    if (!getToken()) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        var logoutLink = document.querySelector('a[href="#"]');
+        if (logoutLink) {
+            logoutLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                localStorage.removeItem('token');
+                sessionStorage.removeItem('token');
+                window.location.href = 'login.html';
+            });
+        }
+    });
+    </script>
+    <!-- Removed duplicate navigation bar -->
+        
+
+        </main>
+        <div id="dbStatusBox"></div>
+</main>
+<style>
+#dbStatusBox {
+    display: none;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    max-width: 900px;
+    background: #000;
+    color: #4aff4a;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.9rem;
+    padding: 0.9rem 1.2rem 0.9rem 1.2rem;
+    border-top: 2px solid #4aff4a;
+    z-index: 9999;
+    text-align: left;
+    letter-spacing: 0.03em;
+    box-shadow: 0 -2px 12px #000a;
+    user-select: none;
+    left: 50%;
+    transform: translateX(-50%);
+}
+@keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
+.green-cursor {
+    display:inline-block;
+    width:0.7em;
+    background:transparent;
+    color:#4aff4a;
+    font-weight:bold;
+    animation: blink 1s steps(1) infinite;
+}
+</style>
+<script>
+// --- DB Health Check: Show retro warning and disable nav if DB is unavailable ---
+function showDbStatusBox(msg) {
+    const box = document.getElementById('dbStatusBox');
+    box.innerHTML =
+        '<span style="color:#4aff4a;">[DB STATUS]</span> ' +
+        msg +
+        ' <span class="green-cursor">█</span>';
+    box.style.display = 'block';
+}
+
+function setNavLinksEnabled(enabled) {
+    const ids = ['myCasesLink', 'allCasesLink', 'adminLink'];
+    ids.forEach(id => {
+        const link = document.getElementById(id);
+        if (link) {
+            link.style.opacity = enabled ? '' : '0.5';
+            link.style.cursor = enabled ? '' : 'not-allowed';
+            if (!enabled) {
+                // Add click handler to show DB error box
+                link.addEventListener('click', dbDownHandler, { once: false });
+            } else {
+                // Remove click handler if DB is up
+                link.removeEventListener('click', dbDownHandler, false);
+            }
+        }
+    });
+}
+
+function dbDownHandler(e) {
+    e.preventDefault();
+    showDbStatusBox('Database unavailable. Please try again later.');
+}
+
+fetch('/api/health/db')
+    .then(r => {
+        if (!r.ok) throw new Error('DB unavailable');
+        return r.json();
+    })
+    .then(data => {
+        if (data.db !== 'available') {
+            showDbStatusBox('Database unavailable. Please try again later.');
+            setNavLinksEnabled(false);
+        }
+    })
+    .catch(() => {
+        showDbStatusBox('Database unavailable. Please try again later.');
+        setNavLinksEnabled(false);
+    });
+// Show/hide login, logout, and My Cases links based on token
+function updateAuthLinks() {
+    const token = getToken();
+    const loginLink = document.getElementById('loginLink');
+    const logoutLink = document.getElementById('logoutLink');
+    const myCasesLink = document.getElementById('myCasesLink');
+    const allCasesLink = document.getElementById('allCasesLink');
+    const intakeFormLink = Array.from(document.getElementsByTagName('a')).find(a => a.getAttribute('href') === 'intake.html');
+    if (token) {
+        if (loginLink) loginLink.style.display = 'none';
+        if (logoutLink) logoutLink.style.display = '';
+        if (myCasesLink) myCasesLink.style.display = '';
+        if (allCasesLink) allCasesLink.style.display = '';
+        if (intakeFormLink) intakeFormLink.style.display = '';
+    } else {
+        if (loginLink) loginLink.style.display = '';
+        if (logoutLink) logoutLink.style.display = 'none';
+        if (myCasesLink) myCasesLink.style.display = 'none';
+        if (allCasesLink) allCasesLink.style.display = 'none';
+        if (intakeFormLink) intakeFormLink.style.display = 'none';
+    }
+}
+updateAuthLinks();
+document.getElementById('logoutLink').addEventListener('click', function(e) {
+    e.preventDefault();
+    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
+    window.location.href = 'login.html';
+});
+// Hide Admin Panel link if user is not admin
+function parseJwt(token) {
+    try {
+        return JSON.parse(atob(token.split('.')[1]));
+    } catch (e) {
+        return null;
+    }
+}
+function getToken() {
+    return localStorage.getItem('token') || sessionStorage.getItem('token');
+}
+function isAdmin() {
+    const token = getToken();
+    if (!token) return false;
+    const payload = parseJwt(token);
+    return payload && Array.isArray(payload.roles) && payload.roles.includes('admin');
+}
+if (!isAdmin()) {
+    const adminLink = document.getElementById('adminLink');
+    if (adminLink) adminLink.style.display = 'none';
+}
+</script>
+</body>
+</html>

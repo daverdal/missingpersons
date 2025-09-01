@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Communities</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+</head>
+<body>
+    <main>
+        <nav style="margin-bottom:1rem;"><a href="settings.html">&larr; Back to Settings</a></nav>
+        <h1>All Communities</h1>
+        <table id="communitiesTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Band #</th>
+                    <th>Address</th>
+                    <th>Phone</th>
+                    <th>Fax</th>
+                    <th>Latitude</th>
+                    <th>Longitude</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </main>
+    <script>
+    fetch('/api/communities')
+        .then(r => r.json())
+        .then(data => {
+                const list = Array.isArray(data) ? data : (data.communities || []);
+            const tbody = document.querySelector('#communitiesTable tbody');
+            tbody.innerHTML = '';
+            list.forEach(c => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${c.name||''}</td><td>${c.band_number||''}</td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.fax||''}</td><td>${c.latitude||''}</td><td>${c.longitude||''}</td>`;
+                tbody.appendChild(tr);
+            });
+        });
+    </script>
+</body>
+</html>
