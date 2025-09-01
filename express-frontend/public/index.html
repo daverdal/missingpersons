@@ -20,10 +20,9 @@
     function getToken() {
         return localStorage.getItem('token') || sessionStorage.getItem('token');
     }
-    if (!getToken()) {
-        window.location.href = 'login.html';
-    }
+
     document.addEventListener('DOMContentLoaded', function() {
+    // No special content for unauthenticated users
         var logoutLink = document.querySelector('a[href="#"]');
         if (logoutLink) {
             logoutLink.addEventListener('click', function(e) {

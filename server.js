@@ -129,9 +129,14 @@ const driver = neo4j.driver(
   )
 );
 
+
 // User model setup
 const UserModel = require('./userModel');
 const userModel = new UserModel(driver);
+
+// CaseEvent model setup
+const CaseEventModel = require('./caseEventModel');
+const caseEventModel = new CaseEventModel(driver);
 
 
 
@@ -627,12 +632,39 @@ app.post('/api/cases/:caseId/upload',
         uploadedAt: new Date().toISOString()
       };
       // Create File node and link to Applicant (case)
+
       await session.run(
-        `MATCH (a:Applicant {id: $caseId})
+        `MATCH (a:Applicant {id: $id})
         CREATE (f:File {filename: $filename, originalname: $originalname, path: $path, mimetype: $mimetype, size: $size, uploadedBy: $uploadedBy, uploadedAt: $uploadedAt})
         CREATE (a)-[:HAS_FILE]->(f)`,
-        { caseId, ...fileMeta }
+        { id: caseId, ...fileMeta }
       );
+
+      // Add a CaseEvent for the file upload
+      const eventId = require('uuid').v4();
+      await session.run(
+        `MATCH (a:Applicant {id: $id})
+         CREATE (e:CaseEvent {
+           eventId: $eventId,
+           type: 'file_upload',
+           description: $description,
+           timestamp: $timestamp,
+           user: $user,
+           filename: $filename,
+           originalname: $originalname
+         })
+         CREATE (a)-[:HAS_EVENT]->(e)`,
+        {
+          id: caseId,
+          eventId,
+          description: `File '${fileMeta.originalname}' uploaded by ${fileMeta.uploadedBy}`,
+          timestamp: fileMeta.uploadedAt,
+          user: fileMeta.uploadedBy,
+          filename: fileMeta.filename,
+          originalname: fileMeta.originalname
+        }
+      );
+
       res.json({ success: true, file: fileMeta });
     } catch (err) {
       res.status(500).json({ error: 'Failed to save file metadata' });

@@ -13,7 +13,7 @@ class CaseEventModel {
     try {
       const eventId = uuidv4();
       const params = {
-        caseId,
+        id: caseId,
         eventId,
         type: event.type,
         description: event.description,
@@ -21,9 +21,9 @@ class CaseEventModel {
         user: event.user
       };
       await session.run(
-        `MATCH (c:Case {caseId: $caseId})
+        `MATCH (a:Applicant {id: $id})
          CREATE (e:CaseEvent {eventId: $eventId, type: $type, description: $description, timestamp: $timestamp, user: $user})
-         CREATE (c)-[:HAS_EVENT]->(e)`,
+         CREATE (a)-[:HAS_EVENT]->(e)`,
         params
       );
       return params;
@@ -36,9 +36,9 @@ class CaseEventModel {
     const session = this.driver.session();
     try {
       const result = await session.run(
-        `MATCH (c:Case {caseId: $caseId})-[:HAS_EVENT]->(e:CaseEvent)
+        `MATCH (a:Applicant {id: $id})-[:HAS_EVENT]->(e:CaseEvent)
          RETURN e ORDER BY e.timestamp ASC`,
-        { caseId }
+        { id: caseId }
       );
       return result.records.map(r => r.get('e').properties);
     } finally {

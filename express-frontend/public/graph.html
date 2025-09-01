@@ -43,36 +43,24 @@
 <body>
   <header>
     <h1 style="text-align:center;">Missing Persons Case Management</h1>
-    <nav>
-      <div style="text-align:center;">
-  
-  <a href="#" id="logoutLink" class="admin2-nav-link" style="margin-right: 2em;">Logout</a>
-  <script>
-    // Logout button logic
-    document.addEventListener('DOMContentLoaded', function() {
-      var logoutLink = document.getElementById('logoutLink');
-      if (logoutLink) {
-        logoutLink.addEventListener('click', function(e) {
-          e.preventDefault();
-          localStorage.removeItem('token');
-          sessionStorage.removeItem('token');
-          window.location.href = 'login.html';
-        });
-      }
-    });
-  </script>
-      </div>
-    </nav>
+    <!-- Navigation will be injected here by navbar.js -->
   </header>
   <div class="retro-box">
+    <div style="margin-bottom: 24px; display: flex; justify-content: center;">
+      <div style="background: #222; border-radius: 8px; padding: 16px 32px; display: flex; gap: 32px; align-items: center; box-shadow: 0 2px 8px #0007;">
+        <span style="display: flex; align-items: center; gap: 8px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:#4fa3ff;"></span> User</span>
+        <span style="display: flex; align-items: center; gap: 8px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:#f7c873;"></span> Applicant</span>
+        <span style="display: flex; align-items: center; gap: 8px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:#e74c3c;"></span> Loved One</span>
+        <span style="display: flex; align-items: center; gap: 8px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:#b983ff;"></span> Community</span>
+      </div>
+    </div>
     <div id="viz"></div>
   </div>
   <script>
     // Cypher query for the graph
     const cypher = `MATCH (u:User)-[r:ASSIGNED_TO]->(a:Applicant)
 OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-OPTIONAL MATCH (a)-[n:HAS_NOTE]->(note:Note)
-RETURN u, r, a, rel, l, n, note LIMIT 100`;
+RETURN u, r, a, rel, l LIMIT 100`;
 
     async function fetchGraph() {
       const res = await fetch('/api/graph-cypher', {
@@ -84,12 +72,12 @@ RETURN u, r, a, rel, l, n, note LIMIT 100`;
     }
 
     function nodeLabel(node) {
-      if (!node._labels) return node.name || node.id || 'Node';
-      if (node._labels.includes('User')) return `👤 ${node.name}`;
-      if (node._labels.includes('Applicant')) return `📁 ${node.name}`;
-      if (node._labels.includes('LovedOne')) return `🧑 ${node.name}`;
-      if (node._labels.includes('Community')) return `🏠 ${node.name}`;
-      return node.name || node.id || 'Node';
+  if (!node._labels) return node.name || node.id || '';
+  if (node._labels.includes('User')) return `👤 ${node.name}`;
+  if (node._labels.includes('Applicant')) return `📁 ${node.name}`;
+  if (node._labels.includes('LovedOne')) return `🧑 ${node.name}`;
+  if (node._labels.includes('Community')) return `🏠 ${node.name}`;
+  return node.name || node.id || '';
     }
 
     function nodeColor(node) {
@@ -102,10 +90,9 @@ RETURN u, r, a, rel, l, n, note LIMIT 100`;
     }
 
     function relLabel(rel) {
-      if (rel.type === 'ASSIGNED_TO') return 'assigned to';
-      if (rel.type === 'HAS_NOTE') return 'has note';
-      if (rel.type === 'RELATED_TO') return rel.properties && rel.properties.relationship ? rel.properties.relationship : 'related to';
-      return rel.type;
+  if (rel.type === 'ASSIGNED_TO') return 'assigned to';
+  if (rel.type === 'RELATED_TO') return rel.properties && rel.properties.relationship ? rel.properties.relationship : 'related to';
+  return rel.type;
     }
 
     async function renderGraph() {
@@ -137,10 +124,33 @@ RETURN u, r, a, rel, l, n, note LIMIT 100`;
       const options = {
         nodes: { borderWidth: 2 },
         edges: { smooth: true },
-        physics: { stabilization: true },
-        layout: { improvedLayout: true }
+        physics: {
+          stabilization: { enabled: true, iterations: 100 },
+          barnesHut: {
+            springLength: 200,
+            springConstant: 0.04
+          }
+        },
+        layout: {
+          hierarchical: {
+            enabled: true,
+            direction: 'UD',
+            sortMethod: 'hubsize',
+            nodeSpacing: 200,
+            levelSeparation: 200
+          },
+          improvedLayout: false
+        }
       };
-      new vis.Network(container, networkData, options);
+      const network = new vis.Network(container, networkData, options);
+      // Set initial zoom to 1.2x, centered
+      network.once('afterDrawing', function() {
+        network.moveTo({ scale: 1.2 });
+      });
+      // Disable physics after stabilization so nodes stay where placed
+      network.once('stabilizationIterationsDone', function() {
+        network.setOptions({ physics: false });
+      });
     }
     renderGraph();
   </script>
