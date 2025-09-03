@@ -457,7 +457,9 @@
         return params.get('caseId');
     }
     function getToken() {
-        return localStorage.getItem('token') || sessionStorage.getItem('token');
+    const match = document.cookie.match(/(^| )token=([^;]+)/);
+    if (match) return match[2];
+    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
     }
     async function fetchCaseInfo(caseId) {
         const res = await fetch('/api/applicants/' + encodeURIComponent(caseId), {

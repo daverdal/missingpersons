@@ -63,9 +63,15 @@ OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
 RETURN u, r, a, rel, l LIMIT 100`;
 
     async function fetchGraph() {
+      // Get token from cookie
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      const token = match ? match[2] : '';
       const res = await fetch('/api/graph-cypher', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
         body: JSON.stringify({ cypher })
       });
       return res.json();

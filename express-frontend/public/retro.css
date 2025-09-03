@@ -1,3 +1,91 @@
+/* Darker blue for header nav links in light mode */
+.light-mode .nav-link {
+  color: #b3d8f6 !important;
+}
+/* Light mode styles: override dark theme when .light-mode is on body */
+.light-mode {
+  background: #23395d url('sky-bg.jpg') no-repeat center center fixed !important;
+  background-size: cover !important;
+  color: #e3e6ea !important;
+}
+.light-mode main,
+.light-mode header,
+.light-mode nav,
+.light-mode section,
+.light-mode table,
+.light-mode form,
+.light-mode input,
+.light-mode select,
+.light-mode textarea,
+.light-mode button,
+.light-mode label,
+.light-mode h1,
+.light-mode h2,
+.light-mode h3,
+.light-mode h4,
+.light-mode h5,
+.light-mode h6,
+.light-mode th,
+.light-mode td,
+.light-mode div {
+  background: transparent !important;
+  color: #222 !important;
+  border-color: #d4d4d4 !important;
+  box-shadow: 0 2px 8px #0001 !important;
+}
+.light-mode main {
+  background: #b3d8f6 !important;
+  color: #222 !important;
+  border: 2px solid #3a5a7a !important;
+  box-shadow: 0 2px 8px #0001 !important;
+}
+.light-mode h1, .light-mode h2, .light-mode h3, .light-mode h4, .light-mode h5, .light-mode h6 {
+  color: #c9a94a !important;
+  text-shadow: none !important;
+}
+.light-mode button {
+  background: #14325a !important;
+  color: #e3e6ea !important;
+  box-shadow: 0 2px 8px #0003 !important;
+  border-radius: 8px !important;
+}
+.light-mode button:hover, .light-mode button:focus {
+  background: #c9a94a !important;
+  color: #23395d !important;
+}
+.light-mode input, .light-mode select, .light-mode textarea {
+  background: #fffbe6 !important;
+  color: #222 !important;
+  border: 1px solid #c9a94a !important;
+  border-radius: 6px !important;
+}
+.light-mode th {
+  background: #204a7a !important;
+  color: #fff !important;
+}
+.light-mode tr:nth-child(even) {
+  background: #e3f1fb !important;
+  color: #b3d8f6 !important;
+}
+.light-mode tr:nth-child(odd) {
+  background: #e3f1fb !important;
+  color: #4da6ff !important;
+}
+.light-mode #dbStatusBox, .light-mode .retro-warning {
+  background: #14325a !important;
+  color: #c9a94a !important;
+  border: 2px solid #c9a94a !important;
+  box-shadow: 0 2px 8px #0003 !important;
+}
+.light-mode .blinker {
+  color: #4da6ff !important;
+}
+.light-mode ::-webkit-scrollbar {
+  background: #14325a !important;
+}
+.light-mode ::-webkit-scrollbar-thumb {
+  background: #c9a94a !important;
+}
 /* Nav highlighting styles */
 .nav-link.active, .nav-link[aria-current="page"] {
   color: #d2691e !important;
@@ -6,15 +94,16 @@
 }
 /* Always style the Graph Visualization link the same, regardless of visited/clicked state */
 /* Style all admin2 navigation links the same, regardless of visited/clicked state */
+/* Admin panel links: always black, bold, no underline */
 .admin2-nav-link,
 .admin2-nav-link:link,
 .admin2-nav-link:visited,
 .admin2-nav-link:active,
 .admin2-nav-link:hover {
-  color: #f7c873 !important;
-  text-decoration: underline !important;
-  font-weight: 700;
-  font-size: 1.15rem;
+  color: #111 !important;
+  text-decoration: none !important;
+  font-weight: 700 !important;
+  font-size: 1.15rem !important;
 }
 /* Retro grey checkboxes */
 input[type="checkbox"] {

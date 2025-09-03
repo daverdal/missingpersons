@@ -15,29 +15,39 @@
     </header>
     <main>
     <script>
-    // --- Auth check and logout logic ---
-    console.log('[DEBUG] mycases.html script loaded');
-    function getToken() {
-        return localStorage.getItem('token') || sessionStorage.getItem('token');
-    }
-    if (!getToken()) {
+// Unified getToken: read from cookie first, then localStorage/sessionStorage
+function getToken() {
+    const match = document.cookie.match(/(^| )token=([^;]+)/);
+    if (match) return match[2];
+    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+}
+// Expose getToken globally for debugging
+window.getToken = getToken;
+// --- Auth check and logout logic ---
+console.log('[DEBUG] mycases.html script loaded');
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('[DEBUG] DOMContentLoaded fired');
+    const token = getToken();
+    console.log('[DEBUG] Token detected:', token);
+    if (!token) {
+        document.getElementById('message').textContent = 'No token detected. Redirecting to login.';
         console.log('[DEBUG] No token found, redirecting to login.html');
-        window.location.href = 'login.html';
+        setTimeout(() => window.location.href = 'login.html', 1000);
+        return;
     } else {
         console.log('[DEBUG] Token found, continuing');
+        fetchMyCases();
     }
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('[DEBUG] DOMContentLoaded fired');
-        var logoutLink = document.querySelector('a[href="#"]');
-        if (logoutLink) {
-            logoutLink.addEventListener('click', function(e) {
-                e.preventDefault();
-                localStorage.removeItem('token');
-                sessionStorage.removeItem('token');
-                window.location.href = 'login.html';
-            });
-        }
-    });
+    var logoutLink = document.querySelector('a[href="#"]');
+    if (logoutLink) {
+        logoutLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.removeItem('token');
+            sessionStorage.removeItem('token');
+            window.location.href = 'login.html';
+        });
+    }
+});
     </script>
         <div id="message"></div>
         <table id="casesTable">
@@ -51,9 +61,6 @@
         try {
             return JSON.parse(atob(token.split('.')[1]));
         } catch (e) { return null; }
-    }
-    function getToken() {
-        return localStorage.getItem('token') || sessionStorage.getItem('token');
     }
     function isAdmin() {
         const token = getToken();
@@ -115,6 +122,11 @@
                 headers: { 'Authorization': 'Bearer ' + token }
             });
             console.log('[DEBUG] fetch /api/my-cases response status:', res.status);
+            if (res.status === 401) {
+                document.getElementById('message').textContent = 'Session expired. Please log in again.';
+                window.location.href = 'login.html';
+                return;
+            }
             if (!res.ok) {
                 document.getElementById('message').textContent = 'Failed to load cases.';
                 console.log('[DEBUG] fetch /api/my-cases failed');
@@ -140,7 +152,9 @@
             console.error('[DEBUG] Exception in fetchMyCases:', err);
         }
     }
-    fetchMyCases();
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchMyCases();
+    });
     </script>
 </body>
 </html>

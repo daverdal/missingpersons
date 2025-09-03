@@ -30,6 +30,29 @@
         // Run nav logic after insertion
         if (typeof updateAuthLinks === 'function') updateAuthLinks();
         if (typeof setupLogout === 'function') setupLogout();
+        // Theme toggle logic
+        var themeBtn = document.getElementById('themeToggleBtn');
+        var body = document.body;
+        function setTheme(mode) {
+          if (mode === 'light') {
+            body.classList.add('light-mode');
+            themeBtn.textContent = '☀️';
+          } else {
+            body.classList.remove('light-mode');
+            themeBtn.textContent = '🌙';
+          }
+        }
+        // Load theme from localStorage
+        var savedTheme = localStorage.getItem('themeMode');
+        setTheme(savedTheme === 'light' ? 'light' : 'dark');
+        if (themeBtn) {
+          themeBtn.addEventListener('click', function() {
+            var current = body.classList.contains('light-mode') ? 'light' : 'dark';
+            var next = current === 'light' ? 'dark' : 'light';
+            setTheme(next);
+            localStorage.setItem('themeMode', next);
+          });
+        }
       });
   }
   if (document.readyState === 'loading') {

@@ -41,6 +41,7 @@
                         </label>
                         <button type="submit">Create User</button>
                     </div>
+                    </div>
                     <div id="passwordError" style="color:#ff6666;margin-top:0.5em;display:none;">Passwords do not match.</div>
                 </form>
             </div>
@@ -114,7 +115,13 @@
     <script>
     // --- Admin role check: redirect non-admins ---
     (function() {
-        var token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        // Robust cookie parsing
+        function getToken() {
+        const match = document.cookie.match(/(^| )token=([^;]+)/);
+        if (match) return match[2];
+        return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        }
+        var token = getToken();
         if (!token) {
             window.location.href = 'login.html';
             return;
@@ -132,6 +139,43 @@
     })();
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Handle create user form submission
+        document.getElementById('createUserForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const name = this.name.value.trim();
+            const email = this.email.value.trim();
+            const password = this.password.value;
+            const confirmPassword = this.confirmPassword.value;
+            const role = this.role.value;
+            if (!name || !email || !password || !confirmPassword || !role) {
+                document.getElementById('passwordError').textContent = 'All fields are required.';
+                document.getElementById('passwordError').style.display = 'block';
+                return;
+            }
+            if (password !== confirmPassword) {
+                document.getElementById('passwordError').textContent = 'Passwords do not match.';
+                document.getElementById('passwordError').style.display = 'block';
+                return;
+            }
+            document.getElementById('passwordError').style.display = 'none';
+            const token = getToken();
+            const res = await fetch('/api/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ name, email, password, roles: [role] })
+            });
+            const result = await res.json();
+            if (result.success) {
+                this.reset();
+                loadUsers();
+            } else {
+                document.getElementById('passwordError').textContent = result.error || 'Failed to create user.';
+                document.getElementById('passwordError').style.display = 'block';
+            }
+        });
         // Section toggling
         function showSection(section) {
             document.getElementById('users').style.display = 'none';
@@ -157,6 +201,8 @@
             e.preventDefault();
             showSection('settings');
         });
+        // Show users table on initial page load
+        showSection('users');
 
         // Modal logic for Add First Nation
         var addFNModal = document.getElementById('addFNModal');
@@ -172,10 +218,16 @@
 
         // --- Auth and logout logic ---
         function getToken() {
+            // Robust cookie parsing
+            const cookies = document.cookie.split(';');
+            for (let c of cookies) {
+                const [key, value] = c.trim().split('=');
+                if (key === 'token') return value;
+            }
             return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
         }
         if (!getToken()) {
-            window.location.href = 'login.html';
+            // Removed duplicate token check and redirect
         }
         var logoutBtn = document.getElementById('logoutBtn');
         if (logoutBtn) {
@@ -190,11 +242,16 @@
         // --- Advocate Logins Management ---
         function loadUsers() {
             const token = getToken();
+            console.log('[DEBUG] loadUsers called, token:', token);
             fetch('/api/users', {
-                headers: { 'Authorization': 'Bearer ' + token }
+                headers: { 'Authorization': 'Bearer ' + getToken() }
             })
-            .then(r => r.json())
+            .then(r => {
+                console.log('[DEBUG] /api/users response status:', r.status);
+                return r.json();
+            })
             .then(data => {
+                console.log('[DEBUG] /api/users response data:', data);
                 const users = data.users || [];
                 const tbody = document.querySelector('#usersTable tbody');
                 tbody.innerHTML = '';
@@ -227,7 +284,7 @@
         function loadCases() {
             const token = getToken();
             fetch('/api/cases', {
-                headers: { 'Authorization': 'Bearer ' + token }
+                headers: { 'Authorization': 'Bearer ' + getToken() }
             })
             .then(r => r.json())
             .then(data => {
@@ -266,19 +323,29 @@
                         unassignBtn.textContent = 'Unassign';
                         unassignBtn.addEventListener('click', function(ev) {
                             ev.preventDefault();
+                            console.log('[DEBUG] Unassign button clicked for case:', c.id);
+                            const token = getToken();
+                            console.log('[DEBUG] Will send POST to /api/cases/' + c.id + '/unassign with token:', token);
                             fetch(`/api/cases/${encodeURIComponent(c.id)}/unassign`, {
                                 method: 'POST',
                                 headers: {
                                     'Authorization': 'Bearer ' + token
                                 }
                             })
-                            .then(r => r.json())
+                            .then(r => {
+                                console.log('[DEBUG] Unassign response status:', r.status);
+                                return r.json();
+                            })
                             .then(result => {
+                                console.log('[DEBUG] Unassign response data:', result);
                                 if (result.success) {
                                     loadCases();
                                 } else {
                                     alert(result.error || 'Failed to unassign');
                                 }
+                            })
+                            .catch(err => {
+                                console.error('[DEBUG] Unassign fetch error:', err);
                             });
                         });
                         assignTd.appendChild(unassignBtn);
@@ -287,7 +354,7 @@
                         const select = document.createElement('select');
                         select.innerHTML = '<option value="">-- Select --</option>';
                         fetch('/api/users', {
-                            headers: { 'Authorization': 'Bearer ' + token }
+                            headers: { 'Authorization': 'Bearer ' + getToken() }
                         })
                         .then(r => r.json())
                         .then(usersData => {
@@ -315,6 +382,7 @@
                             .then(r => r.json())
                             .then(result => {
                                 if (result.success) {
+                                    showSection('clients');
                                     loadCases();
                                 } else {
                                     alert(result.error || 'Failed to assign');
@@ -535,24 +603,6 @@
     <title>Admin Panel - Missing Persons App</title>
     <link rel="stylesheet" href="retro.css">
     <script>
-    // --- Admin role check: redirect non-admins ---
-    (function() {
-        var token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        if (!token) {
-            window.location.href = 'login.html';
-            return;
-        }
-        try {
-            var payload = JSON.parse(atob(token.split('.')[1]));
-            var roles = payload.roles || payload.groups || payload.roles_claim || [];
-            if (!Array.isArray(roles)) roles = [roles];
-            if (!roles.includes('admin')) {
-                window.location.href = 'index.html';
-            }
-        } catch (e) {
-            window.location.href = 'login.html';
-        }
-    })();
     </script>
     <script src="navbar.js"></script>
     <script src="navbar-auth.js"></script>
@@ -614,27 +664,37 @@
                 // Assign to Case Worker column
                 const assignTd = document.createElement('td');
                 if (assigned) {
-                    // Show Unassign button if already assigned
-                    const unassignBtn = document.createElement('button');
-                    unassignBtn.textContent = 'Unassign';
-                    unassignBtn.addEventListener('click', function(ev) {
-                        ev.preventDefault();
-                        fetch(`/api/cases/${encodeURIComponent(c.id)}/unassign`, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': 'Bearer ' + token
-                            }
-                        })
-                        .then(r => r.json())
-                        .then(result => {
-                            if (result.success) {
-                                loadCases();
-                            } else {
-                                alert(result.error || 'Failed to unassign');
-                            }
-                        });
-                    });
-                    assignTd.appendChild(unassignBtn);
+                        // Show Unassign button if already assigned
+                        const unassignBtn = document.createElement('button');
+                        unassignBtn.textContent = 'Unassign';
+                        unassignBtn.onclick = function(ev) {
+                            ev.preventDefault();
+                            console.log('[DEBUG] Unassign button clicked for case:', c.id);
+                            const token = getToken();
+                            console.log('[DEBUG] Will send POST to /api/cases/' + c.id + '/unassign with token:', token);
+                            fetch(`/api/cases/${encodeURIComponent(c.id)}/unassign`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Bearer ' + getToken()
+                                }
+                            })
+                            .then(r => {
+                                console.log('[DEBUG] Unassign response status:', r.status);
+                                return r.json();
+                            })
+                            .then(result => {
+                                console.log('[DEBUG] Unassign response data:', result);
+                                if (result.success) {
+                                    loadCases();
+                                } else {
+                                    alert(result.error || 'Failed to unassign');
+                                }
+                            })
+                            .catch(err => {
+                                console.error('[DEBUG] Unassign fetch error:', err);
+                            });
+                        };
+                        assignTd.appendChild(unassignBtn);
                 } else {
                     // Show assign dropdown and button if unassigned
                     const select = document.createElement('select');

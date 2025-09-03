@@ -15,13 +15,15 @@
     </header>
     <main>
     <script>
-    // --- Auth check and logout logic ---
-    function getToken() {
-        return localStorage.getItem('token') || sessionStorage.getItem('token');
-    }
-    if (!getToken()) {
-        window.location.href = 'login.html';
-    }
+// Unified getToken: read from cookie first, then localStorage/sessionStorage
+function getToken() {
+    const match = document.cookie.match(/(^| )token=([^;]+)/);
+    if (match) return match[2];
+    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+}
+if (!getToken()) {
+    window.location.href = 'login.html';
+}
     document.addEventListener('DOMContentLoaded', function() {
         var logoutLinks = document.querySelectorAll('a[href="#"], #logoutLink');
         logoutLinks.forEach(function(logoutLink) {
@@ -151,31 +153,11 @@
 </body>
 <script>
 // --- DB Health Check: Show retro warning if DB is unavailable ---
-function showDbStatusBox(msg) {
-    const box = document.getElementById('dbStatusBox');
-    box.innerHTML =
-        '<span style="color:#4aff4a;">[DB STATUS]</span> ' +
-        msg +
-        ' <span class="green-cursor">█</span>';
-    box.style.display = 'block';
-}
-
-fetch('/api/health/db')
-    .then(r => {
-        if (!r.ok) throw new Error('DB unavailable');
-        return r.json();
-    })
-    .then(data => {
-        if (data.db !== 'available') {
-            showDbStatusBox('Database unavailable. Please try again later.');
-        }
-    })
-    .catch(() => {
-        showDbStatusBox('Database unavailable. Please try again later.');
-    });
 // Helper to get JWT token from storage
 function getToken() {
-    return localStorage.getItem('token') || sessionStorage.getItem('token');
+    const match = document.cookie.match(/(^| )token=([^;]+)/);
+    if (match) return match[2];
+    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
 }
 // Populate Referring Organization dropdown dynamically from API (with auth)
 fetch('/api/organizations', {

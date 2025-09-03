@@ -149,8 +149,9 @@
                 });
                 const result = await res.json();
                 if (result.success) {
-                        localStorage.setItem('token', result.token);
-                        window.location.href = 'index.html';
+                        // Store JWT token in a cookie for authentication
+                        document.cookie = `token=${result.token}; path=/; SameSite=Lax`;
+                        window.location.href = 'allcases.html';
                 } else {
                         document.getElementById('loginMessage').textContent = result.error || 'Login failed.';
                         document.getElementById('loginMessage').style.color = '#ff7f7f';

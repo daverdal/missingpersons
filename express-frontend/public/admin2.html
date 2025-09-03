@@ -7,6 +7,12 @@
         <title>Admin Panel 2 - Missing Persons App</title>
         <link rel="stylesheet" href="retro.css">
         <script>
+// Helper to get JWT token from cookie
+function getToken() {
+    const match = document.cookie.match(/(^| )token=([^;]+)/);
+    if (match) return match[2];
+    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+}
         // --- Admin role check: redirect non-admins ---
         (function() {
             var token = localStorage.getItem('token') || sessionStorage.getItem('token');
@@ -38,7 +44,9 @@
     <script>
     // --- Auth check and logout logic ---
     function getToken() {
-        return localStorage.getItem('token') || sessionStorage.getItem('token');
+        const match = document.cookie.match(/(^| )token=([^;]+)/);
+        if (match) return match[2];
+        return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
     }
     // Redirect to login if not authenticated
     if (!getToken()) {
@@ -231,6 +239,7 @@
             const token = getToken();
             fetch('/api/users', {
                 headers: { 'Authorization': 'Bearer ' + token }
+                headers: { 'Authorization': 'Bearer ' + getToken() }
             })
             .then(r => r.json())
             .then(data => {
@@ -430,6 +439,8 @@
             });
         }
         function getToken() {
+            const match = document.cookie.match(/(^| )token=([^;]+)/);
+            if (match) return match[2];
             return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
         }
         function loadOrganizations() {

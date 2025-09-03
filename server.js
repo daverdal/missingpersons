@@ -4,6 +4,7 @@
 // New EJS routes (moved below app initialization)
 // (Moved below app initialization)
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const neo4j = require('neo4j-driver');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -14,13 +15,65 @@ require('dotenv').config();
 
 const upload = require('./fileUpload');
 const app = express();
+app.use(cookieParser());
 
 // Removed EJS and express-ejs-layouts setup. Static HTML only.
 
 
 
-// Serve static files from express-frontend/public (must be first!)
-app.use(express.static('express-frontend/public'));
+// Secure all HTML pages except login.html
+// Serve static assets (css, js, images) publicly
+app.use((req, res, next) => {
+  if (
+    req.path.endsWith('.css') ||
+    req.path.endsWith('.js') ||
+    req.path.endsWith('.png') ||
+    req.path.endsWith('.jpg') ||
+    req.path.endsWith('.jpeg') ||
+    req.path.endsWith('.svg') ||
+    req.path.endsWith('.ico') ||
+    req.path.startsWith('/uploads')
+  ) {
+    return express.static('express-frontend/public')(req, res, next);
+  }
+  next();
+});
+
+// Serve login.html publicly
+app.get('/login.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'express-frontend', 'public', 'login.html'));
+});
+
+// Serve index.html for root route
+app.get('/', (req, res) => {
+  res.redirect('/index.html');
+});
+
+// Secure all other HTML pages
+app.get('/*.html', (req, res) => {
+  const cookieToken = req.cookies && req.cookies.token;
+  const headerToken = req.headers['authorization'];
+  console.log('DEBUG: cookie token:', cookieToken);
+  console.log('DEBUG: header token:', headerToken);
+  const auth = headerToken || cookieToken;
+  if (!auth) {
+    console.log('DEBUG: No token found, redirecting to login');
+    return res.redirect('/login.html');
+  }
+  let token = auth;
+  if (auth && auth.startsWith('Bearer ')) {
+    token = auth.split(' ')[1];
+  }
+  try {
+    const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    console.log('DEBUG: Token verified, user:', decoded);
+    res.sendFile(path.join(__dirname, 'express-frontend', 'public', req.path));
+  } catch (err) {
+    console.log('DEBUG: Token verification failed:', err.message);
+    return res.redirect('/login.html');
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -67,7 +120,7 @@ app.post('/api/login', async (req, res) => {
   const token = jwt.sign({ email: user.email, name: user.name, roles: user.roles }, JWT_SECRET, { expiresIn: '8h' });
   res.json({ success: true, token });
 });
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 app.get('/allcases', (req, res) => {
   res.render('allcases', { title: 'All Cases - Missing Persons App' });
@@ -862,14 +915,18 @@ app.post('/api/cases/:caseId/notes', authMiddleware, async (req, res) => {
 // Unassign all case workers from a case (remove all ASSIGNED_TO relationships for a given Applicant id)
 app.post('/api/cases/:caseId/unassign', authMiddleware, requireRole('admin'), async (req, res) => {
   const { caseId } = req.params;
+  console.log('[DEBUG] Unassign request received for caseId:', caseId);
   const session = driver.session();
   try {
-    await session.run(
-      `MATCH (u:User)-[r:ASSIGNED_TO]->(a:Applicant {id: $caseId}) DELETE r`,
+    const result = await session.run(
+      `MATCH (u:User)-[r:ASSIGNED_TO]->(a:Applicant {id: $caseId}) DELETE r RETURN COUNT(r) AS deletedCount`,
       { caseId }
     );
-    res.json({ success: true });
+    const deletedCount = result.records.length > 0 ? result.records[0].get('deletedCount').toInt() : 0;
+    console.log('[DEBUG] Unassign result for caseId', caseId, ': deletedCount =', deletedCount);
+    res.json({ success: true, deletedCount });
   } catch (err) {
+    console.error('[DEBUG] Unassign error for caseId', caseId, ':', err);
     res.status(500).json({ error: 'Failed to unassign case' });
   } finally {
     await session.close();
