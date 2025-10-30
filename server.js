@@ -472,6 +472,32 @@ app.post('/api/cases/:caseId/assign', authMiddleware, requireRole('admin'), asyn
       `MATCH (a:Applicant {id: $caseId}), (u:User {email: $email}) MERGE (u)-[:ASSIGNED_TO]->(a)`,
       { caseId, email }
     );
+    // Log assignment as CaseEvent so it appears in Case Notes
+    try {
+      const eventId = require('uuid').v4();
+      const timestamp = new Date().toISOString();
+      await session.run(
+        `MATCH (a:Applicant {id: $id})
+         OPTIONAL MATCH (u:User {email: $email})
+         CREATE (e:CaseEvent {
+           eventId: $eventId,
+           type: 'assignment',
+           description: coalesce('Assigned to advocate ' + u.name, 'Assigned to advocate ' + $email),
+           timestamp: $timestamp,
+           user: $actor
+         })
+         CREATE (a)-[:HAS_EVENT]->(e)`,
+        {
+          id: caseId,
+          email,
+          eventId,
+          timestamp,
+          actor: (req.user && (req.user.email || req.user.name || req.user.preferred_username)) || 'system'
+        }
+      );
+    } catch (e) {
+      console.warn('Failed to log assignment event for case', caseId, e.message);
+    }
     console.log('Case assigned successfully');
     res.json({ success: true });
   } catch (err) {
@@ -929,6 +955,30 @@ app.post('/api/cases/:caseId/unassign', authMiddleware, requireRole('admin'), as
     );
     const deletedCount = result.records.length > 0 ? result.records[0].get('deletedCount').toInt() : 0;
     console.log('[DEBUG] Unassign result for caseId', caseId, ': deletedCount =', deletedCount);
+    // Log unassignment as CaseEvent so it appears in Case Notes
+    try {
+      const eventId = require('uuid').v4();
+      const timestamp = new Date().toISOString();
+      await session.run(
+        `MATCH (a:Applicant {id: $id})
+         CREATE (e:CaseEvent {
+           eventId: $eventId,
+           type: 'unassignment',
+           description: 'All advocates unassigned from case',
+           timestamp: $timestamp,
+           user: $actor
+         })
+         CREATE (a)-[:HAS_EVENT]->(e)`,
+        {
+          id: caseId,
+          eventId,
+          timestamp,
+          actor: (req.user && (req.user.email || req.user.name || req.user.preferred_username)) || 'system'
+        }
+      );
+    } catch (e) {
+      console.warn('Failed to log unassignment event for case', caseId, e.message);
+    }
     res.json({ success: true, deletedCount });
   } catch (err) {
     console.error('[DEBUG] Unassign error for caseId', caseId, ':', err);
