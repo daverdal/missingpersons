@@ -1,7 +1,7 @@
 // navbar.js: Injects the shared navigation bar into the page
 (function() {
   function loadNavbar() {
-    fetch('navbar.html?v=4')
+    fetch('navbar.html?v=6')
       .then(response => response.text())
       .then(html => {
         const header = document.querySelector('header');

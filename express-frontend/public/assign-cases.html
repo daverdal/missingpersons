@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assign Cases - Missing Persons App</title>
+    <link rel="stylesheet" href="retro.css">
+    <style>
+        /* Row separators for the cases table */
+        #casesTable { border-collapse: collapse; width: 100%; }
+        #casesTable th, #casesTable td { padding: 0.5rem 0.75rem; text-align: left; }
+        #casesTable thead th { border-bottom: 2px solid #555; }
+        #casesTable tbody td { border-bottom: 1px solid #444; }
+        /* Lighter zebra striping for every second row */
+        #casesTable tbody tr:nth-child(even) { background: #2a2f36 !important; }
+    </style>
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Missing Persons Case Management</h1>
+        <!-- Navigation will be injected here -->
+    </header>
+    <main>
+        <h1>Assign Cases</h1>
+        <div id="message"></div>
+        <section>
+            <table id="casesTable" style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th style="text-align:left;">Name</th>
+                        <th style="text-align:left;">Current Case Worker / Unassign</th>
+                        <th style="text-align:left;">Assign to Case Worker</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+    </main>
+    <script>
+    function getToken() {
+        const cookies = document.cookie.split(';');
+        for (let c of cookies) {
+            const [key, value] = c.trim().split('=');
+            if (key === 'token') return value;
+        }
+        return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+    function isAdmin() {
+        try {
+            const token = getToken();
+            if (!token) return false;
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            let roles = payload.roles || payload.groups || payload.roles_claim || [];
+            if (!Array.isArray(roles)) roles = [roles];
+            return roles.includes('admin');
+        } catch (_) { return false; }
+    }
+
+    // Redirect non-admins
+    (function guardAdmin() {
+        if (!isAdmin()) {
+            window.location.href = 'index.html';
+        }
+    })();
+
+    function loadCases() {
+        const token = getToken();
+        fetch('/api/cases', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(r => r.json())
+        .then(data => {
+            const cases = data.cases || [];
+            const table = document.getElementById('casesTable').getElementsByTagName('tbody')[0];
+            table.innerHTML = '';
+            if (cases.length === 0) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 3;
+                td.textContent = 'No cases found.';
+                tr.appendChild(td);
+                table.appendChild(tr);
+                return;
+            }
+            cases.forEach(c => {
+                const tr = document.createElement('tr');
+                // Name column
+                const nameTd = document.createElement('td');
+                nameTd.textContent = c.name || c.id || '(no name)';
+                tr.appendChild(nameTd);
+                // Current Case Worker / Unassign column
+                const currentTd = document.createElement('td');
+                let assigned = c.assignedTo && c.assignedTo.length > 0;
+                currentTd.textContent = assigned ? c.assignedTo.join(', ') : 'Unassigned';
+                if (assigned) {
+                    const unassignBtn = document.createElement('button');
+                    unassignBtn.textContent = 'Unassign';
+                    unassignBtn.style.marginLeft = '8px';
+                    unassignBtn.addEventListener('click', function(ev) {
+                        ev.preventDefault();
+                        fetch(`/api/cases/${encodeURIComponent(c.id)}/unassign`, {
+                            method: 'POST',
+                            headers: { 'Authorization': 'Bearer ' + getToken() }
+                        })
+                        .then(r => r.json())
+                        .then(result => {
+                            if (result.success) {
+                                loadCases();
+                            } else {
+                                alert(result.error || 'Failed to unassign');
+                            }
+                        });
+                    });
+                    currentTd.appendChild(unassignBtn);
+                }
+                tr.appendChild(currentTd);
+                // Assign to Case Worker column
+                const assignTd = document.createElement('td');
+                if (!assigned) {
+                    const select = document.createElement('select');
+                    select.innerHTML = '<option value="">-- Select --</option>';
+                    fetch('/api/users', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+                    .then(r => r.json())
+                    .then(usersData => {
+                        (usersData.users || []).filter(u => u.roles && u.roles.includes('case_worker')).forEach(u => {
+                            const opt = document.createElement('option');
+                            opt.value = u.email;
+                            opt.textContent = u.name + ' (' + u.email + ')';
+                            select.appendChild(opt);
+                        });
+                    });
+                    const assignBtn = document.createElement('button');
+                    assignBtn.textContent = 'Assign';
+                    assignBtn.addEventListener('click', function(ev) {
+                        ev.preventDefault();
+                        const email = select.value;
+                        if (!email) return alert('Select a case worker');
+                        fetch(`/api/cases/${encodeURIComponent(c.id)}/assign`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Bearer ' + getToken()
+                            },
+                            body: JSON.stringify({ email })
+                        })
+                        .then(r => r.json())
+                        .then(result => {
+                            if (result.success) {
+                                loadCases();
+                            } else {
+                                alert(result.error || 'Failed to assign');
+                            }
+                        });
+                    });
+                    assignTd.appendChild(select);
+                    assignTd.appendChild(assignBtn);
+                } else {
+                    assignTd.textContent = '—';
+                }
+                tr.appendChild(assignTd);
+                table.appendChild(tr);
+            });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadCases();
+    });
+    </script>
+</body>
+</html>
+
+
