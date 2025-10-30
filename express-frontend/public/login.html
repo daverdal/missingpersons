@@ -44,7 +44,7 @@
             align-items: center;
             justify-content: center;
             margin: 2.5rem auto 0 auto;
-            max-width: 400px;
+            max-width: 480px;
         }
         .login-center h1 {
             text-align: center;
@@ -71,6 +71,20 @@
         .login-center button {
             margin-top: 0.7em;
         }
+            .login-hint-box {
+                margin-top: 1em;
+                font-size: 1em;
+                background: #000;
+                color: #4aff4a;
+                padding: 1.2rem 1.5rem;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                width: 100%;
+                max-width: 600px;
+                text-align: center;
+                font-family: 'Fira Mono', 'Consolas', monospace;
+                border: 2px solid #4aff4a;
+            }
         </style>
 </head>
 <body>
@@ -90,6 +104,14 @@
             <label>Password: <input type="password" name="password" required></label>
             <button type="submit">Login</button>
         </form>
+        <div class="login-hint-box">
+            <strong>Test Users:</strong><br>
+            <b>Admin:</b> admin1@example.com / <b>admin</b><br>
+            <b>Case Worker 1:</b> caseworker1@example.com / <b>admin</b><br>
+            <b>Case Worker 2:</b> caseworker2@example.com / <b>admin</b><br>
+            <b>Case Worker 3:</b> caseworker3@example.com / <b>admin</b><br>
+            <b>Staff User 1:</b> user1@example.com / <b>admin</b><br>
+        </div>
         <div id="loginMessage"></div>
     </div>
     </main>

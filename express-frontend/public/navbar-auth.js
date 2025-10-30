@@ -3,6 +3,7 @@
 (function() {
   function hideAdminLinkIfNotAdmin() {
     var adminLink = document.getElementById('adminLink');
+    var settingsLink = document.getElementById('settingsLink');
     // Get token from cookie first, then localStorage/sessionStorage
     function getToken() {
       const cookies = document.cookie.split(';');
@@ -15,6 +16,7 @@
     var token = getToken();
     if (!token) {
       if (adminLink) adminLink.style.display = 'none';
+      if (settingsLink) settingsLink.style.display = 'none';
       return;
     }
     try {
@@ -23,11 +25,14 @@
       if (!Array.isArray(roles)) roles = [roles];
       if (roles.includes('admin')) {
         if (adminLink) adminLink.style.display = '';
+        if (settingsLink) settingsLink.style.display = '';
       } else {
         if (adminLink) adminLink.style.display = 'none';
+        if (settingsLink) settingsLink.style.display = 'none';
       }
     } catch (e) {
       if (adminLink) adminLink.style.display = 'none';
+      if (settingsLink) settingsLink.style.display = 'none';
     }
   }
 

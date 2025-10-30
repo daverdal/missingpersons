@@ -9,74 +9,248 @@
     <script src="navbar-auth.js"></script>
 </head>
 <body>
+    <header>
+        <h1 style="text-align:center;">Missing Persons Case Management</h1>
+        <!-- Navigation will be injected here -->
+    </header>
     <main>
-    <nav style="margin-bottom:1rem;"><a href="community-list.html" id="communityListLink">View All Communities</a></nav>
     <h1>Settings</h1>
         <section>
-            <h2>Communities</h2>
-            <form id="addCommunityForm">
-                <div class="fields">
-                    <label>Name*:<br><input type="text" id="communityName" required></label>
-                    <label>Band Number:<br><input type="text" id="bandNumber"></label>
-                    <label>Address*:<br><input type="text" id="address" required></label>
-                    <label>Phone*:<br><input type="text" id="phone" required></label>
-                    <label>Fax:<br><input type="text" id="fax"></label>
-                    <label>Latitude*:<br><input type="number" id="latitude" step="any" required></label>
-                    <label>Longitude*:<br><input type="number" id="longitude" step="any" required></label>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+                <h2 style="margin:0;">Organizations (Agencies)</h2>
+                <button id="addOrgBtn" style="padding:0.4rem 0.8rem;">Add Agency</button>
+            </div>
+            <form id="addOrgForm" style="display:none;margin-top:0.8rem;">
+                <div style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;">
+                    <label>Name*:<input type="text" id="orgName" required style="margin-left:0.4rem;"></label>
+                    <label>Contact:<input type="text" id="orgContact" style="margin-left:0.4rem;"></label>
+                    <label>Phone:<input type="text" id="orgPhone" style="margin-left:0.4rem;"></label>
+                    <button type="submit">Save</button>
+                    <button type="button" id="cancelAddOrg">Cancel</button>
                 </div>
-                <button type="submit">Add Community</button>
             </form>
+            <div class="list" id="organizationList" style="margin-top:0.8rem;"></div>
+        </section>
+        <section>
+            <h2>First Nations</h2>
             <div class="list" id="communityList"></div>
         </section>
-        <!-- Future: Organizations, etc. -->
     </main>
     <script>
-    // Fetch and display communities
+    function getToken() {
+        const match = document.cookie.match(/(^| )token=([^;]+)/);
+        if (match) return match[2];
+        return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+    function isAdmin() {
+        try {
+            const token = getToken();
+            if (!token) return false;
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            let roles = payload.roles || payload.groups || payload.roles_claim || [];
+            if (!Array.isArray(roles)) roles = [roles];
+            return roles.includes('admin');
+        } catch (_) { return false; }
+    }
+
+    // Fetch and display organizations (agencies)
+    function loadOrganizations() {
+        fetch('/api/organizations', {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+            .then(r => r.json())
+            .then(data => {
+                const list = data.organizations || [];
+                const container = document.getElementById('organizationList');
+                container.innerHTML = '';
+                if (list.length === 0) {
+                    container.textContent = 'No organizations found.';
+                    return;
+                }
+                list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                const showAdmin = isAdmin();
+                list.forEach(org => {
+                    const row = document.createElement('div');
+                    row.className = 'list-item';
+                    row.style.display = 'flex';
+                    row.style.alignItems = 'center';
+                    row.style.justifyContent = 'space-between';
+                    row.style.gap = '0.5rem';
+
+                    const infoLine = document.createElement('div');
+                    infoLine.style.display = 'flex';
+                    infoLine.style.alignItems = 'center';
+                    infoLine.style.flexWrap = 'wrap';
+                    const nameSpan = document.createElement('strong');
+                    nameSpan.textContent = org.name || '';
+                    infoLine.appendChild(nameSpan);
+                    const metaParts = [];
+                    if (org.contact && (org.contact + '').trim()) metaParts.push('Contact: ' + org.contact);
+                    if (org.phone && (org.phone + '').trim()) metaParts.push('Phone: ' + org.phone);
+                    if (metaParts.length) {
+                        const metaSpan = document.createElement('span');
+                        metaSpan.textContent = ' — ' + metaParts.join('  •  ');
+                        metaSpan.style.marginLeft = '0.25rem';
+                        metaSpan.style.color = '#ccc';
+                        infoLine.appendChild(metaSpan);
+                    }
+                    row.appendChild(infoLine);
+
+                    if (showAdmin && (org.name || '').trim()) {
+                        const delBtn = document.createElement('button');
+                        delBtn.textContent = 'Delete';
+                        delBtn.style.background = '#c00';
+                        delBtn.style.color = '#fff';
+                        delBtn.style.border = 'none';
+                        delBtn.style.padding = '4px 10px';
+                        delBtn.style.borderRadius = '4px';
+                        delBtn.style.cursor = 'pointer';
+                        delBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            if (!confirm('Delete this organization?')) return;
+                            fetch('/api/organizations', {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': 'Bearer ' + getToken()
+                                },
+                                body: JSON.stringify({ name: org.name })
+                            })
+                            .then(r => r.json())
+                            .then(() => loadOrganizations());
+                        });
+                        row.appendChild(delBtn);
+                    }
+
+                    container.appendChild(row);
+                });
+            });
+    }
+    // Fetch and display communities (First Nations)
     function loadCommunities() {
-        fetch('/api/communities')
+        fetch('/api/communities', {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
             .then(r => r.json())
             .then(data => {
                 const list = data.communities || [];
                 const container = document.getElementById('communityList');
                 container.innerHTML = '';
-                list.forEach(name => {
-                    const div = document.createElement('div');
-                    div.className = 'list-item';
-                    div.textContent = name;
-                    // Add delete button (future)
-                    container.appendChild(div);
+                if (list.length === 0) {
+                    container.textContent = 'No First Nations found.';
+                    return;
+                }
+                list.sort((a, b) => (a.name || a).localeCompare(b.name || b));
+                list.forEach(item => {
+                    const obj = (typeof item === 'string') ? { name: item } : (item || {});
+                    const row = document.createElement('div');
+                    row.className = 'list-item';
+                    row.style.display = 'flex';
+                    row.style.alignItems = 'center';
+                    row.style.flexWrap = 'wrap';
+                    row.style.marginBottom = '0.5rem';
+
+                    const nameStrong = document.createElement('strong');
+                    nameStrong.textContent = obj.name || '';
+                    row.appendChild(nameStrong);
+
+                    // Build metadata pieces as nodes so Lat/Lon can be a link
+                    const metaNodes = [];
+                    if (obj.phone && (obj.phone + '').trim()) {
+                        const s = document.createElement('span');
+                        s.textContent = 'Phone: ' + obj.phone;
+                        metaNodes.push(s);
+                    }
+                    if (obj.fax && (obj.fax + '').trim()) {
+                        const s = document.createElement('span');
+                        s.textContent = 'Fax: ' + obj.fax;
+                        metaNodes.push(s);
+                    }
+                    if (obj.latitude != null && obj.longitude != null && (obj.latitude + '' !== '') && (obj.longitude + '' !== '')) {
+                        const a = document.createElement('a');
+                        a.href = 'https://www.google.com/maps?q=' + encodeURIComponent(obj.latitude + ',' + obj.longitude);
+                        a.target = '_blank';
+                        a.rel = 'noopener noreferrer';
+                        a.textContent = 'Lat/Lon: ' + obj.latitude + ', ' + obj.longitude;
+                        metaNodes.push(a);
+                    }
+                    if (obj.address && (obj.address + '').trim()) {
+                        const s = document.createElement('span');
+                        s.textContent = 'Address: ' + obj.address;
+                        metaNodes.push(s);
+                    }
+
+                    if (metaNodes.length) {
+                        const meta = document.createElement('span');
+                        meta.style.marginLeft = '0.25rem';
+                        meta.style.color = '#ccc';
+                        // Prefix dash
+                        meta.appendChild(document.createTextNode(' — '));
+                        metaNodes.forEach((node, idx) => {
+                            if (idx > 0) meta.appendChild(document.createTextNode('  •  '));
+                            meta.appendChild(node);
+                        });
+                        row.appendChild(meta);
+                    }
+
+                    container.appendChild(row);
                 });
             });
     }
-    loadCommunities();
-    // Add community
-    document.getElementById('addCommunityForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const name = document.getElementById('communityName').value.trim();
-        const band_number = document.getElementById('bandNumber').value.trim();
-        const address = document.getElementById('address').value.trim();
-        const phone = document.getElementById('phone').value.trim();
-        const fax = document.getElementById('fax').value.trim();
-        const latitude = document.getElementById('latitude').value;
-        const longitude = document.getElementById('longitude').value;
-        if (!name || !address || !phone || !latitude || !longitude) {
-            alert('Please fill in all required fields.');
-            return;
-        }
-        fetch('/api/communities', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, band_number, address, phone, fax, latitude, longitude })
-        })
-        .then(r => r.json())
-        .then(result => {
-            if (result.success) {
-                document.getElementById('addCommunityForm').reset();
-                loadCommunities();
-            } else {
-                alert(result.error || 'Failed to add community');
+    document.addEventListener('DOMContentLoaded', function() {
+        const addBtn = document.getElementById('addOrgBtn');
+        const addForm = document.getElementById('addOrgForm');
+        const cancelBtn = document.getElementById('cancelAddOrg');
+        if (!isAdmin()) {
+            if (addBtn) addBtn.style.display = 'none';
+        } else {
+            if (addBtn) {
+                addBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    addForm.style.display = addForm.style.display === 'none' ? 'block' : 'none';
+                    const nameInput = document.getElementById('orgName');
+                    if (nameInput) nameInput.focus();
+                });
             }
-        });
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    addForm.reset();
+                    addForm.style.display = 'none';
+                });
+            }
+            if (addForm) {
+                addForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const name = document.getElementById('orgName').value.trim();
+                    const contact = document.getElementById('orgContact').value.trim();
+                    const phone = document.getElementById('orgPhone').value.trim();
+                    if (!name) { alert('Name is required'); return; }
+                    fetch('/api/organizations', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getToken()
+                        },
+                        body: JSON.stringify({ name, contact, phone })
+                    })
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result && (result.success || result.reactivated)) {
+                            addForm.reset();
+                            addForm.style.display = 'none';
+                            loadOrganizations();
+                        } else {
+                            alert((result && result.error) || 'Failed to add organization');
+                        }
+                    })
+                    .catch(err => alert('Error: ' + err));
+                });
+            }
+        }
+
+        loadOrganizations();
+        loadCommunities();
     });
     </script>
 </body>

@@ -846,7 +846,12 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  // Set Windows CMD window title
+  process.stdout.write(`\x1b]2;Missing Persons App - Port ${PORT}\x07`);
+  console.log('========================================');
+  console.log('   Missing Persons App Server Started');
+  console.log(`   Listening on port: ${PORT}`);
+  console.log('========================================');
 });
 
 // Export for testing
