@@ -169,6 +169,35 @@ app.post('/api/graph-cypher', async (req, res) => {
   }
 });
 
+// List Loved Ones that have coordinates (admin and case_worker)
+app.get('/api/loved-ones/with-coordinates', authMiddleware, async (req, res) => {
+  const rawRoles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
+  const roles = (Array.isArray(rawRoles) ? rawRoles : [rawRoles])
+    .filter(Boolean)
+    .map(r => String(r).toLowerCase());
+  const isAllowed = roles.includes('admin') || roles.includes('case_worker');
+  if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (l:LovedOne)<-[rel:RELATED_TO]-(a:Applicant)
+       WHERE l.lastLocationLat IS NOT NULL AND l.lastLocationLon IS NOT NULL
+       RETURN l, a, rel.relationship AS relationship
+       ORDER BY coalesce(l.dateOfIncident, ''), l.name`
+    );
+    const results = result.records.map(r => ({
+      lovedOne: r.get('l').properties,
+      applicant: r.get('a').properties,
+      relationship: r.get('relationship') || ''
+    }));
+    res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch locations' });
+  } finally {
+    await session.close();
+  }
+});
+
 
 // No Azure AD, only local login
 
@@ -820,21 +849,26 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
     // Create LovedOne node if provided
     let lovedOneNode = null;
     if (data.lovedOneName || data.relationship) {
+      const lovedOneId = 'L' + Date.now() + '-' + Math.floor(Math.random()*1e6);
       const lovedOneResult = await session.run(
-        `CREATE (l:LovedOne {name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation}) RETURN l`,
+        `CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon}) RETURN l`,
         {
+          id: lovedOneId,
           name: data.lovedOneName || '',
           dateOfIncident: data.incidentDate || '',
-          lastLocation: data.lastLocation || ''
+          lastLocation: data.lastLocation || '',
+          community: data.lovedOneCommunity || '',
+          lastLocationLat: (data.lastLocationLat !== undefined && data.lastLocationLat !== '' ? parseFloat(data.lastLocationLat) : null),
+          lastLocationLon: (data.lastLocationLon !== undefined && data.lastLocationLon !== '' ? parseFloat(data.lastLocationLon) : null)
         }
       );
       lovedOneNode = lovedOneResult.records[0]?.get('l');
       // Create relationship
       await session.run(
-        `MATCH (a:Applicant {email: $email}), (l:LovedOne {name: $lovedOneName}) CREATE (a)-[:RELATED_TO {relationship: $relationship}]->(l)`,
+        `MATCH (a:Applicant {id: $applicantId}), (l:LovedOne {id: $lovedOneId}) CREATE (a)-[:RELATED_TO {relationship: $relationship}]->(l)`,
         {
-          email: data.email || '',
-          lovedOneName: data.lovedOneName || '',
+          applicantId,
+          lovedOneId,
           relationship: data.relationship || ''
         }
       );
@@ -985,6 +1019,175 @@ app.post('/api/cases/:caseId/unassign', authMiddleware, requireRole('admin'), as
     res.status(500).json({ error: 'Failed to unassign case' });
   } finally {
     await session.close();
+  }
+});
+
+// Add an additional Loved One to an Applicant (case)
+app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { name, relationship, incidentDate, lastLocation, community } = req.body || {};
+  const user = req.user;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Loved One name is required' });
+  const session = driver.session();
+  try {
+    // Permission: admin or assigned to this case
+    let canEdit = false;
+    const rawUserRoles = (user && (user.roles || user.groups || user.roles_claim)) || [];
+    const userRoles = (Array.isArray(rawUserRoles) ? rawUserRoles : [rawUserRoles])
+      .filter(Boolean)
+      .map(r => String(r).toLowerCase());
+    if (userRoles.includes('admin')) {
+      canEdit = true;
+    } else {
+      const result = await session.run('MATCH (a:Applicant {id: $caseId})<-[:ASSIGNED_TO]-(u:User {email: $email}) RETURN a', { caseId: id, email: user.email || user.preferred_username });
+      canEdit = result.records.length > 0;
+    }
+    if (!canEdit) {
+      await session.close();
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    const lovedOneId = 'L' + Date.now() + '-' + Math.floor(Math.random()*1e6);
+    const createRes = await session.run(
+      `MATCH (a:Applicant {id: $applicantId})
+       CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon})
+       CREATE (a)-[:RELATED_TO {relationship: $relationship}]->(l)
+       RETURN l`,
+      {
+        applicantId: id,
+        id: lovedOneId,
+        name: name || '',
+        dateOfIncident: incidentDate || '',
+        lastLocation: lastLocation || '',
+        community: community || '',
+        relationship: relationship || '',
+        lastLocationLat: (req.body && req.body.lastLocationLat !== undefined && req.body.lastLocationLat !== '' ? parseFloat(req.body.lastLocationLat) : null),
+        lastLocationLon: (req.body && req.body.lastLocationLon !== undefined && req.body.lastLocationLon !== '' ? parseFloat(req.body.lastLocationLon) : null)
+      }
+    );
+    const lnode = createRes.records[0]?.get('l');
+    await session.close();
+    return res.json({ success: true, lovedOne: lnode ? lnode.properties : null });
+  } catch (err) {
+    await session.close();
+    return res.status(500).json({ error: 'Failed to add Loved One' });
+  }
+});
+
+// Search Loved Ones by community (admin and case_worker)
+app.get('/api/loved-ones', authMiddleware, async (req, res) => {
+  const { community } = req.query;
+  if (!community || !community.trim()) {
+    return res.status(400).json({ error: 'community is required' });
+  }
+  const roles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
+  const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
+  if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (l:LovedOne {community: $community})<- [rel:RELATED_TO]-(a:Applicant)
+       RETURN l, a, rel.relationship AS relationship ORDER BY l.name`,
+      { community }
+    );
+    const results = result.records.map(r => ({
+      lovedOne: r.get('l').properties,
+      applicant: r.get('a').properties,
+      relationship: r.get('relationship') || ''
+    }));
+    res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to search loved ones' });
+  } finally {
+    await session.close();
+  }
+});
+
+// Search Loved Ones by date range (admin and case_worker)
+app.get('/api/loved-ones/by-date', authMiddleware, async (req, res) => {
+  const { start, end } = req.query;
+  if (!start || !end) {
+    return res.status(400).json({ error: 'start and end are required (YYYY-MM-DD)' });
+  }
+  const roles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
+  const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
+  if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
+  const session = driver.session();
+  try {
+    // dateOfIncident stored as ISO date string; string range compare is valid
+    const result = await session.run(
+      `MATCH (l:LovedOne)<-[rel:RELATED_TO]-(a:Applicant)
+       WHERE l.dateOfIncident >= $start AND l.dateOfIncident <= $end
+       RETURN l, a, rel.relationship AS relationship
+       ORDER BY l.dateOfIncident, l.name`,
+      { start, end }
+    );
+    const results = result.records.map(r => ({
+      lovedOne: r.get('l').properties,
+      applicant: r.get('a').properties,
+      relationship: r.get('relationship') || ''
+    }));
+    res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to search loved ones by date' });
+  } finally {
+    await session.close();
+  }
+});
+
+// Update a Loved One (and optionally relationship for a specific Applicant)
+app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { applicantId, name, dateOfIncident, lastLocation, community, relationship, lastLocationLat, lastLocationLon } = req.body || {};
+  const rawRoles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
+  const roles = (Array.isArray(rawRoles) ? rawRoles : [rawRoles])
+    .filter(Boolean)
+    .map(r => String(r).toLowerCase());
+  const isAdmin = roles.includes('admin');
+  const isCaseWorker = roles.includes('case_worker');
+  const session = driver.session();
+  try {
+    if (!isAdmin) {
+      // For non-admin, require applicantId and ensure user is assigned to that case
+      if (!applicantId || !isCaseWorker) {
+        await session.close();
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      const check = await session.run(
+        'MATCH (a:Applicant {id: $caseId})<-[:ASSIGNED_TO]-(u:User {email: $email}) RETURN a',
+        { caseId: applicantId, email: req.user.email || req.user.preferred_username }
+      );
+      if (check.records.length === 0) {
+        await session.close();
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+    }
+    // Update LovedOne fields using coalesce to keep existing values when null/undefined
+    await session.run(
+      `MATCH (l:LovedOne {id: $id})
+       SET l.name = coalesce($name, l.name),
+           l.dateOfIncident = coalesce($dateOfIncident, l.dateOfIncident),
+           l.lastLocation = coalesce($lastLocation, l.lastLocation),
+           l.community = coalesce($community, l.community),
+           l.lastLocationLat = coalesce($lastLocationLat, l.lastLocationLat),
+           l.lastLocationLon = coalesce($lastLocationLon, l.lastLocationLon)`,
+      { id, name, dateOfIncident, lastLocation, community, lastLocationLat: (lastLocationLat !== undefined && lastLocationLat !== '' ? parseFloat(lastLocationLat) : null), lastLocationLon: (lastLocationLon !== undefined && lastLocationLon !== '' ? parseFloat(lastLocationLon) : null) }
+    );
+    // Update relationship if provided and applicantId is provided
+    if (relationship != null && applicantId) {
+      await session.run(
+        `MATCH (a:Applicant {id: $applicantId})-[rel:RELATED_TO]->(l:LovedOne {id: $id})
+         SET rel.relationship = $relationship`,
+        { applicantId, id, relationship }
+      );
+    }
+    // Return updated node
+    const resNode = await session.run('MATCH (l:LovedOne {id: $id}) RETURN l', { id });
+    const lovedOne = resNode.records[0] ? resNode.records[0].get('l').properties : null;
+    await session.close();
+    return res.json({ success: true, lovedOne });
+  } catch (err) {
+    await session.close();
+    return res.status(500).json({ error: 'Failed to update Loved One' });
   }
 });
 

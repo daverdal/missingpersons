@@ -72,6 +72,14 @@ if (!getToken()) {
             <label>Client's Relationship to Loved One: <input type="text" name="relationship"></label>
             <label>Date of Incident (if known): <input type="date" name="incidentDate"></label>
             <label>Location of Incident or Last Known Location: <input type="text" name="lastLocation"></label>
+            <label>Lat/Long (e.g., 49.887129, -97.153645): <input type="text" name="lastLocationLatLon" placeholder="49.887129, -97.153645"></label>
+            <label>Coummunity of Loved One:
+                <select name="lovedOneCommunity" id="lovedOneCommunityDropdown">
+                    <option value="">-- Select Community / Nation (optional) --</option>
+                    <!-- Options will be populated by JS -->
+                    <option value="Other">Other (not listed)</option>
+                </select>
+            </label>
             <div class="checkbox-group">
                 <label><input type="checkbox" name="investigation" value="Police/RCMP Investigation"> Police/RCMP Investigation</label>
                 <label><input type="checkbox" name="investigation" value="Community Search Efforts"> Community Search Efforts</label>
@@ -186,25 +194,29 @@ fetch('/api/communities')
     .then(data => {
         // If backend returns {communities: [...]}, use that; else use array directly
         const list = data.communities || data || [];
-        const dropdown = document.getElementById('communityDropdown');
-        if (!dropdown) return;
-        // Insert options before the 'Other' option
-        const otherOpt = dropdown.querySelector('option[value="Other"]');
-        list.forEach(community => {
-            // If community is an object, use .name; else use as string
-            const name = community && community.name ? community.name : community;
-            if (!name) return;
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            dropdown.insertBefore(opt, otherOpt);
+        const dropdownIds = ['communityDropdown', 'lovedOneCommunityDropdown'];
+        dropdownIds.forEach(id => {
+            const dropdown = document.getElementById(id);
+            if (!dropdown) return;
+            const otherOpt = dropdown.querySelector('option[value="Other"]');
+            list.forEach(community => {
+                const name = community && community.name ? community.name : community;
+                if (!name) return;
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                dropdown.insertBefore(opt, otherOpt);
+            });
         });
     })
     .catch(() => {
-        const dropdown = document.getElementById('communityDropdown');
-        if (dropdown) {
-            dropdown.innerHTML = '<option value="">(Unable to load communities)</option>';
-        }
+        const dropdownIds = ['communityDropdown', 'lovedOneCommunityDropdown'];
+        dropdownIds.forEach(id => {
+            const dropdown = document.getElementById(id);
+            if (dropdown) {
+                dropdown.innerHTML = '<option value="">(Unable to load communities)</option>';
+            }
+        });
     });
 // Set the intake date to today automatically
 document.getElementById('intakeDateAuto').value = new Date().toISOString().slice(0, 10);
@@ -257,6 +269,21 @@ function getCheckedValues(name) {
     return Array.from(document.querySelectorAll('input[name="' + name + '"]:checked')).map(cb => cb.value);
 }
 
+// Parse a single "lat, lon" or "lat lon" string into {lat, lon}
+function parseLatLon(text) {
+    const s = (text || '').trim();
+    if (!s) return { lat: null, lon: null };
+    const parts = s.split(/[ ,]+/).filter(Boolean);
+    let lat = null, lon = null;
+    if (parts.length >= 2) {
+        const la = parseFloat(parts[0]);
+        const lo = parseFloat(parts[1]);
+        lat = isFinite(la) ? la : null;
+        lon = isFinite(lo) ? lo : null;
+    }
+    return { lat, lon };
+}
+
 document.getElementById('intakeForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const form = e.target;
@@ -274,6 +301,10 @@ document.getElementById('intakeForm').addEventListener('submit', async function(
         relationship: form.relationship.value,
         incidentDate: form.incidentDate.value,
         lastLocation: form.lastLocation.value,
+        lastLocationLatLon: form.lastLocationLatLon.value,
+        lastLocationLat: (function(){ const p = parseLatLon(form.lastLocationLatLon.value); return p.lat; })(),
+        lastLocationLon: (function(){ const p = parseLatLon(form.lastLocationLatLon.value); return p.lon; })(),
+            lovedOneCommunity: form.lovedOneCommunity.value,
         investigation: getCheckedValues('investigation'),
         support: getCheckedValues('support'),
         otherInvestigation: form.otherInvestigation.value,

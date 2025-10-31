@@ -484,15 +484,85 @@
             data.lovedOnes.forEach(lo => {
                 html += `<div style='margin:0.5em 0 1em 1em; padding:0.5em; border-left:3px solid #e6b85c;'>`;
                 if (lo.name) html += `<div><span style='color:#aaa;'>Name:</span> <span>${lo.name}</span></div>`;
+                html += `<div><span style='color:#aaa;'>Coummunity of Loved One:</span> <span>${lo.community || '(not specified)'}</span></div>`;
                 if (lo.relationship) html += `<div><span style='color:#aaa;'>Relationship:</span> <span>${lo.relationship}</span></div>`;
                 if (lo.dateOfIncident) html += `<div><span style='color:#aaa;'>Date of Incident:</span> <span>${lo.dateOfIncident}</span></div>`;
                 if (lo.lastLocation) html += `<div><span style='color:#aaa;'>Last Location:</span> <span>${lo.lastLocation}</span></div>`;
+                {
+                    const hasLat = (lo.lastLocationLat != null);
+                    const hasLon = (lo.lastLocationLon != null);
+                    const latTxt = hasLat ? lo.lastLocationLat : '';
+                    const lonTxt = hasLon ? lo.lastLocationLon : '';
+                    const both = (latTxt !== '' && lonTxt !== '');
+                    let content;
+                    if (both) {
+                        content = `<a href="https://www.google.com/maps?q=${encodeURIComponent(latTxt + ',' + lonTxt)}" target="_blank" rel="noopener">${latTxt}, ${lonTxt}</a>`;
+                    } else if (hasLat || hasLon) {
+                        content = `${latTxt}${(latTxt!==''&&lonTxt!=='')?', ':''}${lonTxt}`;
+                    } else {
+                        content = '<i>(not provided)</i>';
+                    }
+                    html += `<div><span style='color:#aaa;'>Lat/Long:</span> <span>${content}</span></div>`;
+                }
+                // Edit button and inline form
+                if (lo.id) {
+                    html += `
+                    <div style='margin-top:0.6em;'>
+                        <button class='editLovedOneBtn' data-id='${lo.id}' style='background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.25em 0.8em;font-weight:bold;cursor:pointer;'>✏️ Edit</button>
+                    </div>
+                    <form class='editLovedOneForm' id='editLovedOneForm-${lo.id}' style='display:none;margin-top:0.6em;'>
+                        <div style='display:grid;grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 0.6em;'>
+                            <label>Name: <input type='text' name='name' value='${lo.name || ''}'></label>
+                            <label>Relationship: <input type='text' name='relationship' value='${lo.relationship || ''}'></label>
+                            <label>Date of Incident: <input type='date' name='dateOfIncident' value='${lo.dateOfIncident || ''}'></label>
+                            <label>Last Location: <input type='text' name='lastLocation' value='${lo.lastLocation || ''}'></label>
+                            <label>Lat/Long: <input type='text' name='latlon' value='${(lo.lastLocationLat!=null&&lo.lastLocationLon!=null)?`${lo.lastLocationLat}, ${lo.lastLocationLon}`:''}' placeholder='49.887129, -97.153645'></label>
+                            <label style='grid-column:1 / -1;'>Coummunity of Loved One:
+                                <select name='community' class='editCommunityDropdown' data-current='${lo.community || ''}'>
+                                    <option value=''>-- Select Community / Nation (optional) --</option>
+                                    <option value='Other'>Other (not listed)</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div style='margin-top:0.6em;'>
+                            <button type='submit' class='saveLovedOneBtn' data-id='${lo.id}' style='background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;'>Save</button>
+                            <button type='button' class='cancelEditLovedOneBtn' data-id='${lo.id}' style='margin-left:0.6em;background:#444;color:#fff;border:none;border-radius:4px;padding:0.35em 1em;cursor:pointer;'>Cancel</button>
+                        </div>
+                        <div class='editLovedOneMsg' id='editLovedOneMsg-${lo.id}' style='margin-top:0.5em;color:#a05a5a;'></div>
+                    </form>`;
+                }
                 html += `</div>`;
             });
             html += `</div>`;
         } else {
                 html += `<div style="margin-bottom:1.5em; color: #a05a5a; font-weight: normal;">⚠️ No missing person (Loved One) is attached to this case.</div>`;
         }
+        // Add Loved One form toggle and form
+        html += `
+            <div style='margin: 0.5em 0 1.5em 0;'>
+                <button id='addLovedOneToggleBtn' style='background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;'>Add Missing Person</button>
+                <form id='addLovedOneForm' style='display:none;margin-top:0.8em;'>
+                    <div style='display:grid;grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 0.6em;'>
+                        <label>Name: <input type='text' name='name' required></label>
+                        <label>Relationship: <input type='text' name='relationship'></label>
+                        <label>Date of Incident: <input type='date' name='incidentDate'></label>
+                        <label>Last Location: <input type='text' name='lastLocation'></label>
+                        <label>Lat/Long: <input type='text' name='latlon' placeholder='49.887129, -97.153645'></label>
+                        <label style='grid-column:1 / -1;'>Coummunity of Loved One:
+                            <select name='community' id='addLovedOneCommunityDropdown'>
+                                <option value=''>-- Select Community / Nation (optional) --</option>
+                                <option value='Other'>Other (not listed)</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div style='margin-top:0.6em;'>
+                        <button type='submit' style='background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;'>Save</button>
+                        <button type='button' id='cancelAddLovedOneBtn' style='margin-left:0.6em;background:#444;color:#fff;border:none;border-radius:4px;padding:0.35em 1em;cursor:pointer;'>Cancel</button>
+                    </div>
+                    <div id='addLovedOneMsg' style='margin-top:0.5em;color:#a05a5a;'></div>
+                </form>
+            </div>
+        `;
         if (data.referringOrg) {
             html += `<b>Referring Organization:</b> ${data.referringOrg.name || ''}`;
             if ('active' in data.referringOrg && !data.referringOrg.active) {
@@ -506,6 +576,181 @@
             }
         }
         document.getElementById('caseInfo').innerHTML = html;
+        // Wire up Add Loved One controls
+        const toggleBtn = document.getElementById('addLovedOneToggleBtn');
+        const formEl = document.getElementById('addLovedOneForm');
+        const cancelBtn = document.getElementById('cancelAddLovedOneBtn');
+        const msgEl = document.getElementById('addLovedOneMsg');
+        const communityDropdown = document.getElementById('addLovedOneCommunityDropdown');
+        if (toggleBtn && formEl) {
+            toggleBtn.addEventListener('click', async () => {
+                formEl.style.display = formEl.style.display === 'none' ? 'block' : 'none';
+                msgEl.textContent = '';
+                // Populate communities when opening
+                if (formEl.style.display === 'block' && communityDropdown && communityDropdown.options.length <= 2) {
+                    try {
+                        const r = await fetch('/api/communities');
+                        const d = await r.json();
+                        const list = d.communities || d || [];
+                        const otherOpt = communityDropdown.querySelector('option[value="Other"]');
+                        list.forEach(c => {
+                            const name = c && c.name ? c.name : c;
+                            if (!name) return;
+                            const opt = document.createElement('option');
+                            opt.value = name;
+                            opt.textContent = name;
+                            communityDropdown.insertBefore(opt, otherOpt);
+                        });
+                    } catch {}
+                }
+            });
+        }
+        if (cancelBtn && formEl) {
+            cancelBtn.addEventListener('click', () => { formEl.style.display = 'none'; msgEl.textContent = ''; });
+        }
+        // Parse a single "lat, lon" or "lat lon" string into {lat, lon}
+        function parseLatLon(text) {
+            const s = (text || '').trim();
+            if (!s) return { lat: null, lon: null };
+            const parts = s.split(/[ ,]+/).filter(Boolean);
+            let lat = null, lon = null;
+            if (parts.length >= 2) {
+                const la = parseFloat(parts[0]);
+                const lo = parseFloat(parts[1]);
+                lat = isFinite(la) ? la : null;
+                lon = isFinite(lo) ? lo : null;
+            }
+            return { lat, lon };
+        }
+
+        if (formEl) {
+            formEl.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                msgEl.textContent = '';
+                const fd = new FormData(formEl);
+                const payload = {
+                    name: fd.get('name'),
+                    relationship: fd.get('relationship') || '',
+                    incidentDate: fd.get('incidentDate') || '',
+                    lastLocation: fd.get('lastLocation') || '',
+                    community: fd.get('community') || ''
+                };
+                const pLL = parseLatLon(fd.get('latlon'));
+                if (pLL.lat != null) payload.lastLocationLat = pLL.lat;
+                if (pLL.lon != null) payload.lastLocationLon = pLL.lon;
+                try {
+                    const res2 = await fetch('/api/applicants/' + encodeURIComponent(getCaseId()) + '/loved-ones', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getToken()
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    const out = await res2.json().catch(() => ({}));
+                    if (!res2.ok || !out.success) {
+                        msgEl.textContent = out.error || 'Failed to add Loved One';
+                        return;
+                    }
+                    formEl.reset();
+                    formEl.style.display = 'none';
+                    await fetchCaseInfo(getCaseId());
+                } catch (err) {
+                    msgEl.textContent = 'Network error';
+                }
+            });
+        }
+        // Wire up Edit Loved One controls
+        document.querySelectorAll('.editLovedOneBtn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.getAttribute('data-id');
+                const form = document.getElementById('editLovedOneForm-' + id);
+                const msg = document.getElementById('editLovedOneMsg-' + id);
+                if (!form) return;
+                form.style.display = form.style.display === 'none' ? 'block' : 'none';
+                msg.textContent = '';
+                if (form.style.display === 'block') {
+                    const dd = form.querySelector('.editCommunityDropdown');
+                    if (dd && dd.options.length <= 2) {
+                        try {
+                            const r = await fetch('/api/communities');
+                            const d = await r.json();
+                            const list = d.communities || d || [];
+                            const otherOpt = dd.querySelector('option[value="Other"]');
+                            list.forEach(c => {
+                                const name = c && c.name ? c.name : c;
+                                if (!name) return;
+                                const opt = document.createElement('option');
+                                opt.value = name;
+                                opt.textContent = name;
+                                dd.insertBefore(opt, otherOpt);
+                            });
+                        } catch {}
+                        const current = dd.getAttribute('data-current') || '';
+                        if (current) dd.value = current;
+                    }
+                }
+            });
+        });
+        document.querySelectorAll('.cancelEditLovedOneBtn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-id');
+                const form = document.getElementById('editLovedOneForm-' + id);
+                const msg = document.getElementById('editLovedOneMsg-' + id);
+                if (form) form.style.display = 'none';
+                if (msg) msg.textContent = '';
+            });
+        });
+        document.querySelectorAll('.editLovedOneForm').forEach(form => {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = form.id.replace('editLovedOneForm-', '');
+                const msg = document.getElementById('editLovedOneMsg-' + id);
+                const fd = new FormData(form);
+                const payload = {
+                    applicantId: getCaseId(),
+                    name: fd.get('name') || null,
+                    relationship: fd.get('relationship') || null,
+                    dateOfIncident: fd.get('dateOfIncident') || null,
+                    lastLocation: fd.get('lastLocation') || null,
+                    community: fd.get('community') || null
+                };
+                const pLL = (function(){
+                    const s = (fd.get('latlon') || '').trim();
+                    if (!s) return {lat:null, lon:null};
+                    const parts = s.split(/[ ,]+/).filter(Boolean);
+                    let lat = null, lon = null;
+                    if (parts.length >= 2) {
+                        const la = parseFloat(parts[0]);
+                        const lo = parseFloat(parts[1]);
+                        lat = isFinite(la) ? la : null;
+                        lon = isFinite(lo) ? lo : null;
+                    }
+                    return {lat, lon};
+                })();
+                if (pLL.lat != null) payload.lastLocationLat = pLL.lat;
+                if (pLL.lon != null) payload.lastLocationLon = pLL.lon;
+                try {
+                    const res3 = await fetch('/api/loved-ones/' + encodeURIComponent(id), {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getToken()
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    const out = await res3.json().catch(() => ({}));
+                    if (!res3.ok || !out.success) {
+                        if (msg) msg.textContent = out.error || 'Failed to update Loved One';
+                        return;
+                    }
+                    form.style.display = 'none';
+                    await fetchCaseInfo(getCaseId());
+                } catch (err) {
+                    if (msg) msg.textContent = 'Network error';
+                }
+            });
+        });
     }
     async function fetchNotes(caseId) {
         // Fetch both notes and events, merge and sort by timestamp

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search by Community</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Missing Persons Case Management</h1>
+    </header>
+    <main>
+        <nav style="display:flex;gap:1rem;border-bottom:2px solid #444;margin:0 0 1rem 0;padding-bottom:0.5rem;">
+            <a href="search-community.html" style="font-weight:bold;text-decoration:none;border-bottom:3px solid #e6b85c;padding:0.25rem 0.5rem;">Search by Community</a>
+            <a href="search-map.html" style="text-decoration:none;color:inherit;padding:0.25rem 0.5rem;">Search by Map</a>
+        </nav>
+        <h1>Search by Community</h1>
+        <div style="margin: 1em 0 1.2em 0;">
+            <label>First Nation:
+                <select id="communitySearchDropdown">
+                    <option value="">-- Select Community / Nation --</option>
+                    <option value="Other">Other (not listed)</option>
+                </select>
+            </label>
+            <button id="searchBtn" style="margin-left:0.6em;">Search</button>
+            <span id="searchMsg" style="margin-left:0.8em;color:#a05a5a;"></span>
+        </div>
+        <div id="results"></div>
+        <hr style="margin: 1.5em 0; border: none; border-top: 2px solid #444;">
+        <h1>Search by Date Range</h1>
+        <div style="margin: 1em 0 1.2em 0;">
+            <label>From: <input type="date" id="dateFrom"></label>
+            <label style="margin-left:0.8em;">To: <input type="date" id="dateTo"></label>
+            <button id="dateSearchBtn" style="margin-left:0.6em;">Search</button>
+            <span id="dateSearchMsg" style="margin-left:0.8em;color:#a05a5a;"></span>
+        </div>
+        <div id="dateResults"></div>
+    </main>
+    <script>
+    function getToken() {
+        const match = document.cookie.match(/(^| )token=([^;]+)/);
+        if (match) return match[2];
+        return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+    // Populate communities
+    fetch('/api/communities')
+        .then(r => r.json())
+        .then(data => {
+            const list = data.communities || data || [];
+            const dd = document.getElementById('communitySearchDropdown');
+            const otherOpt = dd.querySelector('option[value="Other"]');
+            list.forEach(c => {
+                const name = c && c.name ? c.name : c;
+                if (!name) return;
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                dd.insertBefore(opt, otherOpt);
+            });
+        })
+        .catch(() => {
+            const dd = document.getElementById('communitySearchDropdown');
+            dd.innerHTML = '<option value="">(Unable to load communities)</option>';
+        });
+
+    async function runSearch() {
+        const msg = document.getElementById('searchMsg');
+        msg.textContent = '';
+        const dd = document.getElementById('communitySearchDropdown');
+        const community = dd.value;
+        if (!community) {
+            msg.textContent = 'Please select a community';
+            return;
+        }
+        const resultsDiv = document.getElementById('results');
+        resultsDiv.innerHTML = '<i>Searching...</i>';
+        try {
+            const res = await fetch('/api/loved-ones?community=' + encodeURIComponent(community), {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+            const out = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                resultsDiv.innerHTML = `<span style='color:#a05a5a;'>${out.error || 'Search failed'}</span>`;
+                return;
+            }
+            const arr = out.results || [];
+            if (!arr.length) {
+                resultsDiv.innerHTML = '<i>No results.</i>';
+                return;
+            }
+            let html = `<div style='margin-top:0.8em;'>`;
+            arr.forEach(item => {
+                const lo = item.lovedOne || {};
+                const a = item.applicant || {};
+                const rel = item.relationship || '';
+                const caseLink = a.id ? `<a href="casenotes.html?caseId=${encodeURIComponent(a.id)}">Open Case</a>` : '';
+                html += `
+                    <div style='margin:0.5em 0 1em 0; padding:0.5em; border-left:3px solid #e6b85c;'>
+                        <div><span style='color:#aaa;'>Name of Loved One:</span> <span>${lo.name || ''}</span></div>
+                        <div><span style='color:#aaa;'>Coummunity of Loved One:</span> <span>${lo.community || ''}</span></div>
+                        <div><span style='color:#aaa;'>Date of Incident:</span> <span>${lo.dateOfIncident || ''}</span></div>
+                        <div><span style='color:#aaa;'>Last Location:</span> <span>${lo.lastLocation || ''}</span></div>
+                        <div><span style='color:#aaa;'>Applicant:</span> <span>${a.name || ''}</span></div>
+                        <div><span style='color:#aaa;'>Relationship:</span> <span>${rel}</span></div>
+                        ${caseLink}
+                    </div>`;
+            });
+            html += `</div>`;
+            resultsDiv.innerHTML = html;
+        } catch (err) {
+            resultsDiv.innerHTML = '<span style="color:#a05a5a;">Network error</span>';
+        }
+    }
+    document.getElementById('searchBtn').addEventListener('click', runSearch);
+    document.getElementById('communitySearchDropdown').addEventListener('change', () => {
+        const val = document.getElementById('communitySearchDropdown').value;
+        if (val) runSearch();
+    });
+
+    async function runDateSearch() {
+        const msg = document.getElementById('dateSearchMsg');
+        msg.textContent = '';
+        const from = (document.getElementById('dateFrom').value || '').trim();
+        const to = (document.getElementById('dateTo').value || '').trim();
+        if (!from || !to) {
+            msg.textContent = 'Please select both dates';
+            return;
+        }
+        const resultsDiv = document.getElementById('dateResults');
+        resultsDiv.innerHTML = '<i>Searching...</i>';
+        try {
+            const res = await fetch(`/api/loved-ones/by-date?start=${encodeURIComponent(from)}&end=${encodeURIComponent(to)}`, {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+            const out = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                resultsDiv.innerHTML = `<span style='color:#a05a5a;'>${out.error || 'Search failed'}</span>`;
+                return;
+            }
+            const arr = out.results || [];
+            if (!arr.length) {
+                resultsDiv.innerHTML = '<i>No results.</i>';
+                return;
+            }
+            let html = `<div style='margin-top:0.8em;'>`;
+            arr.forEach(item => {
+                const lo = item.lovedOne || {};
+                const a = item.applicant || {};
+                const rel = item.relationship || '';
+                const caseLink = a.id ? `<a href="casenotes.html?caseId=${encodeURIComponent(a.id)}">Open Case</a>` : '';
+                html += `
+                    <div style='margin:0.5em 0 1em 0; padding:0.5em; border-left:3px solid #e6b85c;'>
+                        <div><span style='color:#aaa;'>Name of Loved One:</span> <span>${lo.name || ''}</span></div>
+                        <div><span style='color:#aaa;'>Coummunity of Loved One:</span> <span>${lo.community || ''}</span></div>
+                        <div><span style='color:#aaa;'>Date of Incident:</span> <span>${lo.dateOfIncident || ''}</span></div>
+                        <div><span style='color:#aaa;'>Last Location:</span> <span>${lo.lastLocation || ''}</span></div>
+                        <div><span style='color:#aaa;'>Applicant:</span> <span>${a.name || ''}</span></div>
+                        <div><span style='color:#aaa;'>Relationship:</span> <span>${rel}</span></div>
+                        ${caseLink}
+                    </div>`;
+            });
+            html += `</div>`;
+            resultsDiv.innerHTML = html;
+        } catch (err) {
+            resultsDiv.innerHTML = '<span style="color:#a05a5a;">Network error</span>';
+        }
+    }
+    document.getElementById('dateSearchBtn').addEventListener('click', runDateSearch);
+    </script>
+</body>
+</html>
+
+

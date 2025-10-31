@@ -22,10 +22,10 @@ CREATE (a5:Applicant {id: 'A5', name: 'Ava Patel', email: 'ava.patel@example.com
 CREATE (a6:Applicant {id: 'A6', name: 'Liam Chen', email: 'liam.chen@example.com', status: 'Open' });
 
 // Missing Persons (LovedOne nodes)
-CREATE (m1:LovedOne {id: 'M1', name: 'Emily Doe', dateOfIncident: '2025-01-15', lastLocation: 'Vancouver'});
-CREATE (m2:LovedOne {id: 'M2', name: 'Michael Smith', dateOfIncident: '2024-11-02', lastLocation: 'Toronto'});
-CREATE (m3:LovedOne {id: 'M3', name: 'Priya Patel', dateOfIncident: '2025-03-10', lastLocation: 'Calgary'});
-CREATE (m4:LovedOne {id: 'M4', name: 'Lucas Chen', dateOfIncident: '2025-05-22', lastLocation: 'Edmonton'});
+CREATE (m1:LovedOne {id: 'M1', name: 'Emily Doe', dateOfIncident: '2025-01-15', lastLocation: 'Vancouver', community: 'Sagkeeng First Nation'});
+CREATE (m2:LovedOne {id: 'M2', name: 'Michael Smith', dateOfIncident: '2024-11-02', lastLocation: 'Toronto', community: 'Brokenhead Ojibway Nation'});
+CREATE (m3:LovedOne {id: 'M3', name: 'Priya Patel', dateOfIncident: '2025-03-10', lastLocation: 'Calgary', community: 'Peguis First Nation'});
+CREATE (m4:LovedOne {id: 'M4', name: 'Lucas Chen', dateOfIncident: '2025-05-22', lastLocation: 'Edmonton', community: 'Fisher River Cree Nation'});
 
 
 // ASSIGN CASES

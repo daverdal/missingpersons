@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search by Map</title>
+    <link rel="stylesheet" href="retro.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Missing Persons Case Management</h1>
+    </header>
+    <main>
+        <nav style="display:flex;gap:1rem;border-bottom:2px solid #444;margin:0 0 1rem 0;padding-bottom:0.5rem;">
+            <a href="search-community.html" style="text-decoration:none;color:inherit;padding:0.25rem 0.5rem;">Search by Community</a>
+            <a href="search-map.html" style="font-weight:bold;text-decoration:none;border-bottom:3px solid #e6b85c;padding:0.25rem 0.5rem;">Search by Map</a>
+        </nav>
+        <div style="position:relative;">
+            <div id="map" style="width:100%;height:72vh;border:2px solid #444;border-radius:6px;"></div>
+            <div id="layerToggles" style="position:absolute;top:10px;right:10px;z-index:1000;background:#222a;padding:0.5rem 0.75rem;border-radius:6px;border:1px solid #444;">
+                <div style="display:flex;flex-direction:column;gap:0.25rem;">
+                    <label style="white-space:nowrap;"><input type="checkbox" id="toggleLovedOnes" checked> Loved Ones</label>
+                    <label style="white-space:nowrap;"><input type="checkbox" id="toggleCommunities"> Communities</label>
+                </div>
+            </div>
+        </div>
+        <div id="mapMsg" style="margin-top:0.6rem;color:#a05a5a;"></div>
+    </main>
+    <script>
+    function getToken() {
+        const match = document.cookie.match(/(^| )token=([^;]+)/);
+        if (match) return match[2];
+        return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    // Initialize Leaflet map centered roughly on Manitoba
+    var map = L.map('map');
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    map.setView([54.5, -97.5], 4);
+
+    var bounds = [];
+    var communitiesLayer = L.layerGroup();
+    var lovedOnesLayer = L.layerGroup();
+
+    function numberOrNull(v) {
+        var n = typeof v === 'string' ? parseFloat(v) : v;
+        return isFinite(n) ? n : null;
+    }
+
+    function renderPopupContent(name) {
+        var safe = name || '';
+        var container = document.createElement('div');
+        container.innerHTML = '<div><strong>' + safe + '</strong></div><div style="margin-top:0.25rem;color:#888;">Loading cases…</div>';
+        // Fetch loved ones for this community (requires appropriate role)
+        fetch('/api/loved-ones?community=' + encodeURIComponent(safe), {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(function(res) { return res.json().then(function(json){ return { ok: res.ok, json: json }; }); })
+        .then(function(out) {
+            if (!out.ok) {
+                container.innerHTML = '<div><strong>' + safe + '</strong></div><div style="margin-top:0.25rem;color:#a05a5a;">' + (out.json && out.json.error ? out.json.error : 'Unable to load cases') + '</div>';
+                return;
+            }
+            var results = (out.json && out.json.results) || [];
+            if (!results.length) {
+                container.innerHTML = '<div><strong>' + safe + '</strong></div><div style="margin-top:0.25rem;">No cases found.</div>';
+                return;
+            }
+            var html = '<div><strong>' + safe + '</strong></div>';
+            html += '<div style="margin-top:0.25rem;">Cases: ' + results.length + '</div>';
+            html += '<ul style="padding-left:1rem;margin-top:0.25rem;max-height:180px;overflow:auto;">';
+            results.forEach(function(item){
+                var lo = item.lovedOne || {};
+                var a = item.applicant || {};
+                var rel = item.relationship || '';
+                var link = a.id ? ('<a href="casenotes.html?caseId=' + encodeURIComponent(a.id) + '">Open Case</a>') : '';
+                html += '<li><span>' + (lo.name || '(Unnamed)') + '</span>' + (rel ? ' <span style="color:#888;">(' + rel + ')</span>' : '') + (link ? ' - ' + link : '') + '</li>';
+            });
+            html += '</ul>';
+            container.innerHTML = html;
+        })
+        .catch(function(){
+            container.innerHTML = '<div><strong>' + safe + '</strong></div><div style="margin-top:0.25rem;color:#a05a5a;">Network error loading cases.</div>';
+        });
+        return container;
+    }
+
+    // Load and plot communities
+    fetch('/api/communities')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var list = Array.isArray(data) ? data : (data.communities || []);
+        if (!Array.isArray(list) || !list.length) {
+            document.getElementById('mapMsg').textContent = 'No communities available to display.';
+            return;
+        }
+        list.forEach(function(c){
+            var lat = numberOrNull(c.latitude);
+            var lon = numberOrNull(c.longitude);
+            if (lat == null || lon == null) return;
+            var name = c.name || 'Unknown community';
+            var marker = L.marker([lat, lon]);
+            var content = renderPopupContent(name);
+            marker.bindPopup(content);
+            communitiesLayer.addLayer(marker);
+            bounds.push([lat, lon]);
+        });
+        if (communitiesLayer.getLayers().length && document.getElementById('toggleCommunities').checked) {
+            communitiesLayer.addTo(map);
+        }
+        if (bounds.length && document.getElementById('toggleCommunities').checked) {
+            var b = L.latLngBounds(bounds);
+            map.fitBounds(b.pad(0.2));
+        } else {
+            // Fallback view if no coordinates
+            map.setView([54.5, -97.5], 4);
+        }
+      })
+      .catch(function(){
+        document.getElementById('mapMsg').textContent = 'Unable to load communities.';
+      });
+
+    // Load and plot loved ones with coordinates
+    function renderLovedOnePopup(item) {
+        var lo = item.lovedOne || {};
+        var a = item.applicant || {};
+        var rel = item.relationship || '';
+        var link = a.id ? ('<a href="casenotes.html?caseId=' + encodeURIComponent(a.id) + '">Open Case</a>') : '';
+        var header = '<div><strong>' + (lo.name || '(Unnamed)') + '</strong>' + (rel ? ' <span style="color:#888;">(' + rel + ')</span>' : '') + '</div>';
+        var details = '';
+        if (lo.dateOfIncident) details += '<div style="margin-top:0.25rem;">Incident: ' + lo.dateOfIncident + '</div>';
+        if (lo.lastLocation) details += '<div>Last Location: ' + lo.lastLocation + '</div>';
+        if (lo.community) details += '<div>Community: ' + lo.community + '</div>';
+        var footer = link ? ('<div style="margin-top:0.35rem;">' + link + '</div>') : '';
+        var div = document.createElement('div');
+        div.innerHTML = header + details + footer;
+        return div;
+    }
+
+    fetch('/api/loved-ones/with-coordinates', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+      .then(function(r){ return r.json(); })
+      .then(function(out){
+        if (!out || !Array.isArray(out.results)) return;
+        out.results.forEach(function(item){
+            var lo = item.lovedOne || {};
+            var lat = numberOrNull(lo.lastLocationLat);
+            var lon = numberOrNull(lo.lastLocationLon);
+            if (lat == null || lon == null) return;
+            var marker = L.marker([lat, lon], { title: lo.name || 'Loved One' });
+            marker.bindPopup(renderLovedOnePopup(item));
+            lovedOnesLayer.addLayer(marker);
+        });
+        if (document.getElementById('toggleLovedOnes').checked && lovedOnesLayer.getLayers().length) {
+            lovedOnesLayer.addTo(map);
+        }
+      })
+      .catch(function(){ /* ignore */ });
+
+    // Wire up toggles
+    var tLoved = document.getElementById('toggleLovedOnes');
+    var tComm = document.getElementById('toggleCommunities');
+    if (tLoved) {
+        tLoved.addEventListener('change', function(){
+            if (tLoved.checked) lovedOnesLayer.addTo(map); else map.removeLayer(lovedOnesLayer);
+        });
+    }
+    if (tComm) {
+        tComm.addEventListener('change', function(){
+            if (tComm.checked) communitiesLayer.addTo(map); else map.removeLayer(communitiesLayer);
+        });
+    }
+    </script>
+</body>
+</html>
+
+
