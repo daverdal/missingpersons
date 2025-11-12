@@ -46,8 +46,11 @@
     map.setView([54.5, -97.5], 4);
 
     var bounds = [];
+    var lovedBounds = [];
     var communitiesLayer = L.layerGroup();
     var lovedOnesLayer = L.layerGroup();
+    var communityStyle = { radius: 7, color: '#2e86de', fillColor: '#2e86de', fillOpacity: 0.85 };
+    var lovedOneStyle = { radius: 7, color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 0.9 };
 
     function numberOrNull(v) {
         var n = typeof v === 'string' ? parseFloat(v) : v;
@@ -106,7 +109,7 @@
             var lon = numberOrNull(c.longitude);
             if (lat == null || lon == null) return;
             var name = c.name || 'Unknown community';
-            var marker = L.marker([lat, lon]);
+            var marker = L.circleMarker([lat, lon], communityStyle);
             var content = renderPopupContent(name);
             marker.bindPopup(content);
             communitiesLayer.addLayer(marker);
@@ -147,28 +150,57 @@
     fetch('/api/loved-ones/with-coordinates', { headers: { 'Authorization': 'Bearer ' + getToken() } })
       .then(function(r){ return r.json(); })
       .then(function(out){
-        if (!out || !Array.isArray(out.results)) return;
+        if (!out || !Array.isArray(out.results) || out.results.length === 0) {
+            if (document.getElementById('mapMsg').textContent === '') {
+                document.getElementById('mapMsg').textContent = 'No loved ones with coordinates available to display.';
+            }
+            return;
+        }
         out.results.forEach(function(item){
             var lo = item.lovedOne || {};
             var lat = numberOrNull(lo.lastLocationLat);
             var lon = numberOrNull(lo.lastLocationLon);
             if (lat == null || lon == null) return;
-            var marker = L.marker([lat, lon], { title: lo.name || 'Loved One' });
+            var marker = L.circleMarker([lat, lon], lovedOneStyle);
             marker.bindPopup(renderLovedOnePopup(item));
             lovedOnesLayer.addLayer(marker);
+            lovedBounds.push([lat, lon]);
         });
         if (document.getElementById('toggleLovedOnes').checked && lovedOnesLayer.getLayers().length) {
             lovedOnesLayer.addTo(map);
+            document.getElementById('mapMsg').textContent = '';
+            // Adjust map view to include loved ones if no other bounds applied
+            var targetBounds = lovedBounds.length ? lovedBounds : bounds;
+    if (targetBounds.length) {
+        map.fitBounds(L.latLngBounds(targetBounds).pad(0.35), { maxZoom: 4 });
+    } else {
+        map.setView([62, -96], 4);
+    }
         }
       })
-      .catch(function(){ /* ignore */ });
+      .catch(function(){
+        document.getElementById('mapMsg').textContent = 'Unable to load loved ones with coordinates.';
+      });
 
     // Wire up toggles
     var tLoved = document.getElementById('toggleLovedOnes');
     var tComm = document.getElementById('toggleCommunities');
     if (tLoved) {
         tLoved.addEventListener('change', function(){
-            if (tLoved.checked) lovedOnesLayer.addTo(map); else map.removeLayer(lovedOnesLayer);
+            if (tLoved.checked) {
+                lovedOnesLayer.addTo(map);
+                if (lovedOnesLayer.getLayers().length) {
+                    document.getElementById('mapMsg').textContent = '';
+                }
+                var targetBounds = lovedBounds.length ? lovedBounds : bounds;
+        if (targetBounds.length) {
+            map.fitBounds(L.latLngBounds(targetBounds).pad(0.35), { maxZoom: 4 });
+        } else {
+            map.setView([62, -96], 4);
+        }
+            } else {
+                map.removeLayer(lovedOnesLayer);
+            }
         });
     }
     if (tComm) {

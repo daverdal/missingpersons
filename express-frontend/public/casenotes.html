@@ -33,6 +33,38 @@
         .custom-file-label:hover {
             background: #444 !important;
         }
+        .case-detail-row .detail-label {
+            color: #aaa;
+        }
+        .case-detail-row .detail-value {
+            color: inherit;
+        }
+        .loved-one-subtitle {
+            font-weight: bold;
+            color: #6fcf6f;
+            margin-top: 0.6em;
+        }
+        .loved-one-list {
+            list-style: disc;
+            padding-left: 1.4em;
+            margin: 0.3em 0 0.6em 0;
+        }
+        .loved-one-list li {
+            margin-bottom: 0.25em;
+        }
+        .loved-one-muted {
+            color: #888;
+            font-style: italic;
+            margin: 0.3em 0 0.6em 0;
+        }
+        .loved-one-extra {
+            color: #e6b85c;
+            margin-bottom: 0.6em;
+        }
+        .loved-one-notes {
+            white-space: pre-wrap;
+            margin: 0.3em 0 0.6em 0;
+        }
     </style>
 </head>
 <body>
@@ -78,7 +110,11 @@
                     <div id="notesList" style="width: 100%; max-width: 900px; margin-top: 1.5em;"></div>
                     <div id="notesList" style="width: 100%; max-width: 900px; margin-top: 1.5em;"></div>
         </main>
-                <style>
+        <section style="margin:2em 0;">
+            <h2 style="font-size:1.1em;color:#999;">Debug Info (temporary)</h2>
+            <pre id="debugInfo" style="background:#111;border:1px solid #333;padding:1em;border-radius:6px;overflow:auto;max-height:280px;font-size:0.85em;"></pre>
+        </section>
+        <style>
         /* Make file links in the upload area green by default, blue and underlined on hover */
         #filesList a.upload-list-link {
             color: #1b7e3c;
@@ -184,7 +220,7 @@
         .case-details-box {
             flex: 1 1 340px;
             min-width: 300px;
-            max-width: 500px;
+            max-width: 800px;
         }
                     .notes-flex-row {
                         display: flex;
@@ -357,6 +393,18 @@
             return;
         }
         const data = await res.json();
+        try {
+            const debugBlock = document.getElementById('debugInfo');
+            if (debugBlock) {
+                debugBlock.textContent = JSON.stringify({
+                    applicant: data.applicant,
+                    lovedOnes: data.lovedOnes,
+                    referringOrg: data.referringOrg
+                }, null, 2);
+            }
+        } catch (e) {
+            console.warn('[DEBUG] Failed to render debug info', e);
+        }
         if (!data.files || data.files.length === 0) {
             filesDiv.innerHTML = '<i>No files uploaded yet.</i>';
             return;
@@ -457,9 +505,21 @@
         return params.get('caseId');
     }
     function getToken() {
-    const match = document.cookie.match(/(^| )token=([^;]+)/);
-    if (match) return match[2];
-    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        const match = document.cookie.match(/(^| )token=([^;]+)/);
+        if (match) return match[2];
+        return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+    function userHasRole(required) {
+        const token = getToken();
+        if (!token) return false;
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            let roles = payload.roles || payload.groups || payload.roles_claim || [];
+            if (!Array.isArray(roles)) roles = [roles];
+            return required.some(role => roles.includes(role));
+        } catch (e) {
+            return false;
+        }
     }
     async function fetchCaseInfo(caseId) {
         const res = await fetch('/api/applicants/' + encodeURIComponent(caseId), {
@@ -476,13 +536,77 @@
                 html += `<div style='margin-bottom:0.5em;'><span style='color:#aaa;'>${key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}:</span> <span>${value || ''}</span></div>`;
             }
             html += '</div>';
+            // Controls available for admin or case_worker roles
+            const canEditCase = userHasRole(['admin', 'case_worker']);
+            if (canEditCase) {
+                const a = data.applicant || {};
+                const orgName = (data.referringOrg && data.referringOrg.name) ? data.referringOrg.name : '';
+                const contactRaw = data.applicant && data.applicant.contact ? String(data.applicant.contact) : '';
+                const normalizedContact = contactRaw.startsWith('+1') ? contactRaw : contactRaw ? `+1${contactRaw.replace(/[^0-9]/g, '')}` : '';
+                const canSendSms = userHasRole(['admin', 'case_worker']) && normalizedContact;
+                html += `
+                <div style="margin: 0.5em 0 1.2em 0; display:flex; flex-direction:column; gap:0.8em;">
+                    <button id="editCaseToggleBtn" style="background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;max-width:180px;">✏️ Edit Case</button>
+                    <form id="editCaseForm" style="display:none;margin-top:0.3em;">
+                        <div style="display:grid;grid-template-columns: 1fr; gap: 0.8em;">
+                            <label>Name: <input type="text" name="name" value="${a.name || ''}"></label>
+                            <label>Kinship Role: <input type="text" name="kinshipRole" value="${a.kinshipRole || ''}"></label>
+                            <label>Contact Number: <input type="text" name="contact" value="${a.contact || ''}"></label>
+                            <label>Email Address: <input type="email" name="email" value="${a.email || ''}"></label>
+                            <label style="grid-column: 1 / -1;">Mailing Address: <input type="text" name="address" value="${a.address || ''}" style="width:100%;"></label>
+                            <label>First Nation:
+                                <select name="community" id="editCaseCommunityDropdown" data-current="${a.community || ''}">
+                                    <option value="">-- Select Community / Nation (optional) --</option>
+                                    <option value="Other">Other (not listed)</option>
+                                </select>
+                            </label>
+                            <label>Preferred Language(s): <input type="text" name="language" value="${a.language || ''}"></label>
+                            <label>Best Way and Time to Contact You: <input type="text" name="contactTime" value="${a.contactTime || ''}"></label>
+                            <label style="grid-column:1 / -1;">Referring Organization:
+                                <select name="referringOrganization" id="editCaseRefOrgDropdown" data-current="${orgName}">
+                                    <option value="">-- Select Referring Organization --</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div style="margin-top:0.6em;">
+                            <button type="submit" style="background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;">Save</button>
+                            <button type="button" id="cancelEditCaseBtn" style="margin-left:0.6em;background:#444;color:#fff;border:none;border-radius:4px;padding:0.35em 1em;cursor:pointer;">Cancel</button>
+                        </div>
+                        <div id="editCaseMsg" style="margin-top:0.5em;color:#a05a5a;"></div>
+                    </form>
+                    <div style="display:flex;flex-direction:column;gap:0.5em;">
+                        <div style="display:flex;align-items:center;gap:0.8em;flex-wrap:wrap;">
+                            <button id="toggleSmsFormBtn" ${canSendSms ? '' : 'disabled'} style="background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;max-width:200px;${canSendSms ? '' : 'opacity:0.5;cursor:not-allowed;'}">📨 Send SMS Update</button>
+                            ${!canSendSms ? `<span style="color:#a05a5a;font-size:0.95em;">Please enter a phone number to allow SMS.</span>` : ''}
+                        </div>
+                        <form id="smsForm" style="display:none;max-width:460px;background:#111;padding:0.8em;border-radius:6px;">
+                            <div style="display:flex;flex-direction:column;margin-bottom:0.6em;color:#ddd;">
+                                <label for="smsToInput">Recipient Phone Number (E.164):</label>
+                                <div style="display:flex;align-items:center;gap:0.4em;">
+                                    <span style="padding:0.4em 0.6em;background:#222;border:1px solid #444;border-radius:4px;color:#6fcf6f;">+1</span>
+                                    <input type="tel" name="smsToInput" id="smsToInput" value="${normalizedContact.replace('+1','')}" placeholder="2045551234" style="flex:1;padding:0.4em;border-radius:4px;border:1px solid #444;background:#000;color:#fff;">
+                                </div>
+                            </div>
+                            <label style="display:block;margin-bottom:0.6em;color:#ddd;">Message:
+                                <textarea name="smsBody" id="smsBodyInput" rows="4" placeholder="Short update for the family..." style="width:100%;padding:0.4em;border-radius:4px;border:1px solid #444;background:#000;color:#fff;resize:vertical;"></textarea>
+                            </label>
+                            <div style="display:flex;gap:0.6em;margin-top:0.4em;">
+                                <button type="submit" style="background:#6fcf6f;color:#111;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;">Send SMS</button>
+                                <button type="button" id="cancelSmsBtn" style="background:#444;color:#fff;border:none;border-radius:4px;padding:0.35em 1em;cursor:pointer;">Cancel</button>
+                            </div>
+                            <div id="smsMsg" style="margin-top:0.6em;color:#a05a5a;"></div>
+                        </form>
+                    </div>
+                </div>`;
+            }
         }
         // Show related LovedOne(s) info if present, else show warning
         if (Array.isArray(data.lovedOnes) && data.lovedOnes.length > 0) {
+            html += `<hr style="border: none; border-top: 3px solid #444; margin: 1.5em 0;">`;
             html += `<div style="margin-bottom:1.5em;">
                 <b>Missing Person(s) Info:</b><br>`;
             data.lovedOnes.forEach(lo => {
-                html += `<div style='margin:0.5em 0 1em 1em; padding:0.5em; border-left:3px solid #e6b85c;'>`;
+                html += `<div class='loved-one-card' style='margin:0.5em 0 1em 1em; padding:0.5em; border-left:3px solid #e6b85c;'>`;
                 if (lo.name) html += `<div><span style='color:#aaa;'>Name:</span> <span>${lo.name}</span></div>`;
                 html += `<div><span style='color:#aaa;'>Coummunity of Loved One:</span> <span>${lo.community || '(not specified)'}</span></div>`;
                 if (lo.relationship) html += `<div><span style='color:#aaa;'>Relationship:</span> <span>${lo.relationship}</span></div>`;
@@ -504,18 +628,47 @@
                     }
                     html += `<div><span style='color:#aaa;'>Lat/Long:</span> <span>${content}</span></div>`;
                 }
-                // Edit button and inline form
+                const policeNumber = lo.policeInvestigationNumber || (data.applicant && data.applicant.policeInvestigationNumber) || '';
+                const policeDisplay = policeNumber ? policeNumber : '<i>(not provided)</i>';
+                html += `<div class='case-detail-row' style='margin-top:0.4em;'><span class='detail-label'>Police Investigation Number:</span> <span class='detail-value'>${policeDisplay}</span></div>`;
+                const investigations = Array.isArray(lo.investigation) ? lo.investigation : [];
+                html += `<div class='loved-one-subtitle'>Investigation Status</div>`;
+                if (investigations.length) {
+                    html += `<ul class='loved-one-list'>${investigations.map(item => `<li>${item}</li>`).join('')}</ul>`;
+                } else {
+                    html += `<div class='loved-one-muted'>(none recorded)</div>`;
+                }
+                if (lo.otherInvestigation) {
+                    html += `<div class='loved-one-extra'>Other: ${lo.otherInvestigation}</div>`;
+                }
+                const supportSelections = Array.isArray(lo.supportSelections) ? lo.supportSelections : [];
+                html += `<div class='loved-one-subtitle'>Support, Advocacy, and Requests</div>`;
+                if (supportSelections.length) {
+                    html += `<ul class='loved-one-list'>${supportSelections.map(item => `<li>${item}</li>`).join('')}</ul>`;
+                } else {
+                    html += `<div class='loved-one-muted'>(none requested)</div>`;
+                }
+                if (lo.otherSupport) {
+                    html += `<div class='loved-one-extra'>Other: ${lo.otherSupport}</div>`;
+                }
+                html += `<div class='loved-one-subtitle'>Additional Notes or Story</div>`;
+                if (lo.additionalNotes) {
+                    html += `<div class='loved-one-notes'>${lo.additionalNotes}</div>`;
+                } else {
+                    html += `<div class='loved-one-muted'>(not provided)</div>`;
+                }
                 if (lo.id) {
                     html += `
                     <div style='margin-top:0.6em;'>
-                        <button class='editLovedOneBtn' data-id='${lo.id}' style='background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.25em 0.8em;font-weight:bold;cursor:pointer;'>✏️ Edit</button>
+                        <button class='editLovedOneBtn' data-id='${lo.id}' style='background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.25em 0.8em;font-weight:bold;cursor:pointer;'>✏️ Edit Missing Person</button>
                     </div>
                     <form class='editLovedOneForm' id='editLovedOneForm-${lo.id}' style='display:none;margin-top:0.6em;'>
-                        <div style='display:grid;grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 0.6em;'>
+                        <div style='display:grid;grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 0.8em 2em;'>
                             <label>Name: <input type='text' name='name' value='${lo.name || ''}'></label>
-                            <label>Relationship: <input type='text' name='relationship' value='${lo.relationship || ''}'></label>
+                            <label style='grid-column: 2; display:inline-flex; white-space:normal; align-items:center; gap:0.6em; justify-content: space-between; min-width:0;'>Relationship: <input type='text' name='relationship' value='${lo.relationship || ''}' style='flex:1 1 auto; min-width:0;'></label>
                             <label>Date of Incident: <input type='date' name='dateOfIncident' value='${lo.dateOfIncident || ''}'></label>
-                            <label>Last Location: <input type='text' name='lastLocation' value='${lo.lastLocation || ''}'></label>
+                            <label style='grid-column: 1 / -1;'>Police Investigation Number: <input type='text' name='policeInvestigationNumber' value='${lo.policeInvestigationNumber || ''}'></label>
+                            <label style='grid-column: 1 / -1; display:inline-flex; white-space:normal; align-items:center; gap:0.6em; justify-content: space-between; min-width:0;'>Last Location: <input type='text' name='lastLocation' value='${lo.lastLocation || ''}' style='flex:1 1 auto; min-width:0;'></label>
                             <label>Lat/Long: <input type='text' name='latlon' value='${(lo.lastLocationLat!=null&&lo.lastLocationLon!=null)?`${lo.lastLocationLat}, ${lo.lastLocationLon}`:''}' placeholder='49.887129, -97.153645'></label>
                             <label style='grid-column:1 / -1;'>Coummunity of Loved One:
                                 <select name='community' class='editCommunityDropdown' data-current='${lo.community || ''}'>
@@ -532,6 +685,7 @@
                     </form>`;
                 }
                 html += `</div>`;
+                html += `<hr style="border: none; border-top: 2px dashed #555; margin: 1.2em 0;">`;
             });
             html += `</div>`;
         } else {
@@ -542,11 +696,12 @@
             <div style='margin: 0.5em 0 1.5em 0;'>
                 <button id='addLovedOneToggleBtn' style='background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;'>Add Missing Person</button>
                 <form id='addLovedOneForm' style='display:none;margin-top:0.8em;'>
-                    <div style='display:grid;grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 0.6em;'>
+                    <div style='display:grid;grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 0.8em 2em;'>
                         <label>Name: <input type='text' name='name' required></label>
-                        <label>Relationship: <input type='text' name='relationship'></label>
+                        <label style='grid-column: 2; display:inline-flex; white-space:normal; align-items:center; gap:0.6em; justify-content: space-between; min-width:0;'>Relationship: <input type='text' name='relationship' style='flex:1 1 auto; min-width:0;'></label>
                         <label>Date of Incident: <input type='date' name='incidentDate'></label>
-                        <label>Last Location: <input type='text' name='lastLocation'></label>
+                        <label style='grid-column: 1 / -1;'>Police Investigation Number: <input type='text' name='policeInvestigationNumber'></label>
+                        <label style='grid-column: 1 / -1; display:inline-flex; white-space:normal; align-items:center; gap:0.6em; justify-content: space-between; min-width:0;'>Last Location: <input type='text' name='lastLocation' style='flex:1 1 auto; min-width:0;'></label>
                         <label>Lat/Long: <input type='text' name='latlon' placeholder='49.887129, -97.153645'></label>
                         <label style='grid-column:1 / -1;'>Coummunity of Loved One:
                             <select name='community' id='addLovedOneCommunityDropdown'>
@@ -576,6 +731,175 @@
             }
         }
         document.getElementById('caseInfo').innerHTML = html;
+        const smsForm = document.getElementById('smsForm');
+        const toggleSmsBtn = document.getElementById('toggleSmsFormBtn');
+        const cancelSmsBtn = document.getElementById('cancelSmsBtn');
+        if (toggleSmsBtn && smsForm) {
+            toggleSmsBtn.addEventListener('click', () => {
+                if (toggleSmsBtn.disabled) return;
+                const isShown = smsForm.style.display === 'block';
+                smsForm.style.display = isShown ? 'none' : 'block';
+                const smsMsg = document.getElementById('smsMsg');
+                if (smsMsg) smsMsg.textContent = '';
+            });
+        }
+        if (cancelSmsBtn && smsForm) {
+            cancelSmsBtn.addEventListener('click', () => {
+                smsForm.style.display = 'none';
+                const smsMsg = document.getElementById('smsMsg');
+                if (smsMsg) smsMsg.textContent = '';
+            });
+        }
+        if (smsForm) {
+            smsForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const smsMsg = document.getElementById('smsMsg');
+                if (smsMsg) smsMsg.textContent = '';
+                const localVal = (document.getElementById('smsToInput').value || '').replace(/\\D/g, '');
+                const msgVal = (document.getElementById('smsBodyInput').value || '').trim();
+                const toVal = localVal ? '+1' + localVal : '';
+                if (!toVal || !msgVal) {
+                    if (smsMsg) smsMsg.textContent = 'Phone number and message are required.';
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/cases/' + encodeURIComponent(getCaseId()) + '/sms', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getToken()
+                        },
+                        body: JSON.stringify({ to: toVal, message: msgVal })
+                    });
+                    const out = await res.json().catch(() => ({}));
+                    if (!res.ok || !out.success) {
+                        if (smsMsg) smsMsg.textContent = out.error || 'Failed to send SMS.';
+                        return;
+                    }
+                    if (smsMsg) {
+                        smsMsg.style.color = '#6fcf6f';
+                        smsMsg.textContent = 'SMS sent successfully.';
+                    }
+                    smsForm.reset();
+                    smsForm.style.display = 'none';
+                    await fetchCaseInfo(getCaseId());
+                    await fetchNotes(getCaseId());
+                } catch (err) {
+                    if (smsMsg) smsMsg.textContent = 'Network error while sending SMS.';
+                }
+            });
+        }
+        // Wire up Edit Case controls
+        const editCaseToggleBtn = document.getElementById('editCaseToggleBtn');
+        const editCaseForm = document.getElementById('editCaseForm');
+        const editCaseMsg = document.getElementById('editCaseMsg');
+        const communityDD = document.getElementById('editCaseCommunityDropdown');
+        const refOrgDD = document.getElementById('editCaseRefOrgDropdown');
+        if (editCaseToggleBtn && editCaseForm) {
+            editCaseToggleBtn.addEventListener('click', async () => {
+                editCaseForm.style.display = editCaseForm.style.display === 'none' ? 'block' : 'none';
+                if (editCaseForm.style.display === 'block') {
+                    editCaseMsg.textContent = '';
+                    // Populate communities
+                    if (communityDD && communityDD.options.length <= 2) {
+                        try {
+                            const r = await fetch('/api/communities');
+                            const d = await r.json();
+                            const list = d.communities || d || [];
+                            const otherOpt = communityDD.querySelector('option[value="Other"]');
+                            list.forEach(c => {
+                                const name = c && c.name ? c.name : c;
+                                if (!name) return;
+                                const opt = document.createElement('option');
+                                opt.value = name;
+                                opt.textContent = name;
+                                communityDD.insertBefore(opt, otherOpt);
+                            });
+                            const current = communityDD.getAttribute('data-current') || '';
+                            if (current) communityDD.value = current;
+                        } catch {}
+                    }
+                    // Populate referring orgs
+                    if (refOrgDD && refOrgDD.options.length <= 1) {
+                        try {
+                            const r2 = await fetch('/api/organizations', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+                            const d2 = await r2.json();
+                            const orgs = d2.organizations || d2 || [];
+                            orgs.forEach(o => {
+                                const name = o && o.name ? o.name : o;
+                                if (!name) return;
+                                const opt = document.createElement('option');
+                                opt.value = name;
+                                opt.textContent = name;
+                                refOrgDD.appendChild(opt);
+                            });
+                            const currentOrg = refOrgDD.getAttribute('data-current') || '';
+                            if (currentOrg) refOrgDD.value = currentOrg;
+                        } catch {}
+                    }
+                }
+            });
+        }
+        const cancelEditCaseBtn = document.getElementById('cancelEditCaseBtn');
+        if (cancelEditCaseBtn && editCaseForm) {
+            cancelEditCaseBtn.addEventListener('click', () => {
+                editCaseForm.style.display = 'none';
+                if (editCaseMsg) editCaseMsg.textContent = '';
+            });
+        }
+        if (editCaseForm) {
+            editCaseForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (editCaseMsg) editCaseMsg.textContent = '';
+                const fd = new FormData(editCaseForm);
+                const payload = {
+                    name: (fd.get('name') || '').trim() || null,
+                    kinshipRole: (fd.get('kinshipRole') || '').trim() || null,
+                    contact: (fd.get('contact') || '').trim() || null,
+                    email: (fd.get('email') || '').trim() || null,
+                    address: (fd.get('address') || '').trim() || null,
+                    language: (fd.get('language') || '').trim() || null,
+                    community: (fd.get('community') || '').trim() || null,
+                    contactTime: (fd.get('contactTime') || '').trim() || null,
+                    referringOrganization: (fd.get('referringOrganization') || '').trim()
+                };
+                // Normalize empty referringOrganization to null (means remove)
+                if (payload.referringOrganization === '') payload.referringOrganization = null;
+                try {
+                    console.debug('[DEBUG] Case update payload', payload);
+                    const resU = await fetch('/api/applicants/' + encodeURIComponent(getCaseId()), {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getToken()
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    const out = await resU.json().catch(() => ({}));
+                    if (!resU.ok || !out.success) {
+                        if (editCaseMsg) {
+                            editCaseMsg.style.color = '#a05a5a';
+                            editCaseMsg.textContent = out.error || 'Failed to update case';
+                        }
+                        return;
+                    }
+                    if (editCaseMsg) {
+                        editCaseMsg.style.color = '#6fcf6f';
+                        editCaseMsg.textContent = 'Case updated';
+                    }
+                    await fetchCaseInfo(getCaseId());
+                    setTimeout(() => {
+                        if (editCaseMsg) editCaseMsg.textContent = '';
+                        editCaseForm.style.display = 'none';
+                    }, 1200);
+                } catch (err) {
+                    if (editCaseMsg) {
+                        editCaseMsg.style.color = '#a05a5a';
+                        editCaseMsg.textContent = 'Failed to update case';
+                    }
+                }
+            });
+        }
         // Wire up Add Loved One controls
         const toggleBtn = document.getElementById('addLovedOneToggleBtn');
         const formEl = document.getElementById('addLovedOneForm');
@@ -633,8 +957,10 @@
                     relationship: fd.get('relationship') || '',
                     incidentDate: fd.get('incidentDate') || '',
                     lastLocation: fd.get('lastLocation') || '',
-                    community: fd.get('community') || ''
+                    community: fd.get('community') || '',
+                    policeInvestigationNumber: (fd.get('policeInvestigationNumber') || '').trim()
                 };
+                    console.debug('[DEBUG] Add loved one payload', payload);
                 const pLL = parseLatLon(fd.get('latlon'));
                 if (pLL.lat != null) payload.lastLocationLat = pLL.lat;
                 if (pLL.lon != null) payload.lastLocationLon = pLL.lon;
@@ -648,6 +974,7 @@
                         body: JSON.stringify(payload)
                     });
                     const out = await res2.json().catch(() => ({}));
+                    console.debug('[DEBUG] Add loved one response', out);
                     if (!res2.ok || !out.success) {
                         msgEl.textContent = out.error || 'Failed to add Loved One';
                         return;
@@ -713,8 +1040,10 @@
                     relationship: fd.get('relationship') || null,
                     dateOfIncident: fd.get('dateOfIncident') || null,
                     lastLocation: fd.get('lastLocation') || null,
-                    community: fd.get('community') || null
+                    community: fd.get('community') || null,
+                    policeInvestigationNumber: (fd.get('policeInvestigationNumber') || '').trim() || null
                 };
+                console.debug('[DEBUG] Update loved one payload', payload);
                 const pLL = (function(){
                     const s = (fd.get('latlon') || '').trim();
                     if (!s) return {lat:null, lon:null};
@@ -740,6 +1069,7 @@
                         body: JSON.stringify(payload)
                     });
                     const out = await res3.json().catch(() => ({}));
+                    console.debug('[DEBUG] Update loved one response', out);
                     if (!res3.ok || !out.success) {
                         if (msg) msg.textContent = out.error || 'Failed to update Loved One';
                         return;

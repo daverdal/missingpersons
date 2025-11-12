@@ -80,12 +80,34 @@ if (!getToken()) {
                     <option value="Other">Other (not listed)</option>
                 </select>
             </label>
-            <div class="checkbox-group">
-                <label><input type="checkbox" name="investigation" value="Police/RCMP Investigation"> Police/RCMP Investigation</label>
-                <label><input type="checkbox" name="investigation" value="Community Search Efforts"> Community Search Efforts</label>
-                <label><input type="checkbox" name="investigation" value="Independent Advocacy"> Independent Advocacy</label>
-                <label><input type="checkbox" name="investigation" value="Inquest or Legal Action"> Inquest or Legal Action</label>
-                <label><input type="checkbox" name="investigation" value="Other"> Other: <input type="text" name="otherInvestigation"></label>
+            <div class="checkbox-column">
+                <label class="investigation-row">
+                    <span>
+                        <input type="checkbox" name="investigation" value="Police/RCMP Investigation" id="policeInvestigationCheckbox">
+                        Police/RCMP Investigation
+                    </span>
+                    <span class="police-number-field" id="policeInvestigationField">
+                        Investigation Number:
+                        <input type="text" name="policeInvestigationNumber" placeholder="e.g., RCMP-2024-12345">
+                    </span>
+                </label>
+                <label class="investigation-row">
+                    <input type="checkbox" name="investigation" value="Community Search Efforts">
+                    Community Search Efforts
+                </label>
+                <label class="investigation-row">
+                    <input type="checkbox" name="investigation" value="Independent Advocacy">
+                    Independent Advocacy
+                </label>
+                <label class="investigation-row">
+                    <input type="checkbox" name="investigation" value="Inquest or Legal Action">
+                    Inquest or Legal Action
+                </label>
+                <label class="investigation-row">
+                    <input type="checkbox" name="investigation" value="Other">
+                    Other:
+                    <input type="text" name="otherInvestigation">
+                </label>
             </div>
 
             <div class="section-title">Support, Advocacy, and Requests</div>
@@ -156,6 +178,27 @@ if (!getToken()) {
     color:#4aff4a;
     font-weight:bold;
     animation: blink 1s steps(1) infinite;
+}
+
+.checkbox-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    margin-bottom: 1em;
+}
+.checkbox-column label {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-wrap: wrap;
+}
+.police-number-field {
+    display: none;
+    gap: 0.4em;
+    align-items: center;
+}
+.police-number-field input {
+    max-width: 220px;
 }
 </style>
 </body>
@@ -244,6 +287,10 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         } catch {}
     }
+    if (policeInput && policeInput.value.trim() !== '') {
+        policeCheckbox.checked = true;
+    }
+    syncPoliceFieldVisibility();
 });
 // Save fields on input
 form.addEventListener('input', () => {
@@ -308,6 +355,7 @@ document.getElementById('intakeForm').addEventListener('submit', async function(
         investigation: getCheckedValues('investigation'),
         support: getCheckedValues('support'),
         otherInvestigation: form.otherInvestigation.value,
+        policeInvestigationNumber: form.policeInvestigationNumber.value,
         otherSupport: form.otherSupport.value,
         notes: form.notes.value,
         consentStore: form.consentStore.checked,
@@ -348,5 +396,22 @@ document.getElementById('intakeForm').addEventListener('submit', async function(
         document.getElementById('formMessage').style.color = '#ff7f7f';
     }
 });
+
+const policeCheckbox = document.getElementById('policeInvestigationCheckbox');
+const policeField = document.getElementById('policeInvestigationField');
+const policeInput = policeField ? policeField.querySelector('input[name="policeInvestigationNumber"]') : null;
+function syncPoliceFieldVisibility() {
+    if (!policeCheckbox || !policeField) return;
+    policeField.style.display = policeCheckbox.checked ? 'inline-flex' : 'none';
+}
+if (policeCheckbox) {
+    policeCheckbox.addEventListener('change', () => {
+        if (!policeCheckbox.checked && policeInput) {
+            policeInput.value = '';
+        }
+        syncPoliceFieldVisibility();
+    });
+    syncPoliceFieldVisibility();
+}
 </script>
 </html>

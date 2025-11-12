@@ -14,6 +14,7 @@ require('dotenv').config();
 
 
 const upload = require('./fileUpload');
+const smsService = require('./smsService');
 const app = express();
 app.use(cookieParser());
 
@@ -136,7 +137,7 @@ app.use('/uploads', express.static('uploads'));
 app.post('/api/graph-cypher', async (req, res) => {
   const { cypher, params } = req.body || {};
   if (!cypher) return res.status(400).json({ error: 'Missing cypher query' });
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     const result = await session.run(cypher, params || {});
     // Extract nodes and relationships for visualization
@@ -192,7 +193,8 @@ app.get('/api/loved-ones/with-coordinates', authMiddleware, async (req, res) => 
     }));
     res.json({ results });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch locations' });
+    console.error('Failed to fetch loved ones with coordinates:', err);
+    res.status(500).json({ error: 'Failed to fetch locations', details: err.message });
   } finally {
     await session.close();
   }
@@ -210,6 +212,9 @@ const driver = neo4j.driver(
     process.env.NEO4J_PASSWORD || 'password'
   )
 );
+
+// Default database selection (for Neo4j multi-database setups)
+const NEO4J_DATABASE = process.env.NEO4J_DATABASE || 'neo4j';
 
 
 // User model setup
@@ -656,6 +661,65 @@ app.post('/api/cases/:caseId/events',
   }
 );
 
+// Send an SMS update related to a case
+app.post('/api/cases/:caseId/sms', authMiddleware, async (req, res) => {
+  if (!smsService.isConfigured()) {
+    return res.status(503).json({ error: 'SMS service is not configured' });
+  }
+  const { caseId } = req.params;
+  const { to, message } = req.body || {};
+  const trimmedMessage = (message || '').trim();
+  if (!to || !trimmedMessage) {
+    return res.status(400).json({ error: 'Destination number and message are required' });
+  }
+  const rawRoles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
+  const roles = (Array.isArray(rawRoles) ? rawRoles : [rawRoles])
+    .filter(Boolean)
+    .map(r => String(r).toLowerCase());
+  const isAdmin = roles.includes('admin');
+  const userEmail = req.user.email || req.user.preferred_username;
+  if (!userEmail) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!isAdmin) {
+    const session = driver.session();
+    try {
+      const result = await session.run(
+        'MATCH (a:Applicant {id: $caseId})<-[:ASSIGNED_TO]-(u:User {email: $email}) RETURN a',
+        { caseId, email: userEmail }
+      );
+      const isAssigned = result.records.length > 0;
+      if (!isAssigned) {
+        return res.status(403).json({ error: 'Not authorized to send SMS for this case' });
+      }
+    } catch (err) {
+      console.error('Failed to verify case assignment before sending SMS:', err);
+      return res.status(500).json({ error: 'Failed to verify assignment', details: err.message });
+    } finally {
+      await session.close();
+    }
+  }
+
+  try {
+    const smsResult = await smsService.sendSms({ to, body: trimmedMessage });
+    const snippet = trimmedMessage.length > 160 ? `${trimmedMessage.slice(0, 157)}...` : trimmedMessage;
+    const description = `SMS sent to ${to}: "${snippet}"`;
+    try {
+      await caseEventModel.addEvent(caseId, {
+        type: 'sms',
+        description,
+        user: req.user.name || userEmail
+      });
+    } catch (logErr) {
+      console.warn('SMS sent but failed to log case event:', logErr);
+    }
+    res.json({ success: true, sid: smsResult.sid });
+  } catch (err) {
+    console.error('Failed to send SMS via Twilio:', err);
+    res.status(500).json({ error: 'Failed to send SMS', details: err.message });
+  }
+});
 
 // List all events for a case (any authenticated user)
 app.get('/api/cases/:caseId/events',
@@ -832,7 +896,7 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
     const applicantId = 'A' + Date.now();
     // Create Applicant node with id
     const applicantResult = await session.run(
-      `CREATE (a:Applicant {id: $id, name: $name, kinshipRole: $kinshipRole, contact: $contact, email: $email, address: $address, language: $language, community: $community, contactTime: $contactTime, staff: $staff}) RETURN a`,
+      `CREATE (a:Applicant {id: $id, name: $name, kinshipRole: $kinshipRole, contact: $contact, email: $email, address: $address, language: $language, community: $community, contactTime: $contactTime, staff: $staff, notes: $notes}) RETURN a`,
       {
         id: applicantId,
         name: data.applicantName || '',
@@ -843,7 +907,8 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
         language: data.language || '',
         community: data.community || '',
         contactTime: data.contactTime || '',
-        staff
+        staff,
+        notes: data.notes || ''
       }
     );
     // Create LovedOne node if provided
@@ -851,7 +916,7 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
     if (data.lovedOneName || data.relationship) {
       const lovedOneId = 'L' + Date.now() + '-' + Math.floor(Math.random()*1e6);
       const lovedOneResult = await session.run(
-        `CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon}) RETURN l`,
+        `CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon, policeInvestigationNumber: $policeInvestigationNumber, investigation: $investigation, otherInvestigation: $otherInvestigation, supportSelections: $supportSelections, otherSupport: $otherSupport, additionalNotes: $additionalNotes}) RETURN l`,
         {
           id: lovedOneId,
           name: data.lovedOneName || '',
@@ -859,7 +924,13 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
           lastLocation: data.lastLocation || '',
           community: data.lovedOneCommunity || '',
           lastLocationLat: (data.lastLocationLat !== undefined && data.lastLocationLat !== '' ? parseFloat(data.lastLocationLat) : null),
-          lastLocationLon: (data.lastLocationLon !== undefined && data.lastLocationLon !== '' ? parseFloat(data.lastLocationLon) : null)
+          lastLocationLon: (data.lastLocationLon !== undefined && data.lastLocationLon !== '' ? parseFloat(data.lastLocationLon) : null),
+          policeInvestigationNumber: data.policeInvestigationNumber || '',
+          investigation: Array.isArray(data.investigation) ? data.investigation : [],
+          otherInvestigation: data.otherInvestigation || '',
+          supportSelections: Array.isArray(data.support) ? data.support : [],
+          otherSupport: data.otherSupport || '',
+          additionalNotes: data.notes || ''
         }
       );
       lovedOneNode = lovedOneResult.records[0]?.get('l');
@@ -1025,7 +1096,7 @@ app.post('/api/cases/:caseId/unassign', authMiddleware, requireRole('admin'), as
 // Add an additional Loved One to an Applicant (case)
 app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { name, relationship, incidentDate, lastLocation, community } = req.body || {};
+  const { name, relationship, incidentDate, lastLocation, community, policeInvestigationNumber, investigation, otherInvestigation, supportSelections, support, otherSupport, additionalNotes } = req.body || {};
   const user = req.user;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Loved One name is required' });
   const session = driver.session();
@@ -1047,9 +1118,25 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
     const lovedOneId = 'L' + Date.now() + '-' + Math.floor(Math.random()*1e6);
+    const investigationList = Array.isArray(investigation) ? investigation : [];
+    const supportList = Array.isArray(supportSelections) ? supportSelections : (Array.isArray(support) ? support : []);
     const createRes = await session.run(
       `MATCH (a:Applicant {id: $applicantId})
-       CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon})
+       CREATE (l:LovedOne {
+         id: $id,
+         name: $name,
+         dateOfIncident: $dateOfIncident,
+         lastLocation: $lastLocation,
+         community: $community,
+         lastLocationLat: $lastLocationLat,
+         lastLocationLon: $lastLocationLon,
+         policeInvestigationNumber: $policeInvestigationNumber,
+         investigation: $investigation,
+         otherInvestigation: $otherInvestigation,
+         supportSelections: $supportSelections,
+         otherSupport: $otherSupport,
+         additionalNotes: $additionalNotes
+       })
        CREATE (a)-[:RELATED_TO {relationship: $relationship}]->(l)
        RETURN l`,
       {
@@ -1061,7 +1148,13 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
         community: community || '',
         relationship: relationship || '',
         lastLocationLat: (req.body && req.body.lastLocationLat !== undefined && req.body.lastLocationLat !== '' ? parseFloat(req.body.lastLocationLat) : null),
-        lastLocationLon: (req.body && req.body.lastLocationLon !== undefined && req.body.lastLocationLon !== '' ? parseFloat(req.body.lastLocationLon) : null)
+        lastLocationLon: (req.body && req.body.lastLocationLon !== undefined && req.body.lastLocationLon !== '' ? parseFloat(req.body.lastLocationLon) : null),
+        policeInvestigationNumber: policeInvestigationNumber || '',
+        investigation: investigationList,
+        otherInvestigation: otherInvestigation || '',
+        supportSelections: supportList,
+        otherSupport: otherSupport || '',
+        additionalNotes: additionalNotes || ''
       }
     );
     const lnode = createRes.records[0]?.get('l');
@@ -1134,10 +1227,116 @@ app.get('/api/loved-ones/by-date', authMiddleware, async (req, res) => {
   }
 });
 
+// Update an Applicant (Case) fields (admin or assigned case worker)
+app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const {
+    name,
+    kinshipRole,
+    contact,
+    email,
+    address,
+    language,
+    community,
+    contactTime,
+    notes,
+    referringOrganization
+  } = req.body || {};
+  const rawRoles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
+  const roles = (Array.isArray(rawRoles) ? rawRoles : [rawRoles])
+    .filter(Boolean)
+    .map(r => String(r).toLowerCase());
+  const isAdmin = roles.includes('admin');
+  const isCaseWorker = roles.includes('case_worker');
+  const session = driver.session();
+  try {
+    if (!isAdmin) {
+      if (!isCaseWorker) {
+        await session.close();
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      // Ensure this user is assigned to the case
+      const check = await session.run(
+        'MATCH (a:Applicant {id: $caseId})<-[:ASSIGNED_TO]-(u:User {email: $email}) RETURN a',
+        { caseId: id, email: req.user.email || req.user.preferred_username }
+      );
+      if (check.records.length === 0) {
+        await session.close();
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+    }
+    // Update core applicant fields; only set provided fields
+    await session.run(
+      `MATCH (a:Applicant {id: $id})
+       SET a.name = coalesce($name, a.name),
+           a.kinshipRole = coalesce($kinshipRole, a.kinshipRole),
+           a.contact = coalesce($contact, a.contact),
+           a.email = coalesce($email, a.email),
+           a.address = coalesce($address, a.address),
+           a.language = coalesce($language, a.language),
+           a.community = coalesce($community, a.community),
+           a.contactTime = coalesce($contactTime, a.contactTime),
+           a.notes = coalesce($notes, a.notes)`
+      , { id, name, kinshipRole, contact, email, address, language, community, contactTime, notes }
+    );
+    // Update referring organization relationship if provided
+    if (referringOrganization !== undefined) {
+      // Remove existing relationship and create a new one if org name provided and exists
+      await session.run(
+        `MATCH (a:Applicant {id: $id})
+         OPTIONAL MATCH (a)-[r:REFERRED_BY]->(:Organization)
+         DELETE r`,
+        { id }
+      );
+      if (referringOrganization) {
+        await session.run(
+          `MATCH (a:Applicant {id: $id}), (o:Organization {name: $orgName})
+           MERGE (a)-[:REFERRED_BY]->(o)`,
+          { id, orgName: referringOrganization }
+        );
+      }
+    }
+    // Return updated applicant with referring org
+    const result = await session.run(
+      `MATCH (a:Applicant {id: $id})
+       OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
+       RETURN a, o`,
+      { id }
+    );
+    const aNode = result.records[0] && result.records[0].get('a');
+    const oNode = result.records[0] && result.records[0].get('o');
+    await session.close();
+    return res.json({
+      success: true,
+      applicant: aNode ? aNode.properties : null,
+      referringOrg: oNode ? oNode.properties : null
+    });
+  } catch (err) {
+    await session.close();
+    return res.status(500).json({ error: 'Failed to update applicant' });
+  }
+});
+
 // Update a Loved One (and optionally relationship for a specific Applicant)
 app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { applicantId, name, dateOfIncident, lastLocation, community, relationship, lastLocationLat, lastLocationLon } = req.body || {};
+  const {
+    applicantId,
+    name,
+    dateOfIncident,
+    lastLocation,
+    community,
+    relationship,
+    lastLocationLat,
+    lastLocationLon,
+    policeInvestigationNumber,
+    investigation,
+    otherInvestigation,
+    supportSelections,
+    support,
+    otherSupport,
+    additionalNotes
+  } = req.body || {};
   const rawRoles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
   const roles = (Array.isArray(rawRoles) ? rawRoles : [rawRoles])
     .filter(Boolean)
@@ -1161,7 +1360,16 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
         return res.status(403).json({ error: 'Not authorized' });
       }
     }
-    // Update LovedOne fields using coalesce to keep existing values when null/undefined
+    const investigationProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'investigation');
+    const otherInvestigationProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'otherInvestigation');
+    const supportProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'supportSelections') || Object.prototype.hasOwnProperty.call(req.body || {}, 'support');
+    const otherSupportProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'otherSupport');
+    const notesProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'additionalNotes');
+    const investigationList = investigationProvided ? (Array.isArray(investigation) ? investigation : []) : null;
+    const supportList = supportProvided ? (Array.isArray(supportSelections) ? supportSelections : (Array.isArray(support) ? support : [])) : null;
+    const otherInvestigationValue = otherInvestigationProvided ? (otherInvestigation || '') : null;
+    const otherSupportValue = otherSupportProvided ? (otherSupport || '') : null;
+    const notesValue = notesProvided ? (additionalNotes || '') : null;
     await session.run(
       `MATCH (l:LovedOne {id: $id})
        SET l.name = coalesce($name, l.name),
@@ -1169,8 +1377,28 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
            l.lastLocation = coalesce($lastLocation, l.lastLocation),
            l.community = coalesce($community, l.community),
            l.lastLocationLat = coalesce($lastLocationLat, l.lastLocationLat),
-           l.lastLocationLon = coalesce($lastLocationLon, l.lastLocationLon)`,
-      { id, name, dateOfIncident, lastLocation, community, lastLocationLat: (lastLocationLat !== undefined && lastLocationLat !== '' ? parseFloat(lastLocationLat) : null), lastLocationLon: (lastLocationLon !== undefined && lastLocationLon !== '' ? parseFloat(lastLocationLon) : null) }
+           l.lastLocationLon = coalesce($lastLocationLon, l.lastLocationLon),
+           l.policeInvestigationNumber = coalesce($policeInvestigationNumber, l.policeInvestigationNumber),
+           l.investigation = coalesce($investigation, l.investigation),
+           l.otherInvestigation = coalesce($otherInvestigation, l.otherInvestigation),
+           l.supportSelections = coalesce($supportSelections, l.supportSelections),
+           l.otherSupport = coalesce($otherSupport, l.otherSupport),
+           l.additionalNotes = coalesce($additionalNotes, l.additionalNotes)`,
+      {
+        id,
+        name,
+        dateOfIncident,
+        lastLocation,
+        community,
+        lastLocationLat: (lastLocationLat !== undefined && lastLocationLat !== '' ? parseFloat(lastLocationLat) : null),
+        lastLocationLon: (lastLocationLon !== undefined && lastLocationLon !== '' ? parseFloat(lastLocationLon) : null),
+        policeInvestigationNumber,
+        investigation: investigationList,
+        otherInvestigation: otherInvestigationValue,
+        supportSelections: supportList,
+        otherSupport: otherSupportValue,
+        additionalNotes: notesValue
+      }
     );
     // Update relationship if provided and applicantId is provided
     if (relationship != null && applicantId) {
