@@ -15,6 +15,8 @@ require('dotenv').config();
 
 const upload = require('./fileUpload');
 const smsService = require('./smsService');
+const AuditLogModel = require('./auditLogModel');
+const AuditLogger = require('./auditLogger');
 const app = express();
 app.use(cookieParser());
 
@@ -81,11 +83,21 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
+function resolveAuthToken(req) {
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1];
+  }
+  if (req.cookies && req.cookies.token) {
+    return req.cookies.token;
+  }
+  return null;
+}
+
 // JWT authentication middleware (must be defined before any route uses it)
 function authMiddleware(req, res, next) {
-  const auth = req.headers['authorization'];
-  if (!auth) return res.status(401).json({ error: 'No token provided' });
-  const token = auth.split(' ')[1];
+  const token = resolveAuthToken(req);
+  if (!token) return res.status(401).json({ error: 'No token provided' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
@@ -101,24 +113,94 @@ const JWT_SECRET = process.env.JWT_SECRET || 'changeme_secret';
 // Create an admin user with password
 app.post('/api/create-admin', async (req, res) => {
   const { name, email, password } = req.body;
-  if (!name || !email || !password) return res.status(400).json({ error: 'Missing required fields' });
+  if (!name || !email || !password) {
+    await auditLogger.log(req, {
+      action: 'user.create_admin',
+      resourceType: 'user',
+      resourceId: email || null,
+      success: false,
+      message: 'Missing required fields',
+      details: { providedFields: Object.keys(req.body || {}) }
+    });
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
   let user = await userModel.getUserByEmail(email);
-  if (user) return res.status(409).json({ error: 'User already exists' });
+  if (user) {
+    await auditLogger.log(req, {
+      action: 'user.create_admin',
+      resourceType: 'user',
+      resourceId: email,
+      success: false,
+      message: 'User already exists',
+      details: { existing: true }
+    });
+    return res.status(409).json({ error: 'User already exists' });
+  }
   user = { id: email, name, email, roles: ['admin'], password };
   await userModel.createUser(user);
+  await auditLogger.log(req, {
+    action: 'user.create_admin',
+    resourceType: 'user',
+    resourceId: email,
+    success: true,
+    targetUserId: email,
+    targetUserName: name,
+    details: { roles: ['admin'] }
+  });
   res.json({ success: true, user: { name, email, roles: ['admin'] } });
 });
 
 // Login endpoint
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (!email || !password) {
+    await auditLogger.log(req, {
+      action: 'auth.login_attempt',
+      resourceType: 'auth',
+      resourceId: email || null,
+      success: false,
+      message: 'Missing credentials'
+    });
+    return res.status(400).json({ error: 'Email and password required' });
+  }
   const user = await userModel.getUserByEmail(email);
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!user) {
+    await auditLogger.log(req, {
+      action: 'auth.login_failure',
+      resourceType: 'auth',
+      resourceId: email,
+      success: false,
+      message: 'User not found',
+      details: { email }
+    });
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
   const valid = await userModel.verifyUserPassword(email, password);
-  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!valid) {
+    await auditLogger.log(req, {
+      action: 'auth.login_failure',
+      resourceType: 'auth',
+      resourceId: email,
+      success: false,
+      message: 'Invalid password',
+      targetUserId: email
+    });
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
   // Create a simple JWT token
   const token = jwt.sign({ email: user.email, name: user.name, roles: user.roles }, JWT_SECRET, { expiresIn: '8h' });
+  await auditLogger.log(req, {
+    action: 'auth.login_success',
+    resourceType: 'user',
+    resourceId: user.email,
+    success: true,
+    actorOverride: {
+      userId: user.email,
+      userName: user.name,
+      roles: Array.isArray(user.roles) ? user.roles : [user.roles].filter(Boolean)
+    },
+    details: { roles: user.roles || [] }
+  });
   res.json({ success: true, token });
 });
 const PORT = process.env.PORT || 5000;
@@ -225,14 +307,39 @@ const userModel = new UserModel(driver);
 const CaseEventModel = require('./caseEventModel');
 const caseEventModel = new CaseEventModel(driver);
 
+const AUDIT_LOG_RETENTION_DAYS = parseInt(process.env.AUDIT_LOG_RETENTION_DAYS || '730', 10);
+const auditLogModel = new AuditLogModel(driver);
+const auditLogger = new AuditLogger({
+  model: auditLogModel,
+  retentionDays: Number.isFinite(AUDIT_LOG_RETENTION_DAYS) ? AUDIT_LOG_RETENTION_DAYS : 730
+});
+
+(async function initialiseAuditLogging() {
+  try {
+    await auditLogModel.ensureIndexes();
+    await auditLogModel.cleanupOlderThan(auditLogger.getRetentionCutoffIso());
+  } catch (err) {
+    console.error('Failed to initialise audit logging', err);
+  }
+})();
+
+const AUDIT_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const auditCleanupTimer = setInterval(async () => {
+  try {
+    await auditLogModel.cleanupOlderThan(auditLogger.getRetentionCutoffIso());
+  } catch (err) {
+    console.error('Audit log cleanup failed', err);
+  }
+}, AUDIT_CLEANUP_INTERVAL_MS);
+if (auditCleanupTimer.unref) auditCleanupTimer.unref();
+
 
 
 
 // JWT authentication middleware
 function authMiddleware(req, res, next) {
-  const auth = req.headers['authorization'];
-  if (!auth) return res.status(401).json({ error: 'No token provided' });
-  const token = auth.split(' ')[1];
+  const token = resolveAuthToken(req);
+  if (!token) return res.status(401).json({ error: 'No token provided' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
@@ -275,6 +382,13 @@ app.get('/api/communities', async (req, res) => {
     console.log('POST /api/organizations called with:', req.body);
     if (!name) {
       console.log('Organization creation failed: Name is required');
+    await auditLogger.log(req, {
+      action: 'organization.create',
+      resourceType: 'organization',
+      resourceId: null,
+      success: false,
+      message: 'Name is required'
+    });
       return res.status(400).json({ error: 'Name is required' });
     }
     const session = driver.session();
@@ -288,19 +402,46 @@ app.get('/api/communities', async (req, res) => {
           await session.run('MATCH (o:Organization {name: $name}) SET o.active = true, o.contact = $contact, o.phone = $phone', { name, contact, phone });
           console.log('Organization reactivated:', name, contact, phone);
           await session.close();
+        await auditLogger.log(req, {
+          action: 'organization.reactivate',
+          resourceType: 'organization',
+          resourceId: name,
+          success: true
+        });
           return res.json({ success: true, reactivated: true });
         }
         console.log('Organization creation failed: Duplicate name');
         await session.close();
+      await auditLogger.log(req, {
+        action: 'organization.create',
+        resourceType: 'organization',
+        resourceId: name,
+        success: false,
+        message: 'Organization already exists'
+      });
         return res.status(409).json({ error: 'Organization already exists' });
       }
       await session.run('CREATE (o:Organization {name: $name, contact: $contact, phone: $phone, active: true})', { name, contact, phone });
       console.log('Organization created:', name, contact, phone);
       await session.close();
+    await auditLogger.log(req, {
+      action: 'organization.create',
+      resourceType: 'organization',
+      resourceId: name,
+      success: true
+    });
       res.json({ success: true });
     } catch (err) {
       console.error('Error creating organization:', err);
       await session.close();
+    await auditLogger.log(req, {
+      action: 'organization.create',
+      resourceType: 'organization',
+      resourceId: name,
+      success: false,
+      message: 'Failed to create organization',
+      details: { error: err.message }
+    });
       res.status(500).json({ error: 'Failed to create organization', details: err.message });
     }
   });
@@ -326,7 +467,16 @@ app.get('/api/communities', async (req, res) => {
 app.delete('/api/organizations', authMiddleware, requireRole('admin'), async (req, res) => {
   const { name } = req.body;
   console.log('DELETE /api/organizations called with:', req.body);
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (!name) {
+    await auditLogger.log(req, {
+      action: 'organization.deactivate',
+      resourceType: 'organization',
+      resourceId: null,
+      success: false,
+      message: 'Name is required'
+    });
+    return res.status(400).json({ error: 'Name is required' });
+  }
   const session = driver.session();
   try {
     // Log all org names for debugging
@@ -336,13 +486,34 @@ app.delete('/api/organizations', authMiddleware, requireRole('admin'), async (re
     const result = await session.run('MATCH (o:Organization {name: $name}) SET o.active = false RETURN o', { name });
     if (result.summary.counters.updates().propertiesSet > 0) {
       console.log('Organization soft-deleted:', name);
+      await auditLogger.log(req, {
+        action: 'organization.deactivate',
+        resourceType: 'organization',
+        resourceId: name,
+        success: true
+      });
       res.json({ success: true });
     } else {
       console.log('Organization not found for delete:', name);
+      await auditLogger.log(req, {
+        action: 'organization.deactivate',
+        resourceType: 'organization',
+        resourceId: name,
+        success: false,
+        message: 'Organization not found'
+      });
       res.status(404).json({ error: 'Organization not found' });
     }
   } catch (err) {
     console.error('Error in DELETE /api/organizations:', err);
+    await auditLogger.log(req, {
+      action: 'organization.deactivate',
+      resourceType: 'organization',
+      resourceId: name,
+      success: false,
+      message: 'Failed to deactivate organization',
+      details: { error: err.message }
+    });
     res.status(500).json({ error: 'Failed to delete organization' });
   } finally {
     await session.close();
@@ -468,20 +639,52 @@ app.post('/api/users', authMiddleware, requireRole('admin'), async (req, res) =>
   console.log('Attempting to create user:', { name, email, roles });
   if (!name || !email || !password || !roles) {
     console.error('Missing required fields for user creation');
+    await auditLogger.log(req, {
+      action: 'user.create',
+      resourceType: 'user',
+      resourceId: email || null,
+      success: false,
+      message: 'Missing required fields',
+      details: { providedFields: Object.keys(req.body || {}) }
+    });
     return res.status(400).json({ error: 'Missing required fields' });
   }
   let user = await userModel.getUserByEmail(email);
   if (user) {
     console.warn('User already exists:', email);
+    await auditLogger.log(req, {
+      action: 'user.create',
+      resourceType: 'user',
+      resourceId: email,
+      success: false,
+      message: 'User already exists'
+    });
     return res.status(409).json({ error: 'User already exists' });
   }
   user = { id: email, name, email, password, roles };
   try {
     await userModel.createUser(user);
     console.log('User created successfully:', user);
+    await auditLogger.log(req, {
+      action: 'user.create',
+      resourceType: 'user',
+      resourceId: email,
+      success: true,
+      targetUserId: email,
+      targetUserName: name,
+      details: { roles }
+    });
     res.json({ success: true, user });
   } catch (err) {
     console.error('Error creating user:', err);
+    await auditLogger.log(req, {
+      action: 'user.create',
+      resourceType: 'user',
+      resourceId: email,
+      success: false,
+      message: 'Error creating user',
+      details: { error: err.message }
+    });
     res.status(500).json({ error: 'Failed to create user' });
   }
 });
@@ -492,6 +695,14 @@ app.post('/api/cases/:caseId/assign', authMiddleware, requireRole('admin'), asyn
   console.log('Assigning case', caseId, 'to user', email);
   if (!caseId || !email) {
     console.error('Missing caseId or email for assignment');
+    await auditLogger.log(req, {
+      action: 'case.assign',
+      resourceType: 'case',
+      resourceId: caseId || null,
+      success: false,
+      message: 'Missing caseId or email',
+      details: { caseId, email }
+    });
     return res.status(400).json({ error: 'Missing caseId or email' });
   }
   const session = driver.session();
@@ -533,9 +744,24 @@ app.post('/api/cases/:caseId/assign', authMiddleware, requireRole('admin'), asyn
       console.warn('Failed to log assignment event for case', caseId, e.message);
     }
     console.log('Case assigned successfully');
+    await auditLogger.log(req, {
+      action: 'case.assign',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: true,
+      details: { assignedTo: email }
+    });
     res.json({ success: true });
   } catch (err) {
     console.error('Assignment failed:', err);
+    await auditLogger.log(req, {
+      action: 'case.assign',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: false,
+      message: 'Assignment failed',
+      details: { error: err.message, assignedTo: email }
+    });
     res.status(500).json({ error: 'Assignment failed' });
   } finally {
     await session.close();
@@ -569,8 +795,28 @@ app.put('/api/users/:email/roles',
   async (req, res) => {
     const { email } = req.params;
     const { roles } = req.body;
-    await userModel.updateUserRoles(email, roles);
-    res.json({ success: true });
+    try {
+      await userModel.updateUserRoles(email, roles);
+      await auditLogger.log(req, {
+        action: 'user.update_roles',
+        resourceType: 'user',
+        resourceId: email,
+        success: true,
+        targetUserId: email,
+        details: { roles }
+      });
+      res.json({ success: true });
+    } catch (err) {
+      await auditLogger.log(req, {
+        action: 'user.update_roles',
+        resourceType: 'user',
+        resourceId: email,
+        success: false,
+        message: 'Failed to update roles',
+        details: { error: err.message }
+      });
+      res.status(500).json({ error: 'Failed to update roles' });
+    }
   }
 );
 
@@ -582,11 +828,40 @@ app.post('/api/users/:email/promote',
   async (req, res) => {
     const { email } = req.params;
     const user = await userModel.getUserByEmail(email);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) {
+      await auditLogger.log(req, {
+        action: 'user.promote',
+        resourceType: 'user',
+        resourceId: email,
+        success: false,
+        message: 'User not found'
+      });
+      return res.status(404).json({ error: 'User not found' });
+    }
     const roles = Array.isArray(user.roles) ? user.roles : [];
     if (!roles.includes('admin')) roles.push('admin');
-    await userModel.updateUserRoles(email, roles);
-    res.json({ success: true, roles });
+    try {
+      await userModel.updateUserRoles(email, roles);
+      await auditLogger.log(req, {
+        action: 'user.promote',
+        resourceType: 'user',
+        resourceId: email,
+        success: true,
+        targetUserId: email,
+        details: { roles }
+      });
+      res.json({ success: true, roles });
+    } catch (err) {
+      await auditLogger.log(req, {
+        action: 'user.promote',
+        resourceType: 'user',
+        resourceId: email,
+        success: false,
+        message: 'Failed to update roles',
+        details: { error: err.message }
+      });
+      res.status(500).json({ error: 'Failed to update roles' });
+    }
   }
 );
 
@@ -598,12 +873,41 @@ app.post('/api/users/:email/demote',
   async (req, res) => {
     const { email } = req.params;
     const user = await userModel.getUserByEmail(email);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) {
+      await auditLogger.log(req, {
+        action: 'user.demote',
+        resourceType: 'user',
+        resourceId: email,
+        success: false,
+        message: 'User not found'
+      });
+      return res.status(404).json({ error: 'User not found' });
+    }
     let roles = Array.isArray(user.roles) ? user.roles : [];
     roles = roles.filter(r => r !== 'admin');
     if (!roles.includes('case_worker')) roles.push('case_worker');
-    await userModel.updateUserRoles(email, roles);
-    res.json({ success: true, roles });
+    try {
+      await userModel.updateUserRoles(email, roles);
+      await auditLogger.log(req, {
+        action: 'user.demote',
+        resourceType: 'user',
+        resourceId: email,
+        success: true,
+        targetUserId: email,
+        details: { roles }
+      });
+      res.json({ success: true, roles });
+    } catch (err) {
+      await auditLogger.log(req, {
+        action: 'user.demote',
+        resourceType: 'user',
+        resourceId: email,
+        success: false,
+        message: 'Failed to update roles',
+        details: { error: err.message }
+      });
+      res.status(500).json({ error: 'Failed to update roles' });
+    }
   }
 );
 
@@ -618,7 +922,24 @@ app.delete('/api/users/:email',
     const session = driver.session();
     try {
       await session.run('MATCH (u:User {email: $email}) DETACH DELETE u', { email });
+      await auditLogger.log(req, {
+        action: 'user.delete',
+        resourceType: 'user',
+        resourceId: email,
+        success: true,
+        targetUserId: email
+      });
       res.json({ success: true });
+    } catch (err) {
+      await auditLogger.log(req, {
+        action: 'user.delete',
+        resourceType: 'user',
+        resourceId: email,
+        success: false,
+        message: 'Failed to delete user',
+        details: { error: err.message }
+      });
+      res.status(500).json({ error: 'Failed to delete user' });
     } finally {
       await session.close();
     }
@@ -626,13 +947,78 @@ app.delete('/api/users/:email',
 );
 
 
-// View audit logs (stub)
-app.get('/api/audit-logs',
+// View audit logs
+app.get(
+  '/api/audit-logs',
   authMiddleware,
   requireRole('admin'),
   async (req, res) => {
-    // TODO: Implement audit log storage and retrieval
-    res.json({ logs: [], message: 'Audit log feature coming soon.' });
+    const {
+      limit,
+      cursor,
+      cursorLogId,
+      action,
+      user,
+      resourceType,
+      resourceId,
+      success,
+      from,
+      to,
+      search
+    } = req.query || {};
+
+    const filters = {};
+    if (action) filters.action = action;
+    if (user) filters.user = user;
+    if (resourceType) filters.resourceType = resourceType;
+    if (resourceId) filters.resourceId = resourceId;
+    if (from) filters.from = from;
+    if (to) filters.to = to;
+    if (search) filters.search = search;
+    if (typeof success === 'string' && success.length > 0) {
+      if (success.toLowerCase() === 'true') filters.success = true;
+      else if (success.toLowerCase() === 'false') filters.success = false;
+    }
+
+    try {
+      const result = await auditLogModel.getLogs({
+        limit,
+        cursor,
+        cursorLogId,
+        filters
+      });
+      res.json(result);
+    } catch (err) {
+      console.error('Failed to fetch audit logs', err);
+      res.status(500).json({ error: 'Failed to fetch audit logs' });
+    }
+  }
+);
+
+// Real-time audit log stream (Server-Sent Events)
+app.get(
+  '/api/audit-logs/stream',
+  authMiddleware,
+  requireRole('admin'),
+  (req, res) => {
+    auditLogger.addStreamClient(req, res);
+    res.write('event: connected\ndata: {}\n\n');
+  }
+);
+
+app.get(
+  '/api/audit-logs/actions',
+  authMiddleware,
+  requireRole('admin'),
+  async (req, res) => {
+    try {
+      const { limit } = req.query || {};
+      const actions = await auditLogModel.listActions(limit);
+      res.json({ actions });
+    } catch (err) {
+      console.error('Failed to fetch audit actions', err);
+      res.status(500).json({ error: 'Failed to fetch audit actions' });
+    }
   }
 );
 
@@ -640,12 +1026,19 @@ app.get('/api/audit-logs',
 // Add event to a case (case worker or admin)
 app.post('/api/cases/:caseId/events',
   authMiddleware,
-  (req, res, next) => {
+  async (req, res, next) => {
     // Only allow 'admin' or 'case_worker' roles
     const roles = req.user && (req.user.roles || req.user.groups || []);
     if (Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'))) {
       return next();
     }
+    await auditLogger.log(req, {
+      action: 'case.event_create',
+      resourceType: 'case',
+      resourceId: req.params?.caseId || null,
+      success: false,
+      message: 'Forbidden: insufficient role'
+    });
     return res.status(403).json({ error: 'Forbidden: insufficient role' });
   },
   async (req, res) => {
@@ -656,20 +1049,56 @@ app.post('/api/cases/:caseId/events',
       timestamp: req.body.timestamp,
       user: req.user.preferred_username || req.user.email
     };
-    const created = await caseEventModel.addEvent(caseId, event);
-    res.json({ event: created });
+    try {
+      const created = await caseEventModel.addEvent(caseId, event);
+      await auditLogger.log(req, {
+        action: 'case.event_create',
+        resourceType: 'case',
+        resourceId: caseId,
+        success: true,
+        details: {
+          type: event.type,
+          timestamp: event.timestamp
+        }
+      });
+      res.json({ event: created });
+    } catch (err) {
+      await auditLogger.log(req, {
+        action: 'case.event_create',
+        resourceType: 'case',
+        resourceId: caseId,
+        success: false,
+        message: 'Failed to add case event',
+        details: { error: err.message, type: event.type }
+      });
+      res.status(500).json({ error: 'Failed to add event' });
+    }
   }
 );
 
 // Send an SMS update related to a case
 app.post('/api/cases/:caseId/sms', authMiddleware, async (req, res) => {
   if (!smsService.isConfigured()) {
+    await auditLogger.log(req, {
+      action: 'case.sms_send',
+      resourceType: 'case',
+      resourceId: req.params?.caseId || null,
+      success: false,
+      message: 'SMS service not configured'
+    });
     return res.status(503).json({ error: 'SMS service is not configured' });
   }
   const { caseId } = req.params;
   const { to, message } = req.body || {};
   const trimmedMessage = (message || '').trim();
   if (!to || !trimmedMessage) {
+    await auditLogger.log(req, {
+      action: 'case.sms_send',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: false,
+      message: 'Destination number and message are required'
+    });
     return res.status(400).json({ error: 'Destination number and message are required' });
   }
   const rawRoles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
@@ -691,10 +1120,25 @@ app.post('/api/cases/:caseId/sms', authMiddleware, async (req, res) => {
       );
       const isAssigned = result.records.length > 0;
       if (!isAssigned) {
+        await auditLogger.log(req, {
+          action: 'case.sms_send',
+          resourceType: 'case',
+          resourceId: caseId,
+          success: false,
+          message: 'Not authorized to send SMS for this case'
+        });
         return res.status(403).json({ error: 'Not authorized to send SMS for this case' });
       }
     } catch (err) {
       console.error('Failed to verify case assignment before sending SMS:', err);
+      await auditLogger.log(req, {
+        action: 'case.sms_send',
+        resourceType: 'case',
+        resourceId: caseId,
+        success: false,
+        message: 'Failed to verify assignment',
+        details: { error: err.message }
+      });
       return res.status(500).json({ error: 'Failed to verify assignment', details: err.message });
     } finally {
       await session.close();
@@ -714,9 +1158,27 @@ app.post('/api/cases/:caseId/sms', authMiddleware, async (req, res) => {
     } catch (logErr) {
       console.warn('SMS sent but failed to log case event:', logErr);
     }
+    await auditLogger.log(req, {
+      action: 'case.sms_send',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: true,
+      details: {
+        to,
+        messageLength: trimmedMessage.length
+      }
+    });
     res.json({ success: true, sid: smsResult.sid });
   } catch (err) {
     console.error('Failed to send SMS via Twilio:', err);
+    await auditLogger.log(req, {
+      action: 'case.sms_send',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: false,
+      message: 'Failed to send SMS',
+      details: { error: err.message }
+    });
     res.status(500).json({ error: 'Failed to send SMS', details: err.message });
   }
 });
@@ -753,8 +1215,23 @@ app.delete('/api/cases/:caseId/files/:filename', authMiddleware, async (req, res
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
+    await auditLogger.log(req, {
+      action: 'case.file_delete',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: true,
+      details: { filename }
+    });
     res.json({ success: true });
   } catch (err) {
+    await auditLogger.log(req, {
+      action: 'case.file_delete',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: false,
+      message: 'Failed to delete file',
+      details: { filename, error: err.message }
+    });
     res.status(500).json({ error: 'Failed to delete file' });
   } finally {
     await session.close();
@@ -779,18 +1256,34 @@ app.get('/api/cases/:caseId/files', authMiddleware, async (req, res) => {
 });
 app.post('/api/cases/:caseId/upload',
   authMiddleware,
-  (req, res, next) => {
+  async (req, res, next) => {
     // Only allow 'admin' or 'case_worker' roles
     const roles = req.user && (req.user.roles || req.user.groups || []);
     if (Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'))) {
       return next();
     }
+    await auditLogger.log(req, {
+      action: 'case.file_upload',
+      resourceType: 'case',
+      resourceId: req.params?.caseId || null,
+      success: false,
+      message: 'Forbidden: insufficient role'
+    });
     return res.status(403).json({ error: 'Forbidden: insufficient role' });
   },
   upload.single('file'),
   async (req, res) => {
     const { caseId } = req.params;
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    if (!req.file) {
+      await auditLogger.log(req, {
+        action: 'case.file_upload',
+        resourceType: 'case',
+        resourceId: caseId,
+        success: false,
+        message: 'No file uploaded'
+      });
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
     const session = driver.session();
     try {
       // Save file metadata and link to case
@@ -837,8 +1330,27 @@ app.post('/api/cases/:caseId/upload',
         }
       );
 
+      await auditLogger.log(req, {
+        action: 'case.file_upload',
+        resourceType: 'case',
+        resourceId: caseId,
+        success: true,
+        details: {
+          filename: fileMeta.filename,
+          originalname: fileMeta.originalname,
+          size: fileMeta.size
+        }
+      });
       res.json({ success: true, file: fileMeta });
     } catch (err) {
+      await auditLogger.log(req, {
+        action: 'case.file_upload',
+        resourceType: 'case',
+        resourceId: caseId,
+        success: false,
+        message: 'Failed to save file metadata',
+        details: { error: err.message }
+      });
       res.status(500).json({ error: 'Failed to save file metadata' });
     } finally {
       await session.close();
@@ -916,7 +1428,7 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
     if (data.lovedOneName || data.relationship) {
       const lovedOneId = 'L' + Date.now() + '-' + Math.floor(Math.random()*1e6);
       const lovedOneResult = await session.run(
-        `CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon, policeInvestigationNumber: $policeInvestigationNumber, investigation: $investigation, otherInvestigation: $otherInvestigation, supportSelections: $supportSelections, otherSupport: $otherSupport, additionalNotes: $additionalNotes}) RETURN l`,
+        `CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon, policeInvestigationNumber: $policeInvestigationNumber, legalActionCaseNumber: $legalActionCaseNumber, communitySearchEffortDescription: $communitySearchEffortDescription, investigation: $investigation, otherInvestigation: $otherInvestigation, supportSelections: $supportSelections, otherSupport: $otherSupport, additionalNotes: $additionalNotes}) RETURN l`,
         {
           id: lovedOneId,
           name: data.lovedOneName || '',
@@ -926,11 +1438,13 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
           lastLocationLat: (data.lastLocationLat !== undefined && data.lastLocationLat !== '' ? parseFloat(data.lastLocationLat) : null),
           lastLocationLon: (data.lastLocationLon !== undefined && data.lastLocationLon !== '' ? parseFloat(data.lastLocationLon) : null),
           policeInvestigationNumber: data.policeInvestigationNumber || '',
+          legalActionCaseNumber: data.legalActionCaseNumber || '',
           investigation: Array.isArray(data.investigation) ? data.investigation : [],
           otherInvestigation: data.otherInvestigation || '',
           supportSelections: Array.isArray(data.support) ? data.support : [],
           otherSupport: data.otherSupport || '',
-          additionalNotes: data.notes || ''
+          additionalNotes: data.notes || '',
+          communitySearchEffortDescription: data.communitySearchEffortDescription || ''
         }
       );
       lovedOneNode = lovedOneResult.records[0]?.get('l');
@@ -968,9 +1482,28 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
       );
     }
     await session.close();
+    await auditLogger.log(req, {
+      action: 'applicant.create',
+      resourceType: 'applicant',
+      resourceId: applicantId,
+      success: true,
+      details: {
+        staff,
+        hasLovedOne: Boolean(lovedOneNode),
+        referringOrganization: data.referringOrganization || null
+      }
+    });
     res.json({ success: true });
   } catch (err) {
     console.error(err);
+    await auditLogger.log(req, {
+      action: 'applicant.create',
+      resourceType: 'applicant',
+      resourceId: null,
+      success: false,
+      message: 'Failed to save intake form',
+      details: { error: err.message }
+    });
     res.status(500).json({ error: 'Failed to save intake form.' });
   }
 });
@@ -1019,7 +1552,16 @@ app.post('/api/cases/:caseId/notes', authMiddleware, async (req, res) => {
   const { caseId } = req.params;
   const { text } = req.body;
   const user = req.user;
-  if (!text || !text.trim()) return res.status(400).json({ error: 'Note text required' });
+  if (!text || !text.trim()) {
+    await auditLogger.log(req, {
+      action: 'case.note_create',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: false,
+      message: 'Note text required'
+    });
+    return res.status(400).json({ error: 'Note text required' });
+  }
   try {
     const session = driver.session();
     let canEdit = false;
@@ -1031,6 +1573,13 @@ app.post('/api/cases/:caseId/notes', authMiddleware, async (req, res) => {
     }
     if (!canEdit) {
       await session.close();
+      await auditLogger.log(req, {
+        action: 'case.note_create',
+        resourceType: 'case',
+        resourceId: caseId,
+        success: false,
+        message: 'Not authorized to add note'
+      });
       return res.status(403).json({ error: 'Not authorized' });
     }
     const timestamp = new Date().toISOString();
@@ -1042,8 +1591,22 @@ app.post('/api/cases/:caseId/notes', authMiddleware, async (req, res) => {
       timestamp
     });
     await session.close();
+    await auditLogger.log(req, {
+      action: 'case.note_create',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: true
+    });
     res.json({ success: true });
   } catch (err) {
+    await auditLogger.log(req, {
+      action: 'case.note_create',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: false,
+      message: 'Failed to add note',
+      details: { error: err.message }
+    });
     res.status(500).json({ error: 'Failed to add note' });
   }
 });
@@ -1084,9 +1647,24 @@ app.post('/api/cases/:caseId/unassign', authMiddleware, requireRole('admin'), as
     } catch (e) {
       console.warn('Failed to log unassignment event for case', caseId, e.message);
     }
+    await auditLogger.log(req, {
+      action: 'case.unassign_all',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: true,
+      details: { removedAssignments: deletedCount }
+    });
     res.json({ success: true, deletedCount });
   } catch (err) {
     console.error('[DEBUG] Unassign error for caseId', caseId, ':', err);
+    await auditLogger.log(req, {
+      action: 'case.unassign_all',
+      resourceType: 'case',
+      resourceId: caseId,
+      success: false,
+      message: 'Failed to unassign case',
+      details: { error: err.message }
+    });
     res.status(500).json({ error: 'Failed to unassign case' });
   } finally {
     await session.close();
@@ -1096,9 +1674,19 @@ app.post('/api/cases/:caseId/unassign', authMiddleware, requireRole('admin'), as
 // Add an additional Loved One to an Applicant (case)
 app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { name, relationship, incidentDate, lastLocation, community, policeInvestigationNumber, investigation, otherInvestigation, supportSelections, support, otherSupport, additionalNotes } = req.body || {};
+  const { name, relationship, incidentDate, lastLocation, community, policeInvestigationNumber, legalActionCaseNumber, investigation, otherInvestigation, supportSelections, support, otherSupport, additionalNotes } = req.body || {};
   const user = req.user;
-  if (!name || !name.trim()) return res.status(400).json({ error: 'Loved One name is required' });
+  if (!name || !name.trim()) {
+    await auditLogger.log(req, {
+      action: 'loved_one.create',
+      resourceType: 'loved_one',
+      resourceId: null,
+      success: false,
+      message: 'Loved One name is required',
+      details: { applicantId: id }
+    });
+    return res.status(400).json({ error: 'Loved One name is required' });
+  }
   const session = driver.session();
   try {
     // Permission: admin or assigned to this case
@@ -1115,6 +1703,14 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
     }
     if (!canEdit) {
       await session.close();
+      await auditLogger.log(req, {
+        action: 'loved_one.create',
+        resourceType: 'loved_one',
+        resourceId: null,
+        success: false,
+        message: 'Not authorized to add loved one',
+        details: { applicantId: id }
+      });
       return res.status(403).json({ error: 'Not authorized' });
     }
     const lovedOneId = 'L' + Date.now() + '-' + Math.floor(Math.random()*1e6);
@@ -1131,6 +1727,8 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
          lastLocationLat: $lastLocationLat,
          lastLocationLon: $lastLocationLon,
          policeInvestigationNumber: $policeInvestigationNumber,
+         legalActionCaseNumber: $legalActionCaseNumber,
+         communitySearchEffortDescription: $communitySearchEffortDescription,
          investigation: $investigation,
          otherInvestigation: $otherInvestigation,
          supportSelections: $supportSelections,
@@ -1150,6 +1748,8 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
         lastLocationLat: (req.body && req.body.lastLocationLat !== undefined && req.body.lastLocationLat !== '' ? parseFloat(req.body.lastLocationLat) : null),
         lastLocationLon: (req.body && req.body.lastLocationLon !== undefined && req.body.lastLocationLon !== '' ? parseFloat(req.body.lastLocationLon) : null),
         policeInvestigationNumber: policeInvestigationNumber || '',
+        legalActionCaseNumber: legalActionCaseNumber || '',
+        communitySearchEffortDescription: communitySearchEffortDescription || '',
         investigation: investigationList,
         otherInvestigation: otherInvestigation || '',
         supportSelections: supportList,
@@ -1159,9 +1759,24 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
     );
     const lnode = createRes.records[0]?.get('l');
     await session.close();
+    await auditLogger.log(req, {
+      action: 'loved_one.create',
+      resourceType: 'loved_one',
+      resourceId: lovedOneId,
+      success: true,
+      details: { applicantId: id, relationship: relationship || '' }
+    });
     return res.json({ success: true, lovedOne: lnode ? lnode.properties : null });
   } catch (err) {
     await session.close();
+    await auditLogger.log(req, {
+      action: 'loved_one.create',
+      resourceType: 'loved_one',
+      resourceId: null,
+      success: false,
+      message: 'Failed to add Loved One',
+      details: { error: err.message, applicantId: id }
+    });
     return res.status(500).json({ error: 'Failed to add Loved One' });
   }
 });
@@ -1252,6 +1867,13 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
   try {
     if (!isAdmin) {
       if (!isCaseWorker) {
+        await auditLogger.log(req, {
+          action: 'applicant.update',
+          resourceType: 'applicant',
+          resourceId: id,
+          success: false,
+          message: 'Forbidden: insufficient role'
+        });
         await session.close();
         return res.status(403).json({ error: 'Forbidden' });
       }
@@ -1261,6 +1883,13 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
         { caseId: id, email: req.user.email || req.user.preferred_username }
       );
       if (check.records.length === 0) {
+        await auditLogger.log(req, {
+          action: 'applicant.update',
+          resourceType: 'applicant',
+          resourceId: id,
+          success: false,
+          message: 'Forbidden: not assigned to case'
+        });
         await session.close();
         return res.status(403).json({ error: 'Not authorized' });
       }
@@ -1306,6 +1935,13 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
     const aNode = result.records[0] && result.records[0].get('a');
     const oNode = result.records[0] && result.records[0].get('o');
     await session.close();
+    await auditLogger.log(req, {
+      action: 'applicant.update',
+      resourceType: 'applicant',
+      resourceId: id,
+      success: true,
+      details: { updatedFields: Object.keys(req.body || {}) }
+    });
     return res.json({
       success: true,
       applicant: aNode ? aNode.properties : null,
@@ -1313,6 +1949,14 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
     });
   } catch (err) {
     await session.close();
+    await auditLogger.log(req, {
+      action: 'applicant.update',
+      resourceType: 'applicant',
+      resourceId: id,
+      success: false,
+      message: 'Failed to update applicant',
+      details: { error: err.message }
+    });
     return res.status(500).json({ error: 'Failed to update applicant' });
   }
 });
@@ -1330,6 +1974,8 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
     lastLocationLat,
     lastLocationLon,
     policeInvestigationNumber,
+    legalActionCaseNumber,
+    communitySearchEffortDescription,
     investigation,
     otherInvestigation,
     supportSelections,
@@ -1348,6 +1994,13 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
     if (!isAdmin) {
       // For non-admin, require applicantId and ensure user is assigned to that case
       if (!applicantId || !isCaseWorker) {
+        await auditLogger.log(req, {
+          action: 'loved_one.update',
+          resourceType: 'loved_one',
+          resourceId: id,
+          success: false,
+          message: 'Forbidden: insufficient role or missing applicantId'
+        });
         await session.close();
         return res.status(403).json({ error: 'Forbidden' });
       }
@@ -1356,6 +2009,14 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
         { caseId: applicantId, email: req.user.email || req.user.preferred_username }
       );
       if (check.records.length === 0) {
+        await auditLogger.log(req, {
+          action: 'loved_one.update',
+          resourceType: 'loved_one',
+          resourceId: id,
+          success: false,
+          message: 'Forbidden: not assigned to applicant',
+          details: { applicantId }
+        });
         await session.close();
         return res.status(403).json({ error: 'Not authorized' });
       }
@@ -1365,11 +2026,13 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
     const supportProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'supportSelections') || Object.prototype.hasOwnProperty.call(req.body || {}, 'support');
     const otherSupportProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'otherSupport');
     const notesProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'additionalNotes');
+    const communitySearchProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'communitySearchEffortDescription');
     const investigationList = investigationProvided ? (Array.isArray(investigation) ? investigation : []) : null;
     const supportList = supportProvided ? (Array.isArray(supportSelections) ? supportSelections : (Array.isArray(support) ? support : [])) : null;
     const otherInvestigationValue = otherInvestigationProvided ? (otherInvestigation || '') : null;
     const otherSupportValue = otherSupportProvided ? (otherSupport || '') : null;
     const notesValue = notesProvided ? (additionalNotes || '') : null;
+    const communitySearchValue = communitySearchProvided ? (communitySearchEffortDescription || '') : null;
     await session.run(
       `MATCH (l:LovedOne {id: $id})
        SET l.name = coalesce($name, l.name),
@@ -1379,6 +2042,8 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
            l.lastLocationLat = coalesce($lastLocationLat, l.lastLocationLat),
            l.lastLocationLon = coalesce($lastLocationLon, l.lastLocationLon),
            l.policeInvestigationNumber = coalesce($policeInvestigationNumber, l.policeInvestigationNumber),
+           l.legalActionCaseNumber = coalesce($legalActionCaseNumber, l.legalActionCaseNumber),
+           l.communitySearchEffortDescription = coalesce($communitySearchEffortDescription, l.communitySearchEffortDescription),
            l.investigation = coalesce($investigation, l.investigation),
            l.otherInvestigation = coalesce($otherInvestigation, l.otherInvestigation),
            l.supportSelections = coalesce($supportSelections, l.supportSelections),
@@ -1393,6 +2058,8 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
         lastLocationLat: (lastLocationLat !== undefined && lastLocationLat !== '' ? parseFloat(lastLocationLat) : null),
         lastLocationLon: (lastLocationLon !== undefined && lastLocationLon !== '' ? parseFloat(lastLocationLon) : null),
         policeInvestigationNumber,
+        legalActionCaseNumber,
+        communitySearchEffortDescription: communitySearchValue,
         investigation: investigationList,
         otherInvestigation: otherInvestigationValue,
         supportSelections: supportList,
@@ -1412,9 +2079,24 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
     const resNode = await session.run('MATCH (l:LovedOne {id: $id}) RETURN l', { id });
     const lovedOne = resNode.records[0] ? resNode.records[0].get('l').properties : null;
     await session.close();
+    await auditLogger.log(req, {
+      action: 'loved_one.update',
+      resourceType: 'loved_one',
+      resourceId: id,
+      success: true,
+      details: { applicantId: applicantId || null, updatedFields: Object.keys(req.body || {}) }
+    });
     return res.json({ success: true, lovedOne });
   } catch (err) {
     await session.close();
+    await auditLogger.log(req, {
+      action: 'loved_one.update',
+      resourceType: 'loved_one',
+      resourceId: id,
+      success: false,
+      message: 'Failed to update Loved One',
+      details: { error: err.message, applicantId: applicantId || null }
+    });
     return res.status(500).json({ error: 'Failed to update Loved One' });
   }
 });

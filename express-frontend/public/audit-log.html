@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audit Log - Missing Persons App</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+  <style>
+    body {
+      background: #181c20;
+      color: #e0e0e0;
+      font-family: 'Roboto', Arial, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      text-align: center;
+      padding: 1.5rem 1rem 0 1rem;
+    }
+    header h1 {
+      margin: 0.5rem 0 1.5rem 0;
+      color: #f7c873;
+    }
+    main {
+      flex: 1;
+      max-width: 1200px;
+      margin: 0 auto 2rem auto;
+      padding: 0 1.5rem 2rem 1.5rem;
+      background: #20242a;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    }
+    .controls {
+      padding: 1.5rem 1.5rem 0.5rem 1.5rem;
+      border-bottom: 1px solid #2f333a;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .form-field {
+      display: flex;
+      flex-direction: column;
+    }
+    label {
+      font-size: 0.9rem;
+      color: #b0b0b0;
+      margin-bottom: 0.35rem;
+    }
+    input[type="text"],
+    input[type="datetime-local"],
+    select {
+      background: #181c20;
+      color: #e0e0e0;
+      border: 1px solid #3a3f47;
+      border-radius: 6px;
+      padding: 0.45rem 0.6rem;
+      font-size: 0.95rem;
+    }
+    input[type="text"]:focus,
+    input[type="datetime-local"]:focus,
+    select:focus {
+      outline: none;
+      border-color: #f7c873;
+      box-shadow: 0 0 0 2px rgba(247, 200, 115, 0.2);
+    }
+    .filter-actions,
+    .secondary-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    button,
+    .link-btn {
+      background: #f7c873;
+      color: #181c20;
+      border: none;
+      padding: 0.55rem 1.2rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    button:hover,
+    .link-btn:hover {
+      background: #ffd48e;
+    }
+    button[disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .link-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+    }
+    .quick-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1rem 0 1.25rem 0;
+    }
+    .quick-filters button {
+      background: #2c3138;
+      color: #f7c873;
+      border: 1px solid #3a3f47;
+    }
+    .quick-filters button:hover {
+      background: #3a3f47;
+    }
+    .secondary-actions {
+      margin-top: 0.75rem;
+    }
+    .secondary-actions label {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: #d5d5d5;
+    }
+    .secondary-actions input[type="checkbox"] {
+      transform: scale(1.1);
+    }
+    #statusMessage {
+      margin-top: 0.8rem;
+      font-size: 0.9rem;
+      min-height: 1.2rem;
+    }
+    #statusMessage.error {
+      color: #ff8080;
+    }
+    #statusMessage.success {
+      color: #7ddc91;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1.5rem;
+    }
+    thead {
+      background: #1a1e24;
+    }
+    thead th {
+      text-align: left;
+      padding: 0.8rem;
+      font-size: 0.85rem;
+      letter-spacing: 0.02em;
+      color: #f7c873;
+    }
+    tbody td {
+      padding: 0.75rem 0.8rem;
+      border-top: 1px solid #2f333a;
+      vertical-align: top;
+      font-size: 0.92rem;
+    }
+    tbody tr:hover {
+      background: rgba(247, 200, 115, 0.05);
+    }
+    .log-user {
+      font-weight: 600;
+      color: #e8e8e8;
+    }
+    .log-user-id {
+      font-size: 0.8rem;
+      color: #9ca3af;
+    }
+    .log-action {
+      font-weight: 600;
+      color: #f7c873;
+    }
+    .log-message {
+      font-size: 0.85rem;
+      color: #c8c8c8;
+      margin-top: 0.25rem;
+    }
+    .log-resource {
+      color: #d0d0d0;
+    }
+    .log-resource small {
+      display: block;
+      color: #9ca3af;
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      word-break: break-all;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .badge.success {
+      background: rgba(125, 220, 145, 0.2);
+      color: #7ddc91;
+    }
+    .badge.failure {
+      background: rgba(255, 128, 128, 0.2);
+      color: #ff8080;
+    }
+    details {
+      background: #181c20;
+      border-radius: 6px;
+      border: 1px solid #2f333a;
+      padding: 0.35rem 0.55rem;
+      max-width: 360px;
+    }
+    details summary {
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #f7c873;
+      outline: none;
+    }
+    details pre {
+      margin: 0.45rem 0 0 0;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: rgba(26, 30, 36, 0.9);
+      border-radius: 4px;
+      padding: 0.6rem;
+      color: #cfd2d6;
+    }
+    .load-more-wrapper {
+      display: flex;
+      justify-content: flex-end;
+      padding: 1rem 1.5rem 1.5rem 1.5rem;
+    }
+    @media (max-width: 900px) {
+      main {
+        margin: 0 1rem 2rem 1rem;
+        padding: 1rem;
+      }
+      .controls {
+        padding: 1rem 0.5rem 0.5rem 0.5rem;
+      }
+      .load-more-wrapper {
+        justify-content: center;
+        padding: 1rem 0;
+      }
+      details {
+        max-width: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Audit Log</h1>
+  </header>
+  <main>
+    <section class="controls">
+      <form id="filterForm">
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="filterAction">Action</label>
+            <select id="filterAction" name="action">
+              <option value="">All actions</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="filterUser">User</label>
+            <input type="text" id="filterUser" name="user" placeholder="user email or name">
+          </div>
+          <div class="form-field">
+            <label for="filterResourceType">Resource Type</label>
+            <input type="text" id="filterResourceType" name="resourceType" placeholder="e.g. case">
+          </div>
+          <div class="form-field">
+            <label for="filterResourceId">Resource ID</label>
+            <input type="text" id="filterResourceId" name="resourceId" placeholder="ID or identifier">
+          </div>
+          <div class="form-field">
+            <label for="filterSuccess">Outcome</label>
+            <select id="filterSuccess" name="success">
+              <option value="">All</option>
+              <option value="true">Success</option>
+              <option value="false">Failure</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="filterSearch">Free Text</label>
+            <input type="text" id="filterSearch" name="search" placeholder="Search message/details">
+          </div>
+          <div class="form-field">
+            <label for="filterFrom">From</label>
+            <input type="datetime-local" id="filterFrom" name="from">
+          </div>
+          <div class="form-field">
+            <label for="filterTo">To</label>
+            <input type="datetime-local" id="filterTo" name="to">
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button type="submit" id="applyFiltersBtn">Apply Filters</button>
+          <button type="button" id="clearFiltersBtn">Clear</button>
+        </div>
+      </form>
+      <div class="quick-filters">
+        <span style="font-size:0.85rem;color:#b0b0b0;">Quick range:</span>
+        <button type="button" data-range="24">Last 24 hours</button>
+        <button type="button" data-range="168">Last 7 days</button>
+        <button type="button" data-range="720">Last 30 days</button>
+        <button type="button" data-range="0">Everything</button>
+      </div>
+      <div class="secondary-actions">
+        <label>
+          <input type="checkbox" id="liveToggle">
+          Live updates
+        </label>
+        <button type="button" id="exportCsvBtn">Export CSV</button>
+      </div>
+      <div id="statusMessage"></div>
+    </section>
+    <section class="results">
+      <table aria-live="polite">
+        <thead>
+          <tr>
+            <th style="width:180px;">Timestamp</th>
+            <th style="width:200px;">User</th>
+            <th style="width:220px;">Action</th>
+            <th style="width:200px;">Resource</th>
+            <th style="width:120px;">Outcome</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="logTableBody">
+          <tr><td colspan="6">Loading audit entries...</td></tr>
+        </tbody>
+      </table>
+      <div class="load-more-wrapper">
+        <button type="button" id="loadMoreBtn">Load More</button>
+      </div>
+    </section>
+  </main>
+  <script>
+  (function() {
+    const state = {
+      logs: [],
+      logIds: new Set(),
+      cursor: null,
+      fetching: false,
+      filters: {},
+      pageSize: 50,
+      live: false,
+      eventSource: null,
+      actions: []
+    };
+
+    document.addEventListener('DOMContentLoaded', init);
+
+    async function init() {
+      if (!ensureAdmin()) return;
+      const filterForm = document.getElementById('filterForm');
+      filterForm.addEventListener('submit', onApplyFilters);
+      document.getElementById('clearFiltersBtn').addEventListener('click', clearFilters);
+      document.getElementById('loadMoreBtn').addEventListener('click', () => fetchLogs({ reset: false }));
+      document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
+      document.getElementById('liveToggle').addEventListener('change', toggleLiveUpdates);
+      document.querySelectorAll('.quick-filters button[data-range]').forEach(button => {
+        button.addEventListener('click', () => applyQuickRange(button.dataset.range));
+      });
+      await loadActions();
+      fetchLogs({ reset: true });
+    }
+
+    function applyQuickRange(hours) {
+      const fromInput = document.getElementById('filterFrom');
+      const toInput = document.getElementById('filterTo');
+      if (!hours || Number(hours) === 0) {
+        fromInput.value = '';
+        toInput.value = '';
+      } else {
+        const now = new Date();
+        const fromDate = new Date(now.getTime() - Number(hours) * 60 * 60 * 1000);
+        fromInput.value = toDateTimeLocal(fromDate);
+        toInput.value = toDateTimeLocal(now);
+      }
+      onApplyFilters();
+    }
+
+    async function loadActions() {
+      try {
+        const res = await fetch('/api/audit-logs/actions', {
+          headers: {
+            'Authorization': 'Bearer ' + getToken()
+          }
+        });
+        if (!res.ok) {
+          const error = await res.json().catch(() => ({}));
+          throw new Error(error.error || 'Failed to load actions');
+        }
+        const data = await res.json();
+        state.actions = Array.isArray(data.actions) ? data.actions : [];
+        populateActionSelect(state.actions);
+      } catch (err) {
+        console.error('Failed to load action list', err);
+        setStatus('Unable to load action list; type to search manually.', 'error');
+        state.actions = [];
+      }
+    }
+
+    function populateActionSelect(actions) {
+      const select = document.getElementById('filterAction');
+      if (!select) return;
+      const previousValue = select.value;
+      select.innerHTML = '';
+      const defaultOption = document.createElement('option');
+      defaultOption.value = '';
+      defaultOption.textContent = 'All actions';
+      select.appendChild(defaultOption);
+      actions.forEach(action => {
+        const option = document.createElement('option');
+        option.value = action;
+        option.textContent = action;
+        select.appendChild(option);
+      });
+      if (previousValue && actions.includes(previousValue)) {
+        select.value = previousValue;
+      }
+    }
+
+    function onApplyFilters(event) {
+      if (event) event.preventDefault();
+      state.filters = readFiltersFromForm();
+      fetchLogs({ reset: true });
+    }
+
+    function clearFilters() {
+      document.getElementById('filterForm').reset();
+      state.filters = {};
+      fetchLogs({ reset: true });
+    }
+
+    function readFiltersFromForm() {
+      const form = document.getElementById('filterForm');
+      const data = new FormData(form);
+      const filters = {};
+      const action = (data.get('action') || '').trim();
+      if (action) filters.action = action;
+      const user = (data.get('user') || '').trim();
+      if (user) filters.user = user;
+      const resourceType = (data.get('resourceType') || '').trim();
+      if (resourceType) filters.resourceType = resourceType;
+      const resourceId = (data.get('resourceId') || '').trim();
+      if (resourceId) filters.resourceId = resourceId;
+      const success = data.get('success');
+      if (success === 'true' || success === 'false') filters.success = success;
+      const search = (data.get('search') || '').trim();
+      if (search) filters.search = search;
+      const from = data.get('from');
+      if (from) {
+        const fromIso = toIsoString(from);
+        if (fromIso) filters.from = fromIso;
+      }
+      const to = data.get('to');
+      if (to) {
+        const toIso = toIsoString(to);
+        if (toIso) filters.to = toIso;
+      }
+      return filters;
+    }
+
+    async function fetchLogs({ reset }) {
+      if (state.fetching) return;
+      state.fetching = true;
+      setStatus(reset ? 'Loading audit entries…' : 'Loading more…', 'info');
+      if (reset) {
+        state.cursor = null;
+        state.logs = [];
+        state.logIds.clear();
+        updateTable([]);
+      }
+      try {
+        const params = new URLSearchParams();
+        params.set('limit', state.pageSize);
+        Object.entries(state.filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            params.set(key, value);
+          }
+        });
+        if (!reset && state.cursor) {
+          params.set('cursor', state.cursor.timestamp);
+          params.set('cursorLogId', state.cursor.logId);
+        }
+        const res = await fetch('/api/audit-logs?' + params.toString(), {
+          headers: {
+            'Authorization': 'Bearer ' + getToken()
+          }
+        });
+        if (!res.ok) {
+          const error = await res.json().catch(() => ({}));
+          throw new Error(error.error || 'Failed to fetch audit entries');
+        }
+        const data = await res.json();
+        state.cursor = data.nextCursor || null;
+        mergeLogs(data.logs || [], reset);
+        renderLogs(reset ? state.logs : data.logs || [], { reset });
+        setStatus(
+          data.logs && data.logs.length
+            ? `Loaded ${data.logs.length} entr${data.logs.length === 1 ? 'y' : 'ies'}.`
+            : 'No additional entries.',
+          'success'
+        );
+        updateLoadMore();
+      } catch (err) {
+        console.error('Audit log fetch failed', err);
+        setStatus(err.message, 'error');
+      } finally {
+        state.fetching = false;
+      }
+    }
+
+    function mergeLogs(logs, reset) {
+      if (reset) {
+        state.logs = [];
+        state.logIds.clear();
+      }
+      logs.forEach(log => {
+        if (!log || !log.logId || state.logIds.has(log.logId)) return;
+        state.logIds.add(log.logId);
+        state.logs.push(log);
+      });
+      state.logs.sort((a, b) => {
+        if (a.timestamp === b.timestamp) {
+          return a.logId < b.logId ? 1 : -1;
+        }
+        return a.timestamp < b.timestamp ? 1 : -1;
+      });
+      if (!state.actions.length) {
+        const derivedActions = Array.from(
+          new Set(
+            state.logs
+              .map(log => log && typeof log.action === 'string' ? log.action : null)
+              .filter(Boolean)
+          )
+        ).sort();
+        if (derivedActions.length) {
+          populateActionSelect(derivedActions);
+        }
+      }
+    }
+
+    function renderLogs(logs, { reset }) {
+      const tbody = document.getElementById('logTableBody');
+      if (reset) {
+        tbody.innerHTML = '';
+      }
+      if (!state.logs.length) {
+        tbody.innerHTML = '<tr><td colspan="6">No audit entries found for the current filters.</td></tr>';
+        return;
+      }
+      const fragment = document.createDocumentFragment();
+      logs.forEach(log => {
+        const row = createRow(log);
+        if (row) fragment.appendChild(row);
+      });
+      if (reset) {
+        tbody.appendChild(fragment);
+      } else if (fragment.childNodes.length) {
+        tbody.appendChild(fragment);
+      }
+    }
+
+    function updateTable(rows) {
+      const tbody = document.getElementById('logTableBody');
+      tbody.innerHTML = '';
+      rows.forEach(row => tbody.appendChild(row));
+    }
+
+    function createRow(log) {
+      if (!log || !log.logId) return null;
+      const tr = document.createElement('tr');
+      tr.dataset.logId = log.logId;
+
+      const timestampCell = document.createElement('td');
+      timestampCell.textContent = formatTimestamp(log.timestamp);
+      tr.appendChild(timestampCell);
+
+      const userCell = document.createElement('td');
+      const userName = log.userName || log.userId || 'System';
+      const userId = log.userId && log.userId !== userName ? log.userId : '';
+      userCell.innerHTML = `
+        <div class="log-user">${escapeHtml(userName)}</div>
+        ${userId ? `<div class="log-user-id">${escapeHtml(userId)}</div>` : ''}
+        ${log.ip ? `<div class="log-user-id">IP: ${escapeHtml(log.ip)}</div>` : ''}
+      `;
+      tr.appendChild(userCell);
+
+      const actionCell = document.createElement('td');
+      actionCell.innerHTML = `
+        <div class="log-action">${escapeHtml(log.action || '—')}</div>
+        ${log.message ? `<div class="log-message">${escapeHtml(log.message)}</div>` : ''}
+      `;
+      tr.appendChild(actionCell);
+
+      const resourceCell = document.createElement('td');
+      const resourceType = log.resourceType || '—';
+      const resourceId = log.resourceId || '';
+      resourceCell.innerHTML = `
+        <div class="log-resource">${escapeHtml(resourceType)}</div>
+        ${resourceId ? `<small>${escapeHtml(resourceId)}</small>` : ''}
+      `;
+      tr.appendChild(resourceCell);
+
+      const successCell = document.createElement('td');
+      const success = Boolean(log.success);
+      successCell.innerHTML = `<span class="badge ${success ? 'success' : 'failure'}">${success ? 'Success' : 'Failed'}</span>`;
+      tr.appendChild(successCell);
+
+      const detailsCell = document.createElement('td');
+      const detailsContent = formatDetails(log.details);
+      if (detailsContent) {
+        const detailsElement = document.createElement('details');
+        detailsElement.innerHTML = `<summary>View</summary><pre>${detailsContent}</pre>`;
+        detailsCell.appendChild(detailsElement);
+      } else {
+        detailsCell.textContent = '—';
+      }
+      tr.appendChild(detailsCell);
+
+      return tr;
+    }
+
+    function formatDetails(details) {
+      if (!details) return '';
+      if (typeof details === 'string') {
+        return escapeHtml(details);
+      }
+      try {
+        return escapeHtml(JSON.stringify(details, null, 2));
+      } catch {
+        return escapeHtml(String(details));
+      }
+    }
+
+    function formatTimestamp(timestamp) {
+      if (!timestamp) return '—';
+      const date = new Date(timestamp);
+      if (Number.isNaN(date.getTime())) return timestamp;
+      return date.toLocaleString();
+    }
+
+    function updateLoadMore() {
+      const loadMoreBtn = document.getElementById('loadMoreBtn');
+      loadMoreBtn.disabled = !state.cursor;
+      loadMoreBtn.textContent = state.cursor ? 'Load More' : 'No More Results';
+    }
+
+    function setStatus(message, type) {
+      const statusEl = document.getElementById('statusMessage');
+      statusEl.textContent = message || '';
+      statusEl.className = type ? type : '';
+    }
+
+    function toggleLiveUpdates(event) {
+      const enabled = event.target.checked;
+      if (enabled) {
+        startLive();
+      } else {
+        stopLive();
+      }
+    }
+
+    function startLive() {
+      if (state.eventSource) {
+        state.eventSource.close();
+        state.eventSource = null;
+      }
+      try {
+        state.eventSource = new EventSource('/api/audit-logs/stream');
+        state.eventSource.onmessage = event => {
+          if (!event.data) return;
+          try {
+            const log = JSON.parse(event.data);
+            if (!log || !log.logId || state.logIds.has(log.logId)) return;
+            state.logIds.add(log.logId);
+            state.logs.unshift(log);
+            const tbody = document.getElementById('logTableBody');
+            const row = createRow(log);
+            if (row) {
+              tbody.insertBefore(row, tbody.firstChild);
+            }
+          } catch (err) {
+            console.warn('Failed to parse SSE log', err);
+          }
+        };
+        state.eventSource.onerror = err => {
+          console.warn('Audit log stream error', err);
+          setStatus('Live stream disconnected. Retrying…', 'error');
+        };
+        setStatus('Live updates enabled.', 'success');
+      } catch (err) {
+        console.error('Failed to start live updates', err);
+        document.getElementById('liveToggle').checked = false;
+        setStatus('Unable to start live updates.', 'error');
+      }
+    }
+
+    function stopLive() {
+      if (state.eventSource) {
+        state.eventSource.close();
+        state.eventSource = null;
+      }
+      setStatus('Live updates paused.', 'info');
+    }
+
+    function exportCsv() {
+      if (!state.logs.length) {
+        setStatus('Nothing to export.', 'info');
+        return;
+      }
+      const rows = [
+        ['timestamp', 'action', 'userId', 'userName', 'roles', 'resourceType', 'resourceId', 'success', 'message', 'ip', 'details']
+      ];
+      state.logs.forEach(log => {
+        rows.push([
+          log.timestamp || '',
+          log.action || '',
+          log.userId || '',
+          log.userName || '',
+          Array.isArray(log.roles) ? log.roles.join('|') : '',
+          log.resourceType || '',
+          log.resourceId || '',
+          typeof log.success === 'boolean' ? String(log.success) : '',
+          log.message || '',
+          log.ip || '',
+          serializeDetailsCsv(log.details)
+        ]);
+      });
+      const csvContent = rows.map(row => row.map(csvEscape).join(',')).join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      a.href = url;
+      a.download = `audit-log-${timestamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus('Export created.', 'success');
+    }
+
+    function serializeDetailsCsv(details) {
+      if (!details) return '';
+      if (typeof details === 'string') return details;
+      try {
+        return JSON.stringify(details);
+      } catch {
+        return String(details);
+      }
+    }
+
+    function csvEscape(value) {
+      const text = value == null ? '' : String(value);
+      if (text.includes('"') || text.includes(',') || text.includes('\n')) {
+        return '"' + text.replace(/"/g, '""') + '"';
+      }
+      return text;
+    }
+
+    function ensureAdmin() {
+      const token = getToken();
+      if (!token) {
+        window.location.href = 'login.html';
+        return false;
+      }
+      try {
+        const payload = parseJwt(token);
+        const rawRoles = payload.roles || payload.groups || payload.roles_claim || [];
+        const roles = Array.isArray(rawRoles) ? rawRoles : [rawRoles];
+        if (!roles.includes('admin')) {
+          window.location.href = 'allcases.html';
+          return false;
+        }
+      } catch (err) {
+        console.warn('Failed to decode JWT', err);
+        window.location.href = 'login.html';
+        return false;
+      }
+      return true;
+    }
+
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    function parseJwt(token) {
+      const payload = token.split('.')[1];
+      return JSON.parse(atob(payload));
+    }
+
+    function toIsoString(dateValue) {
+      try {
+        const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+        if (Number.isNaN(date.getTime())) return null;
+        return date.toISOString();
+      } catch {
+        return null;
+      }
+    }
+
+    function toDateTimeLocal(date) {
+      const iso = toIsoString(date);
+      return iso ? iso.slice(0, 16) : '';
+    }
+
+    function escapeHtml(value) {
+      if (value === null || value === undefined) return '';
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  })();
+  </script>
+</body>
+</html>
+

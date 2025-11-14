@@ -80,6 +80,7 @@ if (!getToken()) {
                     <option value="Other">Other (not listed)</option>
                 </select>
             </label>
+            <div class="section-title" style="margin-top:1.2em;">Investigation Status</div>
             <div class="checkbox-column">
                 <label class="investigation-row">
                     <span>
@@ -92,16 +93,28 @@ if (!getToken()) {
                     </span>
                 </label>
                 <label class="investigation-row">
-                    <input type="checkbox" name="investigation" value="Community Search Efforts">
-                    Community Search Efforts
+                    <span>
+                        <input type="checkbox" name="investigation" value="Community Search Efforts" id="communitySearchCheckbox">
+                        Community Search Efforts
+                    </span>
+                    <span class="conditional-field" id="communitySearchField">
+                        Community Search Effort Description:
+                        <input type="text" name="communitySearchEffortDescription" placeholder="Brief description of the effort">
+                    </span>
                 </label>
                 <label class="investigation-row">
                     <input type="checkbox" name="investigation" value="Independent Advocacy">
                     Independent Advocacy
                 </label>
                 <label class="investigation-row">
-                    <input type="checkbox" name="investigation" value="Inquest or Legal Action">
-                    Inquest or Legal Action
+                    <span>
+                        <input type="checkbox" name="investigation" value="Inquest or Legal Action" id="legalActionCheckbox">
+                        Inquest or Legal Action
+                    </span>
+                    <span class="conditional-field" id="legalActionField">
+                        Legal Action Case Number:
+                        <input type="text" name="legalActionCaseNumber" placeholder="e.g., Court-2024-4567">
+                    </span>
                 </label>
                 <label class="investigation-row">
                     <input type="checkbox" name="investigation" value="Other">
@@ -192,12 +205,16 @@ if (!getToken()) {
     gap: 0.5em;
     flex-wrap: wrap;
 }
-.police-number-field {
+.police-number-field,
+#legalActionField,
+#communitySearchField {
     display: none;
     gap: 0.4em;
     align-items: center;
 }
-.police-number-field input {
+.police-number-field input,
+#legalActionField input,
+#communitySearchField input {
     max-width: 220px;
 }
 </style>
@@ -291,6 +308,14 @@ window.addEventListener('DOMContentLoaded', () => {
         policeCheckbox.checked = true;
     }
     syncPoliceFieldVisibility();
+    if (legalActionInput && legalActionInput.value.trim() !== '') {
+        legalActionCheckbox.checked = true;
+    }
+    syncLegalActionFieldVisibility();
+    if (communitySearchInput && communitySearchInput.value.trim() !== '') {
+        communitySearchCheckbox.checked = true;
+    }
+    syncCommunitySearchFieldVisibility();
 });
 // Save fields on input
 form.addEventListener('input', () => {
@@ -356,6 +381,8 @@ document.getElementById('intakeForm').addEventListener('submit', async function(
         support: getCheckedValues('support'),
         otherInvestigation: form.otherInvestigation.value,
         policeInvestigationNumber: form.policeInvestigationNumber.value,
+        legalActionCaseNumber: form.legalActionCaseNumber ? form.legalActionCaseNumber.value : '',
+        communitySearchEffortDescription: form.communitySearchEffortDescription ? form.communitySearchEffortDescription.value : '',
         otherSupport: form.otherSupport.value,
         notes: form.notes.value,
         consentStore: form.consentStore.checked,
@@ -400,9 +427,23 @@ document.getElementById('intakeForm').addEventListener('submit', async function(
 const policeCheckbox = document.getElementById('policeInvestigationCheckbox');
 const policeField = document.getElementById('policeInvestigationField');
 const policeInput = policeField ? policeField.querySelector('input[name="policeInvestigationNumber"]') : null;
+const legalActionCheckbox = document.getElementById('legalActionCheckbox');
+const legalActionField = document.getElementById('legalActionField');
+const legalActionInput = legalActionField ? legalActionField.querySelector('input[name="legalActionCaseNumber"]') : null;
+const communitySearchCheckbox = document.getElementById('communitySearchCheckbox');
+const communitySearchField = document.getElementById('communitySearchField');
+const communitySearchInput = communitySearchField ? communitySearchField.querySelector('input[name="communitySearchEffortDescription"]') : null;
 function syncPoliceFieldVisibility() {
     if (!policeCheckbox || !policeField) return;
     policeField.style.display = policeCheckbox.checked ? 'inline-flex' : 'none';
+}
+function syncLegalActionFieldVisibility() {
+    if (!legalActionCheckbox || !legalActionField) return;
+    legalActionField.style.display = legalActionCheckbox.checked ? 'inline-flex' : 'none';
+}
+function syncCommunitySearchFieldVisibility() {
+    if (!communitySearchCheckbox || !communitySearchField) return;
+    communitySearchField.style.display = communitySearchCheckbox.checked ? 'inline-flex' : 'none';
 }
 if (policeCheckbox) {
     policeCheckbox.addEventListener('change', () => {
@@ -412,6 +453,24 @@ if (policeCheckbox) {
         syncPoliceFieldVisibility();
     });
     syncPoliceFieldVisibility();
+}
+if (legalActionCheckbox) {
+    legalActionCheckbox.addEventListener('change', () => {
+        if (!legalActionCheckbox.checked && legalActionInput) {
+            legalActionInput.value = '';
+        }
+        syncLegalActionFieldVisibility();
+    });
+    syncLegalActionFieldVisibility();
+}
+if (communitySearchCheckbox) {
+    communitySearchCheckbox.addEventListener('change', () => {
+        if (!communitySearchCheckbox.checked && communitySearchInput) {
+            communitySearchInput.value = '';
+        }
+        syncCommunitySearchFieldVisibility();
+    });
+    syncCommunitySearchFieldVisibility();
 }
 </script>
 </html>

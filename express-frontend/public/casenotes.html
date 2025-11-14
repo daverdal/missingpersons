@@ -362,6 +362,34 @@
         'image/gif'
     ];
 
+    const SUPPORT_OPTIONS = [
+        'Emotional or Cultural Support',
+        'Grief Counseling or Mental Health Support',
+        'Legal Advocacy or Representation',
+        'Help Navigating Police or Justice System',
+        'Media or Public Awareness Support',
+        'Help Organizing Vigils or Community Events',
+        'Financial Assistance or Guidance',
+        'Transportation or Housing Support',
+        'Translation or Language Services',
+        'Youth or Family Support Services',
+        'Access to Religious or Spiritual Services',
+        'Access to Traditional Healing or Medicine',
+        'Ongoing Case Updates or Advocacy',
+        'Accommodation'
+    ];
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    function escapeAttr(value) {
+        return escapeHtml(value).replace(/"/g, '&quot;');
+    }
+
     // Warn user immediately if file type is not allowed
     document.getElementById('fileInput').addEventListener('change', function(e) {
         const file = e.target.files[0];
@@ -606,6 +634,14 @@
             html += `<div style="margin-bottom:1.5em;">
                 <b>Missing Person(s) Info:</b><br>`;
             data.lovedOnes.forEach(lo => {
+                const supportSelections = Array.isArray(lo.supportSelections) ? lo.supportSelections : [];
+                const supportCheckboxesHtml = SUPPORT_OPTIONS.map(option => {
+                    const checked = supportSelections.includes(option) ? 'checked' : '';
+                    return `<label style='display:inline-flex; align-items:center; gap:0.4em;'><input type="checkbox" name="supportSelections" value="${escapeAttr(option)}" ${checked}> ${escapeHtml(option)}</label>`;
+                }).join('');
+                const otherSupportChecked = supportSelections.includes('Other') ? 'checked' : '';
+                const otherSupportValueAttr = escapeAttr(lo.otherSupport || '');
+                const additionalNotesValueHtml = escapeHtml(lo.additionalNotes || '');
                 html += `<div class='loved-one-card' style='margin:0.5em 0 1em 1em; padding:0.5em; border-left:3px solid #e6b85c;'>`;
                 if (lo.name) html += `<div><span style='color:#aaa;'>Name:</span> <span>${lo.name}</span></div>`;
                 html += `<div><span style='color:#aaa;'>Coummunity of Loved One:</span> <span>${lo.community || '(not specified)'}</span></div>`;
@@ -631,6 +667,12 @@
                 const policeNumber = lo.policeInvestigationNumber || (data.applicant && data.applicant.policeInvestigationNumber) || '';
                 const policeDisplay = policeNumber ? policeNumber : '<i>(not provided)</i>';
                 html += `<div class='case-detail-row' style='margin-top:0.4em;'><span class='detail-label'>Police Investigation Number:</span> <span class='detail-value'>${policeDisplay}</span></div>`;
+                const legalActionNumber = lo.legalActionCaseNumber || '';
+                const legalDisplay = legalActionNumber ? legalActionNumber : '<i>(not provided)</i>';
+                html += `<div class='case-detail-row' style='margin-top:0.2em;'><span class='detail-label'>Legal Action Case Number:</span> <span class='detail-value'>${legalDisplay}</span></div>`;
+                const communitySearchDesc = lo.communitySearchEffortDescription || '';
+                const communitySearchDisplay = communitySearchDesc ? communitySearchDesc : '<i>(not provided)</i>';
+                html += `<div class='case-detail-row' style='margin-top:0.2em;'><span class='detail-label'>Community Search Effort Description:</span> <span class='detail-value'>${communitySearchDisplay}</span></div>`;
                 const investigations = Array.isArray(lo.investigation) ? lo.investigation : [];
                 html += `<div class='loved-one-subtitle'>Investigation Status</div>`;
                 if (investigations.length) {
@@ -641,19 +683,18 @@
                 if (lo.otherInvestigation) {
                     html += `<div class='loved-one-extra'>Other: ${lo.otherInvestigation}</div>`;
                 }
-                const supportSelections = Array.isArray(lo.supportSelections) ? lo.supportSelections : [];
                 html += `<div class='loved-one-subtitle'>Support, Advocacy, and Requests</div>`;
                 if (supportSelections.length) {
-                    html += `<ul class='loved-one-list'>${supportSelections.map(item => `<li>${item}</li>`).join('')}</ul>`;
+                    html += `<ul class='loved-one-list'>${supportSelections.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
                 } else {
                     html += `<div class='loved-one-muted'>(none requested)</div>`;
                 }
                 if (lo.otherSupport) {
-                    html += `<div class='loved-one-extra'>Other: ${lo.otherSupport}</div>`;
+                    html += `<div class='loved-one-extra'>Other: ${escapeHtml(lo.otherSupport)}</div>`;
                 }
                 html += `<div class='loved-one-subtitle'>Additional Notes or Story</div>`;
                 if (lo.additionalNotes) {
-                    html += `<div class='loved-one-notes'>${lo.additionalNotes}</div>`;
+                    html += `<div class='loved-one-notes'>${additionalNotesValueHtml}</div>`;
                 } else {
                     html += `<div class='loved-one-muted'>(not provided)</div>`;
                 }
@@ -662,12 +703,15 @@
                     <div style='margin-top:0.6em;'>
                         <button class='editLovedOneBtn' data-id='${lo.id}' style='background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.25em 0.8em;font-weight:bold;cursor:pointer;'>✏️ Edit Missing Person</button>
                     </div>
-                    <form class='editLovedOneForm' id='editLovedOneForm-${lo.id}' style='display:none;margin-top:0.6em;'>
+                    <form class='editLovedOneForm' id='editLovedOneForm-${lo.id}' style='display:none;margin:0.6em 0 0 1.5em; padding:0.8em; border-left:2px solid #444; background:rgba(34,34,34,0.15); border-radius:6px;'>
                         <div style='display:grid;grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 0.8em 2em;'>
                             <label>Name: <input type='text' name='name' value='${lo.name || ''}'></label>
                             <label style='grid-column: 2; display:inline-flex; white-space:normal; align-items:center; gap:0.6em; justify-content: space-between; min-width:0;'>Relationship: <input type='text' name='relationship' value='${lo.relationship || ''}' style='flex:1 1 auto; min-width:0;'></label>
                             <label>Date of Incident: <input type='date' name='dateOfIncident' value='${lo.dateOfIncident || ''}'></label>
+                            <div style='grid-column:1 / -1; font-weight:bold; text-decoration:underline;'>Investigation Status</div>
                             <label style='grid-column: 1 / -1;'>Police Investigation Number: <input type='text' name='policeInvestigationNumber' value='${lo.policeInvestigationNumber || ''}'></label>
+                            <label style='grid-column: 1 / -1;'>Legal Action Case Number: <input type='text' name='legalActionCaseNumber' value='${lo.legalActionCaseNumber || ''}'></label>
+                            <label style='grid-column: 1 / -1;'>Community Search Effort Description: <input type='text' name='communitySearchEffortDescription' value='${lo.communitySearchEffortDescription || ''}'></label>
                             <label style='grid-column: 1 / -1; display:inline-flex; white-space:normal; align-items:center; gap:0.6em; justify-content: space-between; min-width:0;'>Last Location: <input type='text' name='lastLocation' value='${lo.lastLocation || ''}' style='flex:1 1 auto; min-width:0;'></label>
                             <label>Lat/Long: <input type='text' name='latlon' value='${(lo.lastLocationLat!=null&&lo.lastLocationLon!=null)?`${lo.lastLocationLat}, ${lo.lastLocationLon}`:''}' placeholder='49.887129, -97.153645'></label>
                             <label style='grid-column:1 / -1;'>Coummunity of Loved One:
@@ -675,6 +719,20 @@
                                     <option value=''>-- Select Community / Nation (optional) --</option>
                                     <option value='Other'>Other (not listed)</option>
                                 </select>
+                            </label>
+                            <div style='grid-column:1 / -1; margin-top:0.6em;'>
+                                <div style='font-weight:bold;'>Support, Advocacy, and Requests:</div>
+                                <div class='edit-support-checkboxes' style='display:flex; flex-wrap:wrap; gap:0.6em 1.2em; margin-top:0.4em;'>
+                                    ${supportCheckboxesHtml}
+                                    <label style='display:inline-flex; align-items:center; gap:0.4em; flex-wrap:wrap;'>
+                                        <input type='checkbox' name='supportSelections' value='Other' ${otherSupportChecked}>
+                                        <span>Other Needs or Requests:</span>
+                                        <input type='text' name='otherSupport' value='${otherSupportValueAttr}' style='min-width:200px;'>
+                                    </label>
+                                </div>
+                            </div>
+                            <label style='grid-column:1 / -1;'>Additional Notes:
+                                <textarea name='additionalNotes' rows='3' style='width:100%; resize:vertical;'>${additionalNotesValueHtml}</textarea>
                             </label>
                         </div>
                         <div style='margin-top:0.6em;'>
@@ -700,7 +758,10 @@
                         <label>Name: <input type='text' name='name' required></label>
                         <label style='grid-column: 2; display:inline-flex; white-space:normal; align-items:center; gap:0.6em; justify-content: space-between; min-width:0;'>Relationship: <input type='text' name='relationship' style='flex:1 1 auto; min-width:0;'></label>
                         <label>Date of Incident: <input type='date' name='incidentDate'></label>
-                        <label style='grid-column: 1 / -1;'>Police Investigation Number: <input type='text' name='policeInvestigationNumber'></label>
+                        <div style='grid-column:1 / -1; font-weight:bold; text-decoration:underline;'>Investigation Status</div>
+                        <label style='grid-column: 1 / -1; margin-left:1.5em;'>Police Investigation Number: <input type='text' name='policeInvestigationNumber'></label>
+                        <label style='grid-column: 1 / -1; margin-left:1.5em;'>Legal Action Case Number: <input type='text' name='legalActionCaseNumber'></label>
+                        <label style='grid-column: 1 / -1; margin-left:1.5em;'>Community Search Effort Description: <input type='text' name='communitySearchEffortDescription'></label>
                         <label style='grid-column: 1 / -1; display:inline-flex; white-space:normal; align-items:center; gap:0.6em; justify-content: space-between; min-width:0;'>Last Location: <input type='text' name='lastLocation' style='flex:1 1 auto; min-width:0;'></label>
                         <label>Lat/Long: <input type='text' name='latlon' placeholder='49.887129, -97.153645'></label>
                         <label style='grid-column:1 / -1;'>Coummunity of Loved One:
@@ -708,6 +769,20 @@
                                 <option value=''>-- Select Community / Nation (optional) --</option>
                                 <option value='Other'>Other (not listed)</option>
                             </select>
+                        </label>
+                        <div style='grid-column:1 / -1; margin-top:0.6em;'>
+                            <div style='font-weight:bold;'>Support, Advocacy, and Requests:</div>
+                            <div class='edit-support-checkboxes' style='display:flex; flex-wrap:wrap; gap:0.6em 1.2em; margin-top:0.4em;'>
+                                ${SUPPORT_OPTIONS.map(option => `<label style='display:inline-flex; align-items:center; gap:0.4em;'><input type="checkbox" name="supportSelections" value="${escapeAttr(option)}"> ${escapeHtml(option)}</label>`).join('')}
+                                <label style='display:inline-flex; align-items:center; gap:0.4em; flex-wrap:wrap;'>
+                                    <input type='checkbox' name='supportSelections' value='Other'>
+                                    <span>Other Needs or Requests:</span>
+                                    <input type='text' name='otherSupport' style='min-width:200px;'>
+                                </label>
+                            </div>
+                        </div>
+                        <label style='grid-column:1 / -1;'>Additional Notes:
+                            <textarea name='additionalNotes' rows='3' style='width:100%; resize:vertical;'></textarea>
                         </label>
                     </div>
                     <div style='margin-top:0.6em;'>
@@ -958,9 +1033,15 @@
                     incidentDate: fd.get('incidentDate') || '',
                     lastLocation: fd.get('lastLocation') || '',
                     community: fd.get('community') || '',
-                    policeInvestigationNumber: (fd.get('policeInvestigationNumber') || '').trim()
+                    policeInvestigationNumber: (fd.get('policeInvestigationNumber') || '').trim(),
+                    legalActionCaseNumber: (fd.get('legalActionCaseNumber') || '').trim(),
+                    communitySearchEffortDescription: (fd.get('communitySearchEffortDescription') || '').trim()
                 };
-                    console.debug('[DEBUG] Add loved one payload', payload);
+                const selectedSupportsAdd = Array.from(formEl.querySelectorAll("input[name='supportSelections']:checked")).map(cb => cb.value);
+                payload.supportSelections = selectedSupportsAdd;
+                payload.otherSupport = (fd.get('otherSupport') || '').trim();
+                payload.additionalNotes = (fd.get('additionalNotes') || '').trim();
+                console.debug('[DEBUG] Add loved one payload', payload);
                 const pLL = parseLatLon(fd.get('latlon'));
                 if (pLL.lat != null) payload.lastLocationLat = pLL.lat;
                 if (pLL.lon != null) payload.lastLocationLon = pLL.lon;
@@ -1041,8 +1122,18 @@
                     dateOfIncident: fd.get('dateOfIncident') || null,
                     lastLocation: fd.get('lastLocation') || null,
                     community: fd.get('community') || null,
-                    policeInvestigationNumber: (fd.get('policeInvestigationNumber') || '').trim() || null
+                    policeInvestigationNumber: (fd.get('policeInvestigationNumber') || '').trim() || null,
+                    legalActionCaseNumber: (fd.get('legalActionCaseNumber') || '').trim() || null,
+                    communitySearchEffortDescription: (fd.get('communitySearchEffortDescription') || '').trim() || null
                 };
+                const selectedSupportsEdit = Array.from(form.querySelectorAll("input[name='supportSelections']:checked")).map(cb => cb.value);
+                payload.supportSelections = selectedSupportsEdit;
+                const otherSupportVal = (fd.get('otherSupport') || '').trim();
+                payload.otherSupport = otherSupportVal || null;
+                const additionalNotesVal = (fd.get('additionalNotes') || '').trim();
+                payload.additionalNotes = additionalNotesVal || null;
+                const communitySearchVal = (fd.get('communitySearchEffortDescription') || '').trim();
+                payload.communitySearchEffortDescription = communitySearchVal || null;
                 console.debug('[DEBUG] Update loved one payload', payload);
                 const pLL = (function(){
                     const s = (fd.get('latlon') || '').trim();

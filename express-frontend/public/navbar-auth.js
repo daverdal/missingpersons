@@ -5,6 +5,7 @@
     var adminLink = document.getElementById('adminLink');
     var settingsLink = document.getElementById('settingsLink');
     var assignCasesLink = document.getElementById('assignCasesLink');
+    var auditLogLink = document.getElementById('auditLogLink');
     // Get token from cookie first, then localStorage/sessionStorage
     function getToken() {
       const cookies = document.cookie.split(';');
@@ -19,6 +20,7 @@
       if (adminLink) adminLink.style.display = 'none';
       if (settingsLink) settingsLink.style.display = 'none';
       if (assignCasesLink) assignCasesLink.style.display = 'none';
+      if (auditLogLink) auditLogLink.style.display = 'none';
       return;
     }
     try {
@@ -29,10 +31,12 @@
         if (adminLink) adminLink.style.display = '';
         if (settingsLink) settingsLink.style.display = '';
         if (assignCasesLink) assignCasesLink.style.display = '';
+        if (auditLogLink) auditLogLink.style.display = '';
       } else {
         if (adminLink) adminLink.style.display = 'none';
         if (settingsLink) settingsLink.style.display = 'none';
         if (assignCasesLink) assignCasesLink.style.display = 'none';
+        if (auditLogLink) auditLogLink.style.display = 'none';
       }
     } catch (e) {
       if (adminLink) adminLink.style.display = 'none';
