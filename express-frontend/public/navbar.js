@@ -79,4 +79,79 @@
     }
   }
 
+  // Global Konami code listener for Easter Egg
+  const konamiSequence = [
+    'ArrowUp',
+    'ArrowUp',
+    'ArrowDown',
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowRight',
+    'ArrowLeft',
+    'ArrowRight',
+    'b',
+    'a'
+  ];
+  let konamiIndex = 0;
+
+  function handleGlobalKeydown(e) {
+    // Allow ESC to close the Easter egg overlay if active
+    if (e.key === 'Escape' && typeof window.closeEasterEggGame === 'function') {
+      try {
+        window.closeEasterEggGame();
+      } catch (_) {
+        // ignore
+      }
+      return;
+    }
+
+    const key = e.key;
+    const expected = konamiSequence[konamiIndex];
+    const normalizedKey = key.length === 1 ? key.toLowerCase() : key;
+    const normalizedExpected =
+      expected.length === 1 ? expected.toLowerCase() : expected;
+
+    if (normalizedKey === normalizedExpected) {
+      konamiIndex += 1;
+      if (konamiIndex === konamiSequence.length) {
+        konamiIndex = 0;
+        triggerEasterEgg();
+      }
+    } else {
+      // If this key could be the start of the sequence, reset index to 1, else 0
+      konamiIndex = normalizedKey === konamiSequence[0] ? 1 : 0;
+    }
+  }
+
+  function triggerEasterEgg() {
+    // Lazy-load the game script on first use
+    if (typeof window.startEasterEggGame === 'function') {
+      try {
+        window.startEasterEggGame();
+      } catch (err) {
+        console.error('Failed to start Easter egg game:', err);
+      }
+      return;
+    }
+    const existing = document.querySelector('script[data-easter-egg]');
+    if (existing) return;
+    const script = document.createElement('script');
+    script.src = 'easter-egg.js?v=1';
+    script.async = true;
+    script.dataset.easterEgg = 'true';
+    script.onload = function() {
+      if (typeof window.startEasterEggGame === 'function') {
+        window.startEasterEggGame();
+      } else {
+        console.warn('Easter egg script loaded but startEasterEggGame() is not available.');
+      }
+    };
+    script.onerror = function() {
+      console.error('Failed to load Easter egg script.');
+    };
+    document.body.appendChild(script);
+  }
+
+  window.addEventListener('keydown', handleGlobalKeydown);
+
 })();
