@@ -568,6 +568,9 @@
             const canEditCase = userHasRole(['admin', 'case_worker']);
             if (canEditCase) {
                 const a = data.applicant || {};
+                const newsKeywordsCsv = Array.isArray(a.newsKeywords)
+                  ? a.newsKeywords.join(', ')
+                  : (a.newsKeywords || '');
                 const orgName = (data.referringOrg && data.referringOrg.name) ? data.referringOrg.name : '';
                 const contactRaw = data.applicant && data.applicant.contact ? String(data.applicant.contact) : '';
                 const normalizedContact = contactRaw.startsWith('+1') ? contactRaw : contactRaw ? `+1${contactRaw.replace(/[^0-9]/g, '')}` : '';
@@ -590,6 +593,7 @@
                             </label>
                             <label>Preferred Language(s): <input type="text" name="language" value="${a.language || ''}"></label>
                             <label>Best Way and Time to Contact You: <input type="text" name="contactTime" value="${a.contactTime || ''}"></label>
+                            <label style="grid-column: 1 / -1;">News Alert Keywords (comma-separated): <input type="text" name="newsKeywords" value="${newsKeywordsCsv}" placeholder="e.g., John Doe, Jane Doe, Smith Street"></label>
                             <label style="grid-column:1 / -1;">Referring Organization:
                                 <select name="referringOrganization" id="editCaseRefOrgDropdown" data-current="${orgName}">
                                     <option value="">-- Select Referring Organization --</option>
@@ -936,7 +940,12 @@
                     language: (fd.get('language') || '').trim() || null,
                     community: (fd.get('community') || '').trim() || null,
                     contactTime: (fd.get('contactTime') || '').trim() || null,
-                    referringOrganization: (fd.get('referringOrganization') || '').trim()
+                    referringOrganization: (fd.get('referringOrganization') || '').trim(),
+                    newsKeywords: (() => {
+                        const raw = (fd.get('newsKeywords') || '').trim();
+                        if (!raw) return [];
+                        return raw.split(',').map(s => s.trim()).filter(Boolean);
+                    })()
                 };
                 // Normalize empty referringOrganization to null (means remove)
                 if (payload.referringOrganization === '') payload.referringOrganization = null;

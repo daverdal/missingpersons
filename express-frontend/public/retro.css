@@ -173,6 +173,31 @@ a:hover, a:active {
   color: #82cfff;
   text-decoration: none;
 }
+/* Local menu for Offender News pages */
+.offender-news-menu {
+  display: flex;
+  justify-content: center;
+  gap: 2.5rem;
+  margin-bottom: 1.8rem;
+  border-bottom: 1px solid #3a3f47;
+  padding-bottom: 0.9rem;
+}
+.offender-news-menu a {
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.offender-news-menu a:hover {
+  background: #2f3339;
+  border-color: #3a3f47;
+}
+.offender-news-menu a.active {
+  background: #f7c873;
+  color: #23272b;
+  border-color: #f7c873;
+}
 /* Ensure Graph Visualization link is always the same color, even if visited */
 /* Style file input (Browse button) to match retro theme */
 input[type="file"]::-webkit-file-upload-button {

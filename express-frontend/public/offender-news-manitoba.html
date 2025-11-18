@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offender News - Manitoba RSS</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Offender News – Manitoba RSS</h1>
+  </header>
+  <main>
+    <nav class="offender-news-menu">
+      <a href="offender-news.html">Inbox (Email)</a>
+      <a href="offender-news-police.html">Police RSS</a>
+      <a href="offender-news-manitoba.html" class="active">Manitoba RSS</a>
+      <a href="offender-matches.html">Matches</a>
+    </nav>
+
+    <section>
+      <button id="refreshManitobaButton">Refresh Manitoba Releases</button>
+      <span id="manitobaStatusMessage"></span>
+    </section>
+
+    <section id="manitobaContainer"></section>
+  </main>
+
+  <script>
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return (
+        localStorage.getItem('token') ||
+        sessionStorage.getItem('token') ||
+        ''
+      );
+    }
+
+    function escapeHtml(str) {
+      return (str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDate(value) {
+      if (!value) return '';
+      try {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleString();
+        }
+      } catch (e) {
+        // ignore
+      }
+      return value;
+    }
+
+    async function fetchManitobaReleases() {
+      const token = getToken();
+      const statusEl = document.getElementById('manitobaStatusMessage');
+      if (!token) {
+        statusEl.textContent = 'Authentication required. Please log in again.';
+        return;
+      }
+
+      statusEl.textContent = 'Loading Manitoba releases...';
+
+      try {
+        const res = await fetch('/api/offender-news/manitoba', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+          throw new Error('Failed to load Manitoba releases');
+        }
+        const data = await res.json();
+        renderManitobaItems(data.items || []);
+        statusEl.textContent = 'Loaded ' + (data.items?.length || 0) + ' item(s).';
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'Failed to load Manitoba releases.';
+      }
+    }
+
+    function renderManitobaItems(items) {
+      const container = document.getElementById('manitobaContainer');
+      container.innerHTML = '';
+
+      if (!items.length) {
+        container.textContent = 'No Manitoba releases available.';
+        return;
+      }
+
+      items.forEach(item => {
+        const article = document.createElement('article');
+        const title = escapeHtml(item.title || '(no title)');
+        const link = item.link || '';
+        const date = formatDate(item.pubDate || item.publishedAt);
+
+        article.innerHTML = `
+          <h3>${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${title}</a>` : title}</h3>
+          ${date ? `<div>${escapeHtml(date)}</div>` : ''}
+        `;
+
+        container.appendChild(article);
+      });
+    }
+
+    document.getElementById('refreshManitobaButton')
+      .addEventListener('click', fetchManitobaReleases);
+
+    // Load on page open
+    fetchManitobaReleases();
+  </script>
+</body>
+</html>
+
+

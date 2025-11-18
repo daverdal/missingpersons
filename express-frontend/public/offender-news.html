@@ -8,103 +8,19 @@
   <script src="navbar.js"></script>
   <script src="navbar-auth.js"></script>
   <style>
-    body {
-      background: #181c20;
-      color: #e0e0e0;
-      font-family: 'Roboto', Arial, sans-serif;
-      margin: 0;
-    }
-    main {
-      max-width: 1200px;
-      margin: 2rem auto;
-      background: #23272b;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
-      padding: 1.8rem;
-    }
-    h1 {
-      color: #f7c873;
-      margin-top: 0;
-      text-align: center;
-    }
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      align-items: center;
-      margin-bottom: 1.5rem;
-    }
-    .toolbar button,
-    .toolbar select,
-    .toolbar input[type="text"] {
-      background: #222;
-      color: #e0e0e0;
-      border: 1px solid #3a3f47;
-      border-radius: 6px;
-      padding: 0.5rem 1.2rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .toolbar button:hover {
-      background: #2f3339;
-    }
-    .toolbar input[type="text"] {
-      min-width: 220px;
-    }
-    #statusMessage {
-      min-height: 1.2rem;
-      font-size: 0.95rem;
-      color: #6fcf6f;
-    }
-    .email-card {
-      border: 1px solid #3a3f47;
-      border-radius: 8px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      background: linear-gradient(135deg, #1e2227, #262a31);
-    }
-    .email-card h3 {
-      margin: 0 0 0.4rem 0;
-      color: #ffd48e;
-      word-break: break-word;
-    }
-    .email-meta {
-      font-size: 0.85rem;
-      color: #a9b1ba;
-      margin-bottom: 0.6rem;
-      line-height: 1.4;
-    }
-    .email-snippet {
-      line-height: 1.6;
-      margin-bottom: 0.6rem;
-      color: #d7d7d7;
-    }
-    .email-matches {
-      margin-top: 0.6rem;
-      color: #ffb347;
-      font-weight: 600;
-    }
-    details.email-body {
-      background: #1c2126;
-      border-radius: 6px;
-      padding: 0.6rem 0.8rem;
-      border: 1px solid #343a46;
-      color: #d0d0d0;
-      white-space: pre-wrap;
-      line-height: 1.5;
-    }
-    .empty-state {
-      text-align: center;
-      color: #999;
-      margin-top: 2rem;
-    }
   </style>
 </head>
 <body>
   <header>
-    <h1>Offender News Inbox</h1>
+    <h1>Offender News</h1>
   </header>
   <main>
+    <nav class="offender-news-menu">
+      <a href="offender-news.html" class="active">Inbox (Email)</a>
+      <a href="offender-news-police.html">Police RSS</a>
+      <a href="offender-news-manitoba.html">Manitoba RSS</a>
+      <a href="offender-matches.html">Matches</a>
+    </nav>
     <div class="toolbar">
       <button id="refreshButton">Refresh Inbox</button>
       <label for="limitSelect" style="display:flex;align-items:center;gap:0.6rem;">

@@ -18,6 +18,7 @@ const smsService = require('./smsService');
 const AuditLogModel = require('./auditLogModel');
 const AuditLogger = require('./auditLogger');
 const offenderNews = require('./modules/offender-news');
+const NewsModel = require('./newsModel');
 const app = express();
 app.use(cookieParser());
 
@@ -308,6 +309,9 @@ const userModel = new UserModel(driver);
 const CaseEventModel = require('./caseEventModel');
 const caseEventModel = new CaseEventModel(driver);
 
+// News model setup (for offender news, RSS, etc.)
+const newsModel = new NewsModel(driver);
+
 const AUDIT_LOG_RETENTION_DAYS = parseInt(process.env.AUDIT_LOG_RETENTION_DAYS || '730', 10);
 const auditLogModel = new AuditLogModel(driver);
 const auditLogger = new AuditLogger({
@@ -341,11 +345,18 @@ const OFFENDER_NEWS_EMAIL_USERNAME = process.env.OFFENDER_NEWS_EMAIL_USERNAME;
 const OFFENDER_NEWS_EMAIL_PASSWORD = process.env.OFFENDER_NEWS_EMAIL_PASSWORD;
 const OFFENDER_NEWS_EMAIL_FOLDER = process.env.OFFENDER_NEWS_EMAIL_FOLDER || 'INBOX';
 const OFFENDER_NEWS_DEFAULT_LIMIT = parseInt(process.env.OFFENDER_NEWS_DEFAULT_LIMIT || '25', 10);
+const OFFENDER_NEWS_POLICE_RSS_URL =
+  process.env.OFFENDER_NEWS_POLICE_RSS_URL || 'https://feeds.feedburner.com/WinnipegcaNewsReleases';
+const OFFENDER_NEWS_MANITOBA_RSS_URL =
+  process.env.OFFENDER_NEWS_MANITOBA_RSS_URL || 'https://news.gov.mb.ca/news/index.rss';
 
 offenderNews.init(app, {
   authMiddleware,
   requireRole,
   auditLogger,
+  newsModel,
+  smsService,
+  caseEventModel,
   config: {
     host: OFFENDER_NEWS_EMAIL_HOST,
     port: OFFENDER_NEWS_EMAIL_PORT,
@@ -353,7 +364,9 @@ offenderNews.init(app, {
     username: OFFENDER_NEWS_EMAIL_USERNAME,
     password: OFFENDER_NEWS_EMAIL_PASSWORD,
     mailbox: OFFENDER_NEWS_EMAIL_FOLDER,
-    defaultLimit: OFFENDER_NEWS_DEFAULT_LIMIT
+    defaultLimit: OFFENDER_NEWS_DEFAULT_LIMIT,
+    policeRssUrl: OFFENDER_NEWS_POLICE_RSS_URL,
+    manitobaRssUrl: OFFENDER_NEWS_MANITOBA_RSS_URL
   }
 });
 
@@ -1857,6 +1870,7 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
     community,
     contactTime,
     notes,
+    newsKeywords,
     referringOrganization
   } = req.body || {};
   const rawRoles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
@@ -1865,6 +1879,23 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
     .map(r => String(r).toLowerCase());
   const isAdmin = roles.includes('admin');
   const isCaseWorker = roles.includes('case_worker');
+  // Normalize newsKeywords into an array of non-empty strings or null
+  let newsKeywordsParam = null;
+  if (Array.isArray(newsKeywords)) {
+    newsKeywordsParam = newsKeywords
+      .map(k => String(k).trim())
+      .filter(k => k.length > 0);
+    if (!newsKeywordsParam.length) newsKeywordsParam = null;
+  } else if (typeof newsKeywords === 'string') {
+    const trimmed = newsKeywords.trim();
+    if (trimmed) {
+      newsKeywordsParam = trimmed
+        .split(',')
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+      if (!newsKeywordsParam.length) newsKeywordsParam = null;
+    }
+  }
   const session = driver.session();
   try {
     if (!isAdmin) {
@@ -1896,6 +1927,20 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
         return res.status(403).json({ error: 'Not authorized' });
       }
     }
+    // Prepare parameters (avoid undefined, use null instead so coalesce works)
+    const applicantParams = {
+      id,
+      name: name ?? null,
+      kinshipRole: kinshipRole ?? null,
+      contact: contact ?? null,
+      email: email ?? null,
+      address: address ?? null,
+      language: language ?? null,
+      community: community ?? null,
+      contactTime: contactTime ?? null,
+      notes: notes ?? null
+    };
+
     // Update core applicant fields; only set provided fields
     await session.run(
       `MATCH (a:Applicant {id: $id})
@@ -1907,9 +1952,17 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
            a.language = coalesce($language, a.language),
            a.community = coalesce($community, a.community),
            a.contactTime = coalesce($contactTime, a.contactTime),
-           a.notes = coalesce($notes, a.notes)`
-      , { id, name, kinshipRole, contact, email, address, language, community, contactTime, notes }
+           a.notes = coalesce($notes, a.notes)`,
+      applicantParams
     );
+    // Update newsKeywords only if provided (non-null) to avoid type issues
+    if (newsKeywordsParam !== null) {
+      await session.run(
+        `MATCH (a:Applicant {id: $id})
+         SET a.newsKeywords = $newsKeywordsParam`,
+        { id, newsKeywordsParam }
+      );
+    }
     // Update referring organization relationship if provided
     if (referringOrganization !== undefined) {
       // Remove existing relationship and create a new one if org name provided and exists
@@ -1959,7 +2012,24 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
       message: 'Failed to update applicant',
       details: { error: err.message }
     });
-    return res.status(500).json({ error: 'Failed to update applicant' });
+    console.error('ERROR: Failed to update applicant', {
+      applicantId: id,
+      message: err.message,
+      stack: err.stack,
+      payload: {
+        name,
+        kinshipRole,
+        contact,
+        email,
+        address,
+        language,
+        community,
+        contactTime,
+        notes,
+        newsKeywords
+      }
+    });
+    return res.status(500).json({ error: 'Failed to update applicant', details: err.message });
   }
 });
 

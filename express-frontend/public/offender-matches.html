@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offender News - Matches</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Offender News – Matches</h1>
+  </header>
+  <main>
+    <nav class="offender-news-menu">
+      <a href="offender-news.html">Inbox (Email)</a>
+      <a href="offender-news-police.html">Police RSS</a>
+      <a href="offender-news-manitoba.html">Manitoba RSS</a>
+      <a href="offender-matches.html" class="active">Matches</a>
+    </nav>
+
+    <section>
+      <button id="refreshMatchesButton">Refresh Matches</button>
+      <span id="matchesStatusMessage"></span>
+    </section>
+
+    <section id="matchesContainer"></section>
+  </main>
+
+  <script>
+    const applicantCache = {};
+
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return (
+        localStorage.getItem('token') ||
+        sessionStorage.getItem('token') ||
+        ''
+      );
+    }
+
+    function escapeHtml(str) {
+      return (str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDate(value) {
+      if (!value) return '';
+      try {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleString();
+        }
+      } catch (e) {
+        // ignore
+      }
+      return value;
+    }
+
+    async function fetchMatches() {
+      const token = getToken();
+      const statusEl = document.getElementById('matchesStatusMessage');
+      if (!token) {
+        statusEl.textContent = 'Authentication required. Please log in again.';
+        return;
+      }
+
+      statusEl.textContent = 'Loading matches...';
+
+      try {
+        const res = await fetch('/api/offender-news/matches', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+          throw new Error('Failed to load matches');
+        }
+        const data = await res.json();
+        renderMatches(data.matches || []);
+        statusEl.textContent = 'Loaded ' + (data.matches?.length || 0) + ' match(es).';
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'Failed to load matches.';
+      }
+    }
+
+    function renderMatches(matches) {
+      const container = document.getElementById('matchesContainer');
+      container.innerHTML = '';
+
+      if (!matches.length) {
+        container.textContent = 'No matches found. Add keywords on the client case page, then refresh.';
+        return;
+      }
+
+      matches.forEach(entry => {
+        const article = document.createElement('article');
+        const n = entry.newsItem || {};
+        const a = entry.applicant || {};
+        const title = escapeHtml(n.title || '(no title)');
+        const link = n.link || '';
+        const date = formatDate(n.publishedAt);
+        const keyword = escapeHtml(entry.keyword || '');
+        const clientName = escapeHtml(a.name || '(unknown client)');
+        const caseId = a.id || '';
+        const safeCaseId = escapeHtml(caseId);
+
+        article.innerHTML = `
+          <h3>${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${title}</a>` : title}</h3>
+          <div>${date ? `${escapeHtml(date)} · ` : ''}Matched keyword: <strong>${keyword}</strong></div>
+          <div>Client: <strong>${clientName}</strong>${safeCaseId ? ` (Case ID: ${safeCaseId})` : ''}</div>
+          ${safeCaseId ? `<div><button class="sendMatchSmsButton" data-case-id="${safeCaseId}" data-title="${escapeHtml(title)}" data-link="${escapeHtml(link)}">Send SMS to Client</button></div>` : ''}
+        `;
+
+        container.appendChild(article);
+      });
+
+      // Wire up SMS buttons
+      document.querySelectorAll('.sendMatchSmsButton').forEach(btn => {
+        btn.addEventListener('click', onSendMatchSms);
+      });
+    }
+
+    function normalizePhone(raw) {
+      if (!raw) return '';
+      const trimmed = String(raw).trim();
+      if (!trimmed) return '';
+      if (trimmed.startsWith('+')) {
+        return trimmed;
+      }
+      const digits = trimmed.replace(/\D/g, '');
+      if (digits.length === 10) {
+        return '+1' + digits;
+      }
+      if (digits.length > 0) {
+        return '+' + digits;
+      }
+      return '';
+    }
+
+    async function getApplicant(caseId) {
+      if (applicantCache[caseId]) return applicantCache[caseId];
+      const token = getToken();
+      const res = await fetch('/api/applicants/' + encodeURIComponent(caseId), {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!res.ok) {
+        throw new Error('Failed to load applicant ' + caseId);
+      }
+      const data = await res.json();
+      applicantCache[caseId] = data.applicant || {};
+      return applicantCache[caseId];
+    }
+
+    async function onSendMatchSms(event) {
+      const btn = event.currentTarget;
+      const caseId = btn.getAttribute('data-case-id');
+      const title = btn.getAttribute('data-title') || '';
+      const link = btn.getAttribute('data-link') || '';
+      const statusEl = document.getElementById('matchesStatusMessage');
+
+      try {
+        const applicant = await getApplicant(caseId);
+        const contactRaw = applicant && applicant.contact ? String(applicant.contact) : '';
+        const to = normalizePhone(contactRaw);
+        if (!to) {
+          statusEl.textContent = 'Cannot send SMS: client contact number is missing or invalid.';
+          return;
+        }
+
+        const messageParts = [];
+        if (title) messageParts.push(title);
+        if (link) messageParts.push(link);
+        const message = messageParts.join(' - ');
+        if (!message) {
+          statusEl.textContent = 'Cannot send SMS: news item has no title or link.';
+          return;
+        }
+
+        statusEl.textContent = 'Sending SMS...';
+        const res = await fetch('/api/cases/' + encodeURIComponent(caseId) + '/sms', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + getToken()
+          },
+          body: JSON.stringify({ to, message })
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.success) {
+          statusEl.textContent = out.error || 'Failed to send SMS.';
+          return;
+        }
+        statusEl.textContent = 'SMS sent to ' + to;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'Failed to send SMS.';
+      }
+    }
+
+    document.getElementById('refreshMatchesButton')
+      .addEventListener('click', fetchMatches);
+
+    // Load on page open
+    fetchMatches();
+  </script>
+</body>
+</html>
+
+
