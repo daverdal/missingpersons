@@ -17,6 +17,7 @@ const upload = require('./fileUpload');
 const smsService = require('./smsService');
 const AuditLogModel = require('./auditLogModel');
 const AuditLogger = require('./auditLogger');
+const offenderNews = require('./modules/offender-news');
 const app = express();
 app.use(cookieParser());
 
@@ -332,6 +333,29 @@ const auditCleanupTimer = setInterval(async () => {
   }
 }, AUDIT_CLEANUP_INTERVAL_MS);
 if (auditCleanupTimer.unref) auditCleanupTimer.unref();
+
+const OFFENDER_NEWS_EMAIL_HOST = process.env.OFFENDER_NEWS_EMAIL_IMAP_HOST;
+const OFFENDER_NEWS_EMAIL_PORT = parseInt(process.env.OFFENDER_NEWS_EMAIL_IMAP_PORT || '993', 10);
+const OFFENDER_NEWS_EMAIL_SECURE = process.env.OFFENDER_NEWS_EMAIL_IMAP_SECURE;
+const OFFENDER_NEWS_EMAIL_USERNAME = process.env.OFFENDER_NEWS_EMAIL_USERNAME;
+const OFFENDER_NEWS_EMAIL_PASSWORD = process.env.OFFENDER_NEWS_EMAIL_PASSWORD;
+const OFFENDER_NEWS_EMAIL_FOLDER = process.env.OFFENDER_NEWS_EMAIL_FOLDER || 'INBOX';
+const OFFENDER_NEWS_DEFAULT_LIMIT = parseInt(process.env.OFFENDER_NEWS_DEFAULT_LIMIT || '25', 10);
+
+offenderNews.init(app, {
+  authMiddleware,
+  requireRole,
+  auditLogger,
+  config: {
+    host: OFFENDER_NEWS_EMAIL_HOST,
+    port: OFFENDER_NEWS_EMAIL_PORT,
+    secure: OFFENDER_NEWS_EMAIL_SECURE,
+    username: OFFENDER_NEWS_EMAIL_USERNAME,
+    password: OFFENDER_NEWS_EMAIL_PASSWORD,
+    mailbox: OFFENDER_NEWS_EMAIL_FOLDER,
+    defaultLimit: OFFENDER_NEWS_DEFAULT_LIMIT
+  }
+});
 
 
 
@@ -1006,22 +1030,6 @@ app.get(
   }
 );
 
-app.get(
-  '/api/audit-logs/actions',
-  authMiddleware,
-  requireRole('admin'),
-  async (req, res) => {
-    try {
-      const { limit } = req.query || {};
-      const actions = await auditLogModel.listActions(limit);
-      res.json({ actions });
-    } catch (err) {
-      console.error('Failed to fetch audit actions', err);
-      res.status(500).json({ error: 'Failed to fetch audit actions' });
-    }
-  }
-);
-
 
 // Add event to a case (case worker or admin)
 app.post('/api/cases/:caseId/events',
@@ -1428,7 +1436,7 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
     if (data.lovedOneName || data.relationship) {
       const lovedOneId = 'L' + Date.now() + '-' + Math.floor(Math.random()*1e6);
       const lovedOneResult = await session.run(
-        `CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon, policeInvestigationNumber: $policeInvestigationNumber, legalActionCaseNumber: $legalActionCaseNumber, communitySearchEffortDescription: $communitySearchEffortDescription, investigation: $investigation, otherInvestigation: $otherInvestigation, supportSelections: $supportSelections, otherSupport: $otherSupport, additionalNotes: $additionalNotes}) RETURN l`,
+        `CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon, policeInvestigationNumber: $policeInvestigationNumber, investigation: $investigation, otherInvestigation: $otherInvestigation, supportSelections: $supportSelections, otherSupport: $otherSupport, additionalNotes: $additionalNotes}) RETURN l`,
         {
           id: lovedOneId,
           name: data.lovedOneName || '',
@@ -1438,13 +1446,11 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
           lastLocationLat: (data.lastLocationLat !== undefined && data.lastLocationLat !== '' ? parseFloat(data.lastLocationLat) : null),
           lastLocationLon: (data.lastLocationLon !== undefined && data.lastLocationLon !== '' ? parseFloat(data.lastLocationLon) : null),
           policeInvestigationNumber: data.policeInvestigationNumber || '',
-          legalActionCaseNumber: data.legalActionCaseNumber || '',
           investigation: Array.isArray(data.investigation) ? data.investigation : [],
           otherInvestigation: data.otherInvestigation || '',
           supportSelections: Array.isArray(data.support) ? data.support : [],
           otherSupport: data.otherSupport || '',
-          additionalNotes: data.notes || '',
-          communitySearchEffortDescription: data.communitySearchEffortDescription || ''
+          additionalNotes: data.notes || ''
         }
       );
       lovedOneNode = lovedOneResult.records[0]?.get('l');
@@ -1674,7 +1680,7 @@ app.post('/api/cases/:caseId/unassign', authMiddleware, requireRole('admin'), as
 // Add an additional Loved One to an Applicant (case)
 app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { name, relationship, incidentDate, lastLocation, community, policeInvestigationNumber, legalActionCaseNumber, investigation, otherInvestigation, supportSelections, support, otherSupport, additionalNotes } = req.body || {};
+  const { name, relationship, incidentDate, lastLocation, community, policeInvestigationNumber, investigation, otherInvestigation, supportSelections, support, otherSupport, additionalNotes } = req.body || {};
   const user = req.user;
   if (!name || !name.trim()) {
     await auditLogger.log(req, {
@@ -1727,8 +1733,6 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
          lastLocationLat: $lastLocationLat,
          lastLocationLon: $lastLocationLon,
          policeInvestigationNumber: $policeInvestigationNumber,
-         legalActionCaseNumber: $legalActionCaseNumber,
-         communitySearchEffortDescription: $communitySearchEffortDescription,
          investigation: $investigation,
          otherInvestigation: $otherInvestigation,
          supportSelections: $supportSelections,
@@ -1748,8 +1752,6 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
         lastLocationLat: (req.body && req.body.lastLocationLat !== undefined && req.body.lastLocationLat !== '' ? parseFloat(req.body.lastLocationLat) : null),
         lastLocationLon: (req.body && req.body.lastLocationLon !== undefined && req.body.lastLocationLon !== '' ? parseFloat(req.body.lastLocationLon) : null),
         policeInvestigationNumber: policeInvestigationNumber || '',
-        legalActionCaseNumber: legalActionCaseNumber || '',
-        communitySearchEffortDescription: communitySearchEffortDescription || '',
         investigation: investigationList,
         otherInvestigation: otherInvestigation || '',
         supportSelections: supportList,
@@ -1974,8 +1976,6 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
     lastLocationLat,
     lastLocationLon,
     policeInvestigationNumber,
-    legalActionCaseNumber,
-    communitySearchEffortDescription,
     investigation,
     otherInvestigation,
     supportSelections,
@@ -2026,13 +2026,11 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
     const supportProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'supportSelections') || Object.prototype.hasOwnProperty.call(req.body || {}, 'support');
     const otherSupportProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'otherSupport');
     const notesProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'additionalNotes');
-    const communitySearchProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'communitySearchEffortDescription');
     const investigationList = investigationProvided ? (Array.isArray(investigation) ? investigation : []) : null;
     const supportList = supportProvided ? (Array.isArray(supportSelections) ? supportSelections : (Array.isArray(support) ? support : [])) : null;
     const otherInvestigationValue = otherInvestigationProvided ? (otherInvestigation || '') : null;
     const otherSupportValue = otherSupportProvided ? (otherSupport || '') : null;
     const notesValue = notesProvided ? (additionalNotes || '') : null;
-    const communitySearchValue = communitySearchProvided ? (communitySearchEffortDescription || '') : null;
     await session.run(
       `MATCH (l:LovedOne {id: $id})
        SET l.name = coalesce($name, l.name),
@@ -2042,8 +2040,6 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
            l.lastLocationLat = coalesce($lastLocationLat, l.lastLocationLat),
            l.lastLocationLon = coalesce($lastLocationLon, l.lastLocationLon),
            l.policeInvestigationNumber = coalesce($policeInvestigationNumber, l.policeInvestigationNumber),
-           l.legalActionCaseNumber = coalesce($legalActionCaseNumber, l.legalActionCaseNumber),
-           l.communitySearchEffortDescription = coalesce($communitySearchEffortDescription, l.communitySearchEffortDescription),
            l.investigation = coalesce($investigation, l.investigation),
            l.otherInvestigation = coalesce($otherInvestigation, l.otherInvestigation),
            l.supportSelections = coalesce($supportSelections, l.supportSelections),
@@ -2058,8 +2054,6 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
         lastLocationLat: (lastLocationLat !== undefined && lastLocationLat !== '' ? parseFloat(lastLocationLat) : null),
         lastLocationLon: (lastLocationLon !== undefined && lastLocationLon !== '' ? parseFloat(lastLocationLon) : null),
         policeInvestigationNumber,
-        legalActionCaseNumber,
-        communitySearchEffortDescription: communitySearchValue,
         investigation: investigationList,
         otherInvestigation: otherInvestigationValue,
         supportSelections: supportList,

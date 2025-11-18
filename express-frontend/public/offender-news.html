@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offender News - Missing Persons App</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+  <style>
+    body {
+      background: #181c20;
+      color: #e0e0e0;
+      font-family: 'Roboto', Arial, sans-serif;
+      margin: 0;
+    }
+    main {
+      max-width: 1200px;
+      margin: 2rem auto;
+      background: #23272b;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+      padding: 1.8rem;
+    }
+    h1 {
+      color: #f7c873;
+      margin-top: 0;
+      text-align: center;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .toolbar button,
+    .toolbar select,
+    .toolbar input[type="text"] {
+      background: #222;
+      color: #e0e0e0;
+      border: 1px solid #3a3f47;
+      border-radius: 6px;
+      padding: 0.5rem 1.2rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .toolbar button:hover {
+      background: #2f3339;
+    }
+    .toolbar input[type="text"] {
+      min-width: 220px;
+    }
+    #statusMessage {
+      min-height: 1.2rem;
+      font-size: 0.95rem;
+      color: #6fcf6f;
+    }
+    .email-card {
+      border: 1px solid #3a3f47;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #1e2227, #262a31);
+    }
+    .email-card h3 {
+      margin: 0 0 0.4rem 0;
+      color: #ffd48e;
+      word-break: break-word;
+    }
+    .email-meta {
+      font-size: 0.85rem;
+      color: #a9b1ba;
+      margin-bottom: 0.6rem;
+      line-height: 1.4;
+    }
+    .email-snippet {
+      line-height: 1.6;
+      margin-bottom: 0.6rem;
+      color: #d7d7d7;
+    }
+    .email-matches {
+      margin-top: 0.6rem;
+      color: #ffb347;
+      font-weight: 600;
+    }
+    details.email-body {
+      background: #1c2126;
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      border: 1px solid #343a46;
+      color: #d0d0d0;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+    .empty-state {
+      text-align: center;
+      color: #999;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Offender News Inbox</h1>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button id="refreshButton">Refresh Inbox</button>
+      <label for="limitSelect" style="display:flex;align-items:center;gap:0.6rem;">
+        Show latest
+        <select id="limitSelect">
+          <option value="10">10 emails</option>
+          <option value="20" selected>20 emails</option>
+          <option value="50">50 emails</option>
+        </select>
+      </label>
+      <label for="keywordsInput" style="display:flex;align-items:center;gap:0.6rem;">
+        Keywords
+        <input type="text" id="keywordsInput" placeholder="e.g., Winnipeg, custody">
+      </label>
+      <span id="statusMessage"></span>
+    </div>
+    <div id="emailsContainer"></div>
+  </main>
+
+  <script>
+    const keywordsInput = document.getElementById('keywordsInput');
+    const savedKeywords = localStorage.getItem('offenderNewsKeywords');
+    if (savedKeywords) {
+      keywordsInput.value = savedKeywords;
+    }
+    let lastEmails = [];
+
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return (
+        localStorage.getItem('token') ||
+        sessionStorage.getItem('token') ||
+        ''
+      );
+    }
+
+    function setStatus(message, isError) {
+      const el = document.getElementById('statusMessage');
+      el.textContent = message || '';
+      el.style.color = isError ? '#ff7f7f' : '#6fcf6f';
+    }
+
+    function formatDate(value) {
+      if (!value) return 'Unknown';
+      try {
+        const date = new Date(value);
+        return date.toLocaleString();
+      } catch (err) {
+        return value;
+      }
+    }
+
+    function escapeHtml(str) {
+      return (str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    async function fetchEmails() {
+      const token = getToken();
+      if (!token) {
+        setStatus('Authentication required. Please log in again.', true);
+        return;
+      }
+
+      const limit = document.getElementById('limitSelect').value || 20;
+      setStatus('Loading emails...');
+
+      try {
+        const response = await fetch('/api/offender-news/emails?limit=' + encodeURIComponent(limit), {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load inbox.');
+        }
+
+        const data = await response.json();
+        renderEmails(data.emails || []);
+        setStatus('Loaded ' + (data.emails?.length || 0) + ' email(s).');
+      } catch (err) {
+        console.error(err);
+        setStatus('Failed to load emails.', true);
+      }
+    }
+
+    function renderEmails(emails) {
+      lastEmails = emails;
+      const keywords = getKeywords();
+      const container = document.getElementById('emailsContainer');
+      container.innerHTML = '';
+
+      if (!emails.length) {
+        container.innerHTML = '<div class="empty-state">Inbox is empty.</div>';
+        return;
+      }
+
+      emails.forEach(email => {
+        const card = document.createElement('div');
+        card.className = 'email-card';
+
+        const subject = escapeHtml(email.subject || '(no subject)');
+        const from = escapeHtml(email.from || '');
+        const snippet = escapeHtml(email.snippet || '');
+        const textBody = escapeHtml(email.text || '');
+        const flags = Array.isArray(email.flags) && email.flags.length ? email.flags.join(', ') : '';
+        const matches = findMatches(email, keywords);
+        const matchesHtml = matches.length
+          ? `<div class="email-matches">Matches: ${matches.map(escapeHtml).join(', ')}</div>`
+          : '';
+
+        card.innerHTML = `
+          <h3>${subject}</h3>
+          <div class="email-meta">
+            <div><strong>From:</strong> ${from || 'Unknown sender'}</div>
+            <div><strong>Received:</strong> ${formatDate(email.date)}</div>
+            ${flags ? `<div><strong>Flags:</strong> ${escapeHtml(flags)}</div>` : ''}
+          </div>
+          <div class="email-snippet">${snippet || '<em>No preview available.</em>'}</div>
+          ${matchesHtml}
+          <details class="email-body">
+            <summary>View full message</summary>
+            ${textBody || '<em>No plain-text body available.</em>'}
+          </details>
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    function getKeywords() {
+      return keywordsInput.value
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+
+    function findMatches(email, keywords) {
+      if (!keywords.length) return [];
+      const haystack = [email.subject, email.snippet, email.text]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return keywords.filter(keyword => haystack.includes(keyword.toLowerCase()));
+    }
+
+    function reapplyKeywords() {
+      localStorage.setItem('offenderNewsKeywords', keywordsInput.value);
+      if (lastEmails.length) {
+        renderEmails(lastEmails);
+      }
+    }
+
+    document.getElementById('refreshButton').addEventListener('click', fetchEmails);
+    document.getElementById('limitSelect').addEventListener('change', fetchEmails);
+    keywordsInput.addEventListener('change', reapplyKeywords);
+    keywordsInput.addEventListener('blur', reapplyKeywords);
+
+    fetchEmails();
+  </script>
+</body>
+</html>
+

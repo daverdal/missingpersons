@@ -35,6 +35,21 @@ This is a Node.js/Express/Neo4j app for managing cases of Missing and Murdered F
 - Uploaded files are saved to the `uploads` folder.
 - Audit logs are stored in Neo4j.
 
+### Offender News (Gmail Inbox)
+To enable the admin Offender News page, add these settings to `.env` for the mailbox you want to read:
+
+```
+OFFENDER_NEWS_EMAIL_IMAP_HOST=imap.gmail.com
+OFFENDER_NEWS_EMAIL_IMAP_PORT=993
+OFFENDER_NEWS_EMAIL_IMAP_SECURE=true
+OFFENDER_NEWS_EMAIL_USERNAME=alerts@example.com
+OFFENDER_NEWS_EMAIL_PASSWORD=your-app-password
+OFFENDER_NEWS_EMAIL_FOLDER=INBOX
+OFFENDER_NEWS_DEFAULT_LIMIT=25
+```
+
+If the mailbox uses Gmail with 2-Step Verification, generate an App Password and use it for `OFFENDER_NEWS_EMAIL_PASSWORD`. After updating `.env`, run `npm install` (installs `imapflow` and `mailparser`) and restart the server (`npm start`). The Offender News link is admin-only and shows the latest messages in the configured folder.
+
 ### SMS Notifications (Twilio Trial or Production)
 1. Create/upgrade a Twilio account and provision an SMS-capable phone number (or Messaging Service).
 2. Add the following environment variables (for example in `.env`):
