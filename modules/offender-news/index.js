@@ -204,6 +204,7 @@ function init(app, dependencies = {}) {
     newsModel,
     smsService,
     caseEventModel,
+    configModel,
     config = {}
   } = dependencies;
 
@@ -214,18 +215,28 @@ function init(app, dependencies = {}) {
     next();
   });
 
+  // Mutable email configuration so admin can update credentials at runtime
+  const emailConfig = {
+    host: config.host,
+    port: parseInteger(config.port, 993),
+    secure: parseBool(config.secure, true),
+    username: config.username,
+    password: config.password,
+    mailbox: config.mailbox || 'INBOX'
+  };
+
   router.get('/emails', async (req, res) => {
     const limit = parseInteger(req.query.limit, config.defaultLimit || 25);
 
     try {
       const emails = await emailService.fetchEmails(
         {
-          host: config.host,
-          port: parseInteger(config.port, 993),
-          secure: parseBool(config.secure, true),
-          username: config.username,
-          password: config.password,
-          mailbox: config.mailbox || 'INBOX'
+          host: emailConfig.host,
+          port: emailConfig.port,
+          secure: emailConfig.secure,
+          username: emailConfig.username,
+          password: emailConfig.password,
+          mailbox: emailConfig.mailbox
         },
         { limit }
       );
@@ -254,6 +265,53 @@ function init(app, dependencies = {}) {
 
       res.status(500).json({ error: 'Failed to fetch offender news emails.' });
     }
+  });
+
+  // Update email credentials (admin only, via module-level middleware)
+  router.post('/email-credentials', async (req, res) => {
+    const { username, password } = req.body || {};
+
+    if (!password || !String(password).trim()) {
+      return res.status(400).json({ error: 'Password is required' });
+    }
+
+    if (username && String(username).trim()) {
+      emailConfig.username = String(username).trim();
+    }
+    emailConfig.password = String(password);
+
+    // Persist to Neo4j so credentials survive restarts (if configModel available)
+    if (configModel) {
+      try {
+        await configModel.set('offender_news_email', {
+          host: emailConfig.host,
+          port: emailConfig.port,
+          secure: emailConfig.secure,
+          username: emailConfig.username,
+          password: emailConfig.password,
+          mailbox: emailConfig.mailbox
+        });
+      } catch (persistErr) {
+        console.error('[offender-news] failed to persist email credentials', persistErr);
+      }
+    }
+
+    try {
+      if (auditLogger) {
+        await auditLogger.log(req, {
+          action: 'offender-news.update_email_credentials',
+          resourceType: 'offender_news',
+          success: true,
+          details: {
+            updatedUsername: Boolean(username && String(username).trim())
+          }
+        });
+      }
+    } catch (logErr) {
+      console.warn('[offender-news] failed to audit email credential update', logErr);
+    }
+
+    return res.json({ success: true });
   });
 
   router.get('/police-rss', async (req, res) => {

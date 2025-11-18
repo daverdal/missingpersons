@@ -7,6 +7,26 @@
     <link rel="stylesheet" href="retro.css">
     <script src="navbar.js"></script>
     <script src="navbar-auth.js"></script>
+    <style>
+        .settings-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .settings-tab-btn {
+            background: #23272b;
+            color: #6fcf6f;
+            border: 1px solid #3a3f47;
+            border-radius: 999px;
+            padding: 0.4rem 1rem;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .settings-tab-btn.active {
+            background: #6fcf6f;
+            color: #000;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -15,7 +35,12 @@
     </header>
     <main>
     <h1>Settings</h1>
-        <section>
+        <div class="settings-tabs">
+            <button type="button" class="settings-tab-btn active" data-target="settings-org">Organizations</button>
+            <button type="button" class="settings-tab-btn" data-target="settings-fn">First Nations</button>
+            <button type="button" class="settings-tab-btn" data-target="settings-news">News Feed Settings</button>
+        </div>
+        <section id="settings-org">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
                 <h2 style="margin:0;">Organizations (Agencies)</h2>
                 <button id="addOrgBtn" style="padding:0.4rem 0.8rem;">Add Agency</button>
@@ -31,9 +56,33 @@
             </form>
             <div class="list" id="organizationList" style="margin-top:0.8rem;"></div>
         </section>
-        <section>
+        <section id="settings-fn" style="display:none;">
             <h2>First Nations</h2>
             <div class="list" id="communityList"></div>
+        </section>
+        <section id="settings-news" style="display:none;">
+            <h2>News Feed Settings</h2>
+            <div id="newsFeedSettingsBox">
+                <p>Below are the current settings used by the Offender News features (Inbox, Police RSS, Manitoba RSS, and Matches).</p>
+                <div id="newsFeedSettingsContent">
+                    <p>Loading news feed settings…</p>
+                </div>
+                <hr style="margin:1.5rem 0;border:none;border-top:1px solid #333;">
+                <h3>Update Offender News Inbox Gmail Credentials</h3>
+                <p>This is the Gmail account used to read the Offender News inbox (IMAP). Admins can update it here if the password changes.</p>
+                <form id="newsEmailCredsForm" style="max-width:480px;margin-top:0.8rem;">
+                    <label style="display:block;margin-bottom:0.5rem;">
+                        Gmail Address (username):
+                        <input type="email" id="newsEmailUsername" placeholder="offendernews@example.com">
+                    </label>
+                    <label style="display:block;margin-bottom:0.5rem;">
+                        Gmail Password:
+                        <input type="password" id="newsEmailPassword" placeholder="Enter new password">
+                    </label>
+                    <button type="submit">Save Email Credentials</button>
+                    <span id="newsEmailCredsStatus" style="margin-left:0.8rem;"></span>
+                </form>
+            </div>
         </section>
     </main>
     <script>
@@ -197,6 +246,59 @@
                 });
             });
     }
+    function loadNewsFeedSettings() {
+        const token = getToken();
+        fetch('/api/offender-news/settings', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        })
+        .then(r => r.json())
+        .then(data => {
+            const box = document.getElementById('newsFeedSettingsContent');
+            box.innerHTML = '';
+            const email = data.emailInbox || {};
+            const rss = data.rssFeeds || {};
+            const matching = data.matching || {};
+
+            const emailDiv = document.createElement('div');
+            emailDiv.innerHTML = `
+                <h3>Email Inbox</h3>
+                <p><strong>Server:</strong> ${email.host || '(not set)'}:${email.port || ''}</p>
+                <p><strong>Secure (TLS/SSL):</strong> ${String(email.secure)}</p>
+                <p><strong>Username (email address):</strong> ${email.username || '(not set)'}</p>
+                <p><strong>Mailbox/Folder:</strong> ${email.mailbox || '(default INBOX)'}</p>
+            `;
+
+            const rssDiv = document.createElement('div');
+            rssDiv.style.marginTop = '1.5rem';
+            rssDiv.innerHTML = `
+                <h3>RSS Feeds</h3>
+                <p><strong>Police RSS URL:</strong> ${rss.policeRssUrl || '(not set)'}</p>
+                <p><strong>Manitoba RSS URL:</strong> ${rss.manitobaRssUrl || '(not set)'}</p>
+            `;
+
+            const matchDiv = new DocumentFragment();
+            const matchWrapper = document.createElement('div');
+            matchWrapper.style.marginTop = '1.5rem';
+            matchWrapper.innerHTML = `
+                <h3>Match Criteria (for Offender Matches & SMS)</h3>
+                <p><strong>Client keywords field:</strong> ${matching.keywordProperty || 'Applicant.newsKeywords'}</p>
+                <p><strong>News fields searched:</strong> ${(matching.matchFields || ['NewsItem.title','NewsItem.description']).join(', ')}</p>
+                <p><strong>Case-insensitive search:</strong> ${String(matching.caseInsensitive !== false)}</p>
+                <p><strong>Send at most one SMS per news + keyword + client:</strong> ${String(matching.notifyOncePerNewsAndKeyword !== false)}</p>
+            `;
+            matchDiv.appendChild(matchWrapper);
+
+            box.appendChild(emailDiv);
+            box.appendChild(rssDiv);
+            box.appendChild(matchDiv);
+        })
+        .catch(err => {
+            console.error('Failed to load news feed settings', err);
+            const box = document.getElementById('newsFeedSettingsContent');
+            box.textContent = 'Failed to load news feed settings.';
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const addBtn = document.getElementById('addOrgBtn');
         const addForm = document.getElementById('addOrgForm');
@@ -249,8 +351,72 @@
             }
         }
 
-        loadOrganizations();
-        loadCommunities();
+        // Settings tab toggling
+        const tabButtons = document.querySelectorAll('.settings-tab-btn');
+        function showSettingsSection(id) {
+            document.getElementById('settings-org').style.display = (id === 'settings-org') ? 'block' : 'none';
+            document.getElementById('settings-fn').style.display = (id === 'settings-fn') ? 'block' : 'none';
+            document.getElementById('settings-news').style.display = (id === 'settings-news') ? 'block' : 'none';
+            tabButtons.forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-target') === id);
+            });
+            if (id === 'settings-org') loadOrganizations();
+            if (id === 'settings-fn') loadCommunities();
+            if (id === 'settings-news') loadNewsFeedSettings();
+        }
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const target = this.getAttribute('data-target');
+                showSettingsSection(target);
+            });
+        });
+
+        // Handle Gmail credential update form
+        const credsForm = document.getElementById('newsEmailCredsForm');
+        const usernameInput = document.getElementById('newsEmailUsername');
+        const passwordInput = document.getElementById('newsEmailPassword');
+        const statusSpan = document.getElementById('newsEmailCredsStatus');
+        if (credsForm) {
+            credsForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                statusSpan.textContent = '';
+                const username = (usernameInput.value || '').trim();
+                const password = (passwordInput.value || '').trim();
+                if (!password) {
+                    statusSpan.style.color = '#ff7f7f';
+                    statusSpan.textContent = 'Password is required.';
+                    return;
+                }
+                fetch('/api/offender-news/email-credentials', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    },
+                    body: JSON.stringify({ username, password })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.success) {
+                        statusSpan.style.color = '#6fcf6f';
+                        statusSpan.textContent = 'Updated.';
+                        // Clear only password field for security
+                        passwordInput.value = '';
+                    } else {
+                        statusSpan.style.color = '#ff7f7f';
+                        statusSpan.textContent = (data && data.error) || 'Failed to update credentials.';
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to update email credentials', err);
+                    statusSpan.style.color = '#ff7f7f';
+                    statusSpan.textContent = 'Failed to update credentials.';
+                });
+            });
+        }
+
+        // Initial load: Organizations tab
+        showSettingsSection('settings-org');
     });
     </script>
 </body>

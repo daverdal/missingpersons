@@ -301,6 +301,8 @@ const driver = neo4j.driver(
 const NEO4J_DATABASE = process.env.NEO4J_DATABASE || 'neo4j';
 
 
+const ConfigModel = require('./configModel');
+
 // User model setup
 const UserModel = require('./userModel');
 const userModel = new UserModel(driver);
@@ -311,6 +313,9 @@ const caseEventModel = new CaseEventModel(driver);
 
 // News model setup (for offender news, RSS, etc.)
 const newsModel = new NewsModel(driver);
+
+// Config model setup (for persisted settings like Offender News email)
+const configModel = new ConfigModel(driver);
 
 const AUDIT_LOG_RETENTION_DAYS = parseInt(process.env.AUDIT_LOG_RETENTION_DAYS || '730', 10);
 const auditLogModel = new AuditLogModel(driver);
@@ -338,37 +343,78 @@ const auditCleanupTimer = setInterval(async () => {
 }, AUDIT_CLEANUP_INTERVAL_MS);
 if (auditCleanupTimer.unref) auditCleanupTimer.unref();
 
-const OFFENDER_NEWS_EMAIL_HOST = process.env.OFFENDER_NEWS_EMAIL_IMAP_HOST;
-const OFFENDER_NEWS_EMAIL_PORT = parseInt(process.env.OFFENDER_NEWS_EMAIL_IMAP_PORT || '993', 10);
-const OFFENDER_NEWS_EMAIL_SECURE = process.env.OFFENDER_NEWS_EMAIL_IMAP_SECURE;
-const OFFENDER_NEWS_EMAIL_USERNAME = process.env.OFFENDER_NEWS_EMAIL_USERNAME;
-const OFFENDER_NEWS_EMAIL_PASSWORD = process.env.OFFENDER_NEWS_EMAIL_PASSWORD;
-const OFFENDER_NEWS_EMAIL_FOLDER = process.env.OFFENDER_NEWS_EMAIL_FOLDER || 'INBOX';
 const OFFENDER_NEWS_DEFAULT_LIMIT = parseInt(process.env.OFFENDER_NEWS_DEFAULT_LIMIT || '25', 10);
 const OFFENDER_NEWS_POLICE_RSS_URL =
   process.env.OFFENDER_NEWS_POLICE_RSS_URL || 'https://feeds.feedburner.com/WinnipegcaNewsReleases';
 const OFFENDER_NEWS_MANITOBA_RSS_URL =
   process.env.OFFENDER_NEWS_MANITOBA_RSS_URL || 'https://news.gov.mb.ca/news/index.rss';
 
-offenderNews.init(app, {
-  authMiddleware,
-  requireRole,
-  auditLogger,
-  newsModel,
-  smsService,
-  caseEventModel,
-  config: {
-    host: OFFENDER_NEWS_EMAIL_HOST,
-    port: OFFENDER_NEWS_EMAIL_PORT,
-    secure: OFFENDER_NEWS_EMAIL_SECURE,
-    username: OFFENDER_NEWS_EMAIL_USERNAME,
-    password: OFFENDER_NEWS_EMAIL_PASSWORD,
-    mailbox: OFFENDER_NEWS_EMAIL_FOLDER,
-    defaultLimit: OFFENDER_NEWS_DEFAULT_LIMIT,
-    policeRssUrl: OFFENDER_NEWS_POLICE_RSS_URL,
-    manitobaRssUrl: OFFENDER_NEWS_MANITOBA_RSS_URL
+// Base email config from environment (used if no override stored)
+let offenderNewsEmailConfig = {
+  host: process.env.OFFENDER_NEWS_EMAIL_IMAP_HOST || null,
+  port: parseInt(process.env.OFFENDER_NEWS_EMAIL_IMAP_PORT || '993', 10),
+  secure: process.env.OFFENDER_NEWS_EMAIL_IMAP_SECURE,
+  username: process.env.OFFENDER_NEWS_EMAIL_USERNAME || null,
+  password: process.env.OFFENDER_NEWS_EMAIL_PASSWORD || null,
+  mailbox: process.env.OFFENDER_NEWS_EMAIL_FOLDER || 'INBOX'
+};
+
+(async function initialiseOffenderNewsConfig() {
+  try {
+    const stored = await configModel.get('offender_news_email');
+    if (stored && typeof stored === 'object') {
+      offenderNewsEmailConfig = {
+        ...offenderNewsEmailConfig,
+        ...stored
+      };
+    }
+  } catch (err) {
+    console.error('Failed to load Offender News email config from Neo4j', err);
+  } finally {
+    offenderNews.init(app, {
+      authMiddleware,
+      requireRole,
+      auditLogger,
+      newsModel,
+      smsService,
+      caseEventModel,
+      configModel,
+      config: {
+        host: offenderNewsEmailConfig.host,
+        port: offenderNewsEmailConfig.port,
+        secure: offenderNewsEmailConfig.secure,
+        username: offenderNewsEmailConfig.username,
+        password: offenderNewsEmailConfig.password,
+        mailbox: offenderNewsEmailConfig.mailbox,
+        defaultLimit: OFFENDER_NEWS_DEFAULT_LIMIT,
+        policeRssUrl: OFFENDER_NEWS_POLICE_RSS_URL,
+        manitobaRssUrl: OFFENDER_NEWS_MANITOBA_RSS_URL
+      }
+    });
   }
-});
+})();
+
+// Read-only Offender News configuration for Settings page (admin only)
+app.get(
+  '/api/offender-news/settings',
+  authMiddleware,
+  requireRole('admin'),
+  (req, res) => {
+    res.json({
+      emailInbox: offenderNewsEmailConfig,
+      rssFeeds: {
+        policeRssUrl: OFFENDER_NEWS_POLICE_RSS_URL,
+        manitobaRssUrl: OFFENDER_NEWS_MANITOBA_RSS_URL
+      },
+      matching: {
+        keywordProperty: 'Applicant.newsKeywords',
+        matchFields: ['NewsItem.title', 'NewsItem.description'],
+        caseInsensitive: true,
+        notifyOncePerNewsAndKeyword: true
+      }
+    });
+  }
+);
 
 
 
