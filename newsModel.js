@@ -1,6 +1,8 @@
 // newsModel.js
 // Model and Neo4j queries for storing news items (emails, RSS, etc.)
 
+const neo4j = require('neo4j-driver');
+
 class NewsModel {
   constructor(driver) {
     this.driver = driver;
@@ -116,6 +118,43 @@ class NewsModel {
           keyword: kw
         };
       });
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Get all news items from the database.
+   * Returns array of news item objects.
+   */
+  async getAll(limit = 1000) {
+    const session = this.driver.session();
+    try {
+      // Ensure limit is an integer (Neo4j requires INTEGER, not FLOAT)
+      // Use neo4j.int() to create a proper Neo4j integer type
+      const limitValue = Math.floor(Math.max(1, Math.min(parseInt(limit, 10) || 1000, 10000)));
+      const limitInt = neo4j.int(limitValue);
+      
+      const result = await session.run(
+        `
+        MATCH (n:NewsItem)
+        RETURN n
+        ORDER BY 
+          CASE WHEN n.publishedAt IS NULL THEN 1 ELSE 0 END,
+          n.publishedAt DESC,
+          coalesce(n.title, '') ASC
+        LIMIT $limit
+        `,
+        { limit: limitInt }
+      );
+
+      return result.records.map(record => {
+        const n = record.get('n');
+        return n ? n.properties : null;
+      }).filter(Boolean);
+    } catch (err) {
+      console.error('Error fetching all news items:', err);
+      throw err;
     } finally {
       await session.close();
     }

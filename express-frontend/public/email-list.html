@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email List - Missing Persons App</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+    <script src="sms-menu.js"></script>
+    <style>
+        #statusMessage {
+            margin-top: 1rem;
+            padding: 0.8rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        #statusMessage.error {
+            color: #ff8080;
+            background: rgba(255, 128, 128, 0.1);
+            border: 1px solid #ff8080;
+        }
+        #statusMessage.info {
+            color: #6fcf6f;
+        }
+        table {
+            margin-top: 1.5rem;
+        }
+        .client-count {
+            margin: 1rem 0;
+            padding: 0.8rem;
+            background: #23272b;
+            border: 1px solid #333;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <header style="position:relative;">
+        <h1 style="text-align:center;">Email List</h1>
+        <!-- Navigation will be injected here -->
+    </header>
+    <main>
+        <script>
+            // Check if user is admin, redirect if not
+            function getToken() {
+                const match = document.cookie.match(/(^| )token=([^;]+)/);
+                if (match) return match[2];
+                return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+            }
+            function isAdmin() {
+                try {
+                    const token = getToken();
+                    if (!token) return false;
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    let roles = payload.roles || payload.groups || payload.roles_claim || [];
+                    if (!Array.isArray(roles)) roles = [roles];
+                    return roles.includes('admin');
+                } catch (e) {
+                    return false;
+                }
+            }
+            if (!isAdmin()) {
+                window.location.href = 'allcases.html';
+            }
+        </script>
+        <!-- SMS menu will be injected here -->
+        <h2>Clients with Email Addresses</h2>
+        <p>This page lists all clients who have registered their email address.</p>
+        
+        <div class="client-count" id="clientCount">
+            <strong>Loading clients...</strong>
+        </div>
+
+        <div id="statusMessage"></div>
+
+        <table id="clientsTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email Address</th>
+                    <th>Phone Number</th>
+                </tr>
+            </thead>
+            <tbody id="clientsTableBody">
+            </tbody>
+        </table>
+    </main>
+
+    <script>
+        function getToken() {
+            const match = document.cookie.match(/(^| )token=([^;]+)/);
+            if (match) return match[2];
+            return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        }
+
+        function setStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message || '';
+            statusEl.className = type || '';
+        }
+
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/applicants/with-email-addresses', {
+                    headers: {
+                        'Authorization': 'Bearer ' + getToken()
+                    }
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown error', details: 'Could not parse error response' }));
+                    const errorMsg = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+                    const details = errorData.details ? ` (${errorData.details})` : '';
+                    throw new Error(errorMsg + details);
+                }
+                const data = await response.json();
+                const clients = data.applicants || [];
+                
+                const countEl = document.getElementById('clientCount');
+                if (clients.length === 0) {
+                    countEl.innerHTML = '<strong>No clients with email addresses found.</strong>';
+                    setStatus('', '');
+                } else {
+                    countEl.innerHTML = `<strong>Found ${clients.length} client${clients.length === 1 ? '' : 's'} with email address${clients.length === 1 ? '' : 'es'}.</strong>`;
+                    renderClients(clients);
+                }
+            } catch (err) {
+                console.error('Failed to load clients:', err);
+                setStatus('Failed to load clients: ' + (err.message || err), 'error');
+            }
+        }
+
+        function renderClients(clients) {
+            const tbody = document.getElementById('clientsTableBody');
+            const table = document.getElementById('clientsTable');
+            tbody.innerHTML = '';
+            
+            if (clients.length === 0) {
+                table.style.display = 'none';
+                return;
+            }
+
+            table.style.display = 'table';
+            clients.forEach(client => {
+                const tr = document.createElement('tr');
+                const name = client.name || '(no name)';
+                tr.innerHTML = `
+                    <td><a href="casenotes.html?caseId=${encodeURIComponent(client.id)}">${escapeHtml(name)}</a></td>
+                    <td>${escapeHtml(client.email || '')}</td>
+                    <td>${escapeHtml(client.contact || '')}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Load clients on page load
+        loadClients();
+    </script>
+</body>
+</html>
+

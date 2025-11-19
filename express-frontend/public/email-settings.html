@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Settings - Admin</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+    <style>
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="number"] {
+            width: 100%;
+            max-width: 500px;
+            padding: 0.5rem;
+            box-sizing: border-box;
+        }
+        .help-text {
+            font-size: 0.9em;
+            color: #aaa;
+            margin-top: 0.25rem;
+        }
+        #statusMessage {
+            margin-top: 1rem;
+            padding: 0.8rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        #statusMessage.success {
+            color: #6fcf6f;
+            background: rgba(111, 207, 111, 0.1);
+            border: 1px solid #6fcf6f;
+        }
+        #statusMessage.error {
+            color: #ff8080;
+            background: rgba(255, 128, 128, 0.1);
+            border: 1px solid #ff8080;
+        }
+        .current-settings {
+            background: #23272b;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        .current-settings h3 {
+            margin-top: 0;
+        }
+        .current-settings p {
+            margin: 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Email Settings</h1>
+        <!-- Navigation will be injected here -->
+    </header>
+    <main>
+        <h2>Email Configuration</h2>
+        <p>Configure SMTP settings for sending emails (used by Email Blast feature).</p>
+        <p><strong>Note:</strong> These settings are stored in the database. You can also set them in your <code>.env</code> file, but database settings take precedence.</p>
+        
+        <div class="current-settings" id="currentSettings">
+            <h3>Current Settings</h3>
+            <p>Loading...</p>
+        </div>
+
+        <form id="emailSettingsForm">
+            <div class="form-group">
+                <label for="smtpHost">SMTP Host *</label>
+                <input type="text" id="smtpHost" placeholder="smtp.gmail.com" required>
+                <div class="help-text">The SMTP server hostname (e.g., smtp.gmail.com for Gmail)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="smtpPort">SMTP Port *</label>
+                <input type="number" id="smtpPort" placeholder="587" required>
+                <div class="help-text">SMTP port (587 for TLS, 465 for SSL)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="smtpSecure">Use SSL/TLS</label>
+                <select id="smtpSecure" style="padding: 0.5rem; max-width: 500px;">
+                    <option value="false">TLS (port 587)</option>
+                    <option value="true">SSL (port 465)</option>
+                </select>
+                <div class="help-text">Use SSL for secure connection (typically for port 465)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="smtpUser">SMTP Username (Email Address) *</label>
+                <input type="email" id="smtpUser" placeholder="your-email@gmail.com" required>
+                <div class="help-text">Your email address used for SMTP authentication</div>
+            </div>
+
+            <div class="form-group">
+                <label for="smtpPass">SMTP Password *</label>
+                <input type="password" id="smtpPass" placeholder="Enter password or app password">
+                <div class="help-text">Your email password or app-specific password (for Gmail, use an App Password)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="emailFrom">From Email Address *</label>
+                <input type="email" id="emailFrom" placeholder="your-email@gmail.com" required>
+                <div class="help-text">The "from" address that will appear in sent emails</div>
+            </div>
+
+            <div class="form-group">
+                <label for="emailReplyTo">Reply-To Address (Optional)</label>
+                <input type="email" id="emailReplyTo" placeholder="noreply+blast@yourdomain.com">
+                <div class="help-text">Optional: Separate address for replies (when recipients click "Reply"). Note: Bounce-back emails go to the "From Address" above, not this field. To redirect bounces, use a separate email account as the "From Address".</div>
+            </div>
+            
+            <div style="background: #2a2f35; border: 1px solid #444; border-radius: 4px; padding: 1rem; margin-top: 1.5rem;">
+                <h3 style="margin-top: 0;">About Bounce-Back Emails</h3>
+                <p><strong>Where do bounces go?</strong> Bounce-back emails go to the "From Address" you specify above, not the Reply-To address.</p>
+                <p><strong>Current protection:</strong> The system automatically filters out bounce-back emails from the Offender News inbox, so they won't trigger SMS alerts even if they arrive in your inbox.</p>
+                <p><strong>Best practice:</strong> If you want to completely separate bounces, create a dedicated Gmail account (e.g., <code>missingpersons-blasts@yourdomain.com</code>) and use it as the "From Address". All bounces will go to that account instead of your main inbox.</p>
+            </div>
+
+            <button type="submit" style="padding: 0.6rem 1.2rem; font-size: 1em;">Save Email Settings</button>
+            <span id="statusMessage"></span>
+        </form>
+    </main>
+
+    <script>
+        function getToken() {
+            const match = document.cookie.match(/(^| )token=([^;]+)/);
+            if (match) return match[2];
+            return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        }
+
+        function isAdmin() {
+            try {
+                const token = getToken();
+                if (!token) return false;
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                let roles = payload.roles || payload.groups || payload.roles_claim || [];
+                if (!Array.isArray(roles)) roles = [roles];
+                return roles.includes('admin');
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function setStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message || '';
+            statusEl.className = type || '';
+        }
+
+        function loadCurrentSettings() {
+            fetch('/api/email-settings', {
+                headers: {
+                    'Authorization': 'Bearer ' + getToken()
+                }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const settings = data.settings || {};
+                const currentDiv = document.getElementById('currentSettings');
+                
+                if (Object.keys(settings).length === 0) {
+                    currentDiv.innerHTML = '<h3>Current Settings</h3><p>No settings configured in database. Using .env file values or defaults.</p>';
+                } else {
+                    currentDiv.innerHTML = `
+                        <h3>Current Settings</h3>
+                        <p><strong>SMTP Host:</strong> ${settings.smtpHost || '(not set)'}</p>
+                        <p><strong>SMTP Port:</strong> ${settings.smtpPort || '(not set)'}</p>
+                        <p><strong>Use SSL:</strong> ${settings.smtpSecure === true ? 'Yes' : 'No'}</p>
+                        <p><strong>SMTP Username:</strong> ${settings.smtpUser || '(not set)'}</p>
+                        <p><strong>From Address:</strong> ${settings.emailFrom || '(not set)'}</p>
+                        <p><strong>Reply-To:</strong> ${settings.emailReplyTo || '(not set)'}</p>
+                    `;
+                }
+
+                // Populate form with current settings (if any)
+                if (settings.smtpHost) document.getElementById('smtpHost').value = settings.smtpHost;
+                if (settings.smtpPort) document.getElementById('smtpPort').value = settings.smtpPort;
+                if (settings.smtpSecure !== undefined) document.getElementById('smtpSecure').value = String(settings.smtpSecure);
+                if (settings.smtpUser) document.getElementById('smtpUser').value = settings.smtpUser;
+                if (settings.emailFrom) document.getElementById('emailFrom').value = settings.emailFrom;
+                if (settings.emailReplyTo) document.getElementById('emailReplyTo').value = settings.emailReplyTo;
+                // Don't populate password for security
+            })
+            .catch(err => {
+                console.error('Failed to load email settings:', err);
+                setStatus('Failed to load current settings.', 'error');
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!isAdmin()) {
+                window.location.href = 'allcases.html';
+                return;
+            }
+
+            loadCurrentSettings();
+
+            const form = document.getElementById('emailSettingsForm');
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                setStatus('', '');
+
+                const settings = {
+                    smtpHost: document.getElementById('smtpHost').value.trim(),
+                    smtpPort: parseInt(document.getElementById('smtpPort').value, 10),
+                    smtpSecure: document.getElementById('smtpSecure').value === 'true',
+                    smtpUser: document.getElementById('smtpUser').value.trim(),
+                    emailFrom: document.getElementById('emailFrom').value.trim(),
+                    emailReplyTo: document.getElementById('emailReplyTo').value.trim() || null
+                };
+
+                // Password is optional (only update if provided)
+                const password = document.getElementById('smtpPass').value.trim();
+                if (password) {
+                    settings.smtpPass = password;
+                }
+
+                // Validate required fields
+                if (!settings.smtpHost || !settings.smtpPort || !settings.smtpUser || !settings.emailFrom) {
+                    setStatus('Please fill in all required fields.', 'error');
+                    return;
+                }
+
+                if (isNaN(settings.smtpPort) || settings.smtpPort < 1 || settings.smtpPort > 65535) {
+                    setStatus('SMTP Port must be a valid port number (1-65535).', 'error');
+                    return;
+                }
+
+                fetch('/api/email-settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    },
+                    body: JSON.stringify(settings)
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        setStatus('Email settings saved successfully!', 'success');
+                        // Clear password field for security
+                        document.getElementById('smtpPass').value = '';
+                        // Reload current settings to show updated values
+                        loadCurrentSettings();
+                    } else {
+                        setStatus('Failed to save settings: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to save email settings:', err);
+                    setStatus('Failed to save settings: ' + err.message, 'error');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+

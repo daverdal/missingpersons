@@ -8,67 +8,24 @@
   <script src="navbar.js"></script>
   <script src="navbar-auth.js"></script>
   <style>
-    body {
-      background: #181c20;
-      color: #e0e0e0;
-      font-family: 'Roboto', Arial, sans-serif;
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    header {
-      text-align: center;
-      padding: 1.5rem 1rem 0 1rem;
-    }
-    header h1 {
-      margin: 0.5rem 0 1.5rem 0;
-      color: #f7c873;
-    }
-    main {
-      flex: 1;
-      max-width: 1200px;
-      margin: 0 auto 2rem auto;
-      padding: 0 1.5rem 2rem 1.5rem;
-      background: #20242a;
-      border-radius: 12px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
-    }
+    /* Additional styles for audit log page to work with retro theme */
     .controls {
-      padding: 1.5rem 1.5rem 0.5rem 1.5rem;
-      border-bottom: 1px solid #2f333a;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid #333;
     }
     .form-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 1rem;
+      gap: 1.2rem;
       margin-bottom: 1rem;
     }
     .form-field {
       display: flex;
       flex-direction: column;
     }
-    label {
-      font-size: 0.9rem;
-      color: #b0b0b0;
-      margin-bottom: 0.35rem;
-    }
-    input[type="text"],
-    input[type="datetime-local"],
-    select {
-      background: #181c20;
-      color: #e0e0e0;
-      border: 1px solid #3a3f47;
-      border-radius: 6px;
-      padding: 0.45rem 0.6rem;
-      font-size: 0.95rem;
-    }
-    input[type="text"]:focus,
-    input[type="datetime-local"]:focus,
-    select:focus {
-      outline: none;
-      border-color: #f7c873;
-      box-shadow: 0 0 0 2px rgba(247, 200, 115, 0.2);
+    .form-field label {
+      margin-bottom: 0.5em;
     }
     .filter-actions,
     .secondary-actions {
@@ -76,58 +33,25 @@
       flex-wrap: wrap;
       gap: 0.75rem;
       align-items: center;
-    }
-    button,
-    .link-btn {
-      background: #f7c873;
-      color: #181c20;
-      border: none;
-      padding: 0.55rem 1.2rem;
-      border-radius: 6px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s ease;
-    }
-    button:hover,
-    .link-btn:hover {
-      background: #ffd48e;
-    }
-    button[disabled] {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .link-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      text-decoration: none;
+      margin-top: 1rem;
     }
     .quick-filters {
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
       margin: 1rem 0 1.25rem 0;
+      align-items: center;
     }
-    .quick-filters button {
-      background: #2c3138;
-      color: #f7c873;
-      border: 1px solid #3a3f47;
-    }
-    .quick-filters button:hover {
-      background: #3a3f47;
-    }
-    .secondary-actions {
-      margin-top: 0.75rem;
+    .quick-filters span {
+      font-size: 0.9rem;
+      color: #6fcf6f;
+      margin-right: 0.5rem;
     }
     .secondary-actions label {
       margin: 0;
       display: flex;
       align-items: center;
       gap: 0.4rem;
-      color: #d5d5d5;
-    }
-    .secondary-actions input[type="checkbox"] {
-      transform: scale(1.1);
     }
     #statusMessage {
       margin-top: 0.8rem;
@@ -138,55 +62,31 @@
       color: #ff8080;
     }
     #statusMessage.success {
-      color: #7ddc91;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 1.5rem;
-    }
-    thead {
-      background: #1a1e24;
-    }
-    thead th {
-      text-align: left;
-      padding: 0.8rem;
-      font-size: 0.85rem;
-      letter-spacing: 0.02em;
-      color: #f7c873;
-    }
-    tbody td {
-      padding: 0.75rem 0.8rem;
-      border-top: 1px solid #2f333a;
-      vertical-align: top;
-      font-size: 0.92rem;
-    }
-    tbody tr:hover {
-      background: rgba(247, 200, 115, 0.05);
+      color: #6fcf6f;
     }
     .log-user {
       font-weight: 600;
-      color: #e8e8e8;
     }
     .log-user-id {
-      font-size: 0.8rem;
-      color: #9ca3af;
+      font-size: 0.85rem;
+      color: #8fbc8f;
+      margin-top: 0.2rem;
     }
     .log-action {
       font-weight: 600;
-      color: #f7c873;
+      color: #6fcf6f;
     }
     .log-message {
       font-size: 0.85rem;
-      color: #c8c8c8;
+      color: #8fbc8f;
       margin-top: 0.25rem;
     }
     .log-resource {
-      color: #d0d0d0;
+      color: inherit;
     }
     .log-resource small {
       display: block;
-      color: #9ca3af;
+      color: #8fbc8f;
       margin-top: 0.25rem;
       font-size: 0.8rem;
       word-break: break-all;
@@ -195,24 +95,26 @@
       display: inline-flex;
       align-items: center;
       padding: 0.15rem 0.55rem;
-      border-radius: 999px;
+      border-radius: 4px;
       font-size: 0.78rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.03em;
     }
     .badge.success {
-      background: rgba(125, 220, 145, 0.2);
-      color: #7ddc91;
+      background: rgba(111, 207, 111, 0.2);
+      color: #6fcf6f;
+      border: 1px solid #6fcf6f;
     }
     .badge.failure {
       background: rgba(255, 128, 128, 0.2);
       color: #ff8080;
+      border: 1px solid #ff8080;
     }
     details {
-      background: #181c20;
-      border-radius: 6px;
-      border: 1px solid #2f333a;
+      background: #23272b;
+      border-radius: 4px;
+      border: 1px solid #333;
       padding: 0.35rem 0.55rem;
       max-width: 360px;
     }
@@ -220,7 +122,7 @@
       cursor: pointer;
       font-size: 0.85rem;
       font-weight: 600;
-      color: #f7c873;
+      color: #6fcf6f;
       outline: none;
     }
     details pre {
@@ -229,27 +131,28 @@
       line-height: 1.35;
       white-space: pre-wrap;
       word-break: break-word;
-      background: rgba(26, 30, 36, 0.9);
+      background: #000;
       border-radius: 4px;
       padding: 0.6rem;
-      color: #cfd2d6;
+      color: #6fcf6f;
+      border: 1px solid #333;
     }
     .load-more-wrapper {
       display: flex;
       justify-content: flex-end;
-      padding: 1rem 1.5rem 1.5rem 1.5rem;
+      padding: 1rem 0;
+      margin-top: 1rem;
+    }
+    button[disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     @media (max-width: 900px) {
-      main {
-        margin: 0 1rem 2rem 1rem;
-        padding: 1rem;
-      }
-      .controls {
-        padding: 1rem 0.5rem 0.5rem 0.5rem;
+      .form-grid {
+        grid-template-columns: 1fr;
       }
       .load-more-wrapper {
         justify-content: center;
-        padding: 1rem 0;
       }
       details {
         max-width: none;
@@ -258,8 +161,9 @@
   </style>
 </head>
 <body>
-  <header>
-    <h1>Audit Log</h1>
+  <header style="position:relative;">
+    <h1 style="text-align:center;">Audit Log</h1>
+    <!-- Navigation will be injected here -->
   </header>
   <main>
     <section class="controls">
@@ -310,7 +214,7 @@
         </div>
       </form>
       <div class="quick-filters">
-        <span style="font-size:0.85rem;color:#b0b0b0;">Quick range:</span>
+        <span>Quick range:</span>
         <button type="button" data-range="24">Last 24 hours</button>
         <button type="button" data-range="168">Last 7 days</button>
         <button type="button" data-range="720">Last 30 days</button>

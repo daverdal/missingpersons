@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMS Blast - Missing Persons App</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+    <script src="sms-menu.js"></script>
+    <style>
+        #statusMessage {
+            margin-top: 1rem;
+            padding: 0.8rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        #statusMessage.error {
+            color: #ff8080;
+            background: rgba(255, 128, 128, 0.1);
+            border: 1px solid #ff8080;
+        }
+        #statusMessage.success {
+            color: #6fcf6f;
+            background: rgba(111, 207, 111, 0.1);
+            border: 1px solid #6fcf6f;
+        }
+        #statusMessage.info {
+            color: #6fcf6f;
+        }
+        .client-count {
+            margin: 1rem 0;
+            padding: 0.8rem;
+            background: #23272b;
+            border: 1px solid #333;
+            border-radius: 4px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        .preview-section {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #23272b;
+            border: 1px solid #333;
+            border-radius: 4px;
+        }
+        button[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <header style="position:relative;">
+        <h1 style="text-align:center;">SMS Blast</h1>
+        <!-- Navigation will be injected here -->
+    </header>
+    <main>
+        <!-- SMS menu will be injected here -->
+        <script>
+            // Check if user is admin, redirect if not
+            function getToken() {
+                const match = document.cookie.match(/(^| )token=([^;]+)/);
+                if (match) return match[2];
+                return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+            }
+            function isAdmin() {
+                try {
+                    const token = getToken();
+                    if (!token) return false;
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    let roles = payload.roles || payload.groups || payload.roles_claim || [];
+                    if (!Array.isArray(roles)) roles = [roles];
+                    return roles.includes('admin');
+                } catch (e) {
+                    return false;
+                }
+            }
+            if (!isAdmin()) {
+                window.location.href = 'allcases.html';
+            }
+        </script>
+        <h2>Send SMS to All Clients</h2>
+        <p>This will send an SMS message to all clients who have registered their cell phone number.</p>
+        
+        <div class="client-count" id="clientCount">
+            <strong>Loading client count...</strong>
+        </div>
+
+        <form id="smsBlastForm">
+            <div class="form-row">
+                <label for="messageText">Message:</label>
+                <textarea id="messageText" name="message" required placeholder="Enter your message here..."></textarea>
+                <small style="display:block;margin-top:0.5rem;color:#8fbc8f;">Character count: <span id="charCount">0</span></small>
+            </div>
+            
+            <div class="preview-section" id="previewSection" style="display:none;">
+                <h3>Preview</h3>
+                <p id="previewText" style="white-space:pre-wrap;word-break:break-word;"></p>
+            </div>
+
+            <div class="form-row">
+                <button type="submit" id="sendButton">Send SMS to All Clients</button>
+                <button type="button" id="previewButton">Preview</button>
+            </div>
+        </form>
+
+        <div id="statusMessage"></div>
+    </main>
+
+    <script>
+        let clientCount = 0;
+        let clientList = [];
+
+        function getToken() {
+            const match = document.cookie.match(/(^| )token=([^;]+)/);
+            if (match) return match[2];
+            return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        }
+
+        function setStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message || '';
+            statusEl.className = type || '';
+        }
+
+        function updateCharCount() {
+            const textarea = document.getElementById('messageText');
+            const charCount = document.getElementById('charCount');
+            const count = textarea.value.length;
+            charCount.textContent = count;
+            if (count > 160) {
+                charCount.style.color = '#ff8080';
+            } else {
+                charCount.style.color = '#8fbc8f';
+            }
+        }
+
+        async function loadClientCount() {
+            try {
+                const response = await fetch('/api/applicants/with-phone-numbers', {
+                    headers: {
+                        'Authorization': 'Bearer ' + getToken()
+                    }
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown error', details: 'Could not parse error response' }));
+                    const errorMsg = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+                    const details = errorData.details ? ` (${errorData.details})` : '';
+                    throw new Error(errorMsg + details);
+                }
+                const data = await response.json();
+                clientList = data.applicants || [];
+                clientCount = clientList.length;
+                const countEl = document.getElementById('clientCount');
+                if (clientCount === 0) {
+                    countEl.innerHTML = '<strong>No clients with phone numbers found.</strong>';
+                } else {
+                    countEl.innerHTML = `<strong>${clientCount} client${clientCount === 1 ? '' : 's'} with phone number${clientCount === 1 ? '' : 's'} will receive this message.</strong>`;
+                }
+            } catch (err) {
+                console.error('Failed to load client count:', err);
+                setStatus('Failed to load client count: ' + (err.message || err), 'error');
+            }
+        }
+
+        function showPreview() {
+            const messageText = document.getElementById('messageText').value.trim();
+            if (!messageText) {
+                setStatus('Please enter a message to preview.', 'error');
+                return;
+            }
+            const previewSection = document.getElementById('previewSection');
+            const previewText = document.getElementById('previewText');
+            previewText.textContent = messageText;
+            previewSection.style.display = 'block';
+            setStatus('', '');
+        }
+
+        async function sendSmsBlast() {
+            const messageText = document.getElementById('messageText').value.trim();
+            if (!messageText) {
+                setStatus('Please enter a message.', 'error');
+                return;
+            }
+            if (clientCount === 0) {
+                setStatus('No clients with phone numbers found.', 'error');
+                return;
+            }
+
+            const sendButton = document.getElementById('sendButton');
+            sendButton.disabled = true;
+            sendButton.textContent = 'Sending...';
+
+            setStatus(`Sending SMS to ${clientCount} client${clientCount === 1 ? '' : 's'}...`, 'info');
+
+            try {
+                const response = await fetch('/api/sms-blast', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    },
+                    body: JSON.stringify({
+                        message: messageText
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Failed to send SMS blast', details: 'Could not parse error response' }));
+                    const errorMsg = errorData.error || 'Failed to send SMS blast';
+                    const details = errorData.details ? ` (${errorData.details})` : '';
+                    throw new Error(errorMsg + details);
+                }
+
+                const data = await response.json();
+                setStatus(`Successfully sent SMS to ${data.sent || 0} client${data.sent === 1 ? '' : 's'}. ${data.failed ? data.failed + ' failed.' : ''}`, 'success');
+                document.getElementById('smsBlastForm').reset();
+                document.getElementById('previewSection').style.display = 'none';
+                updateCharCount();
+            } catch (err) {
+                console.error('Failed to send SMS blast:', err);
+                setStatus('Failed to send SMS blast: ' + err.message, 'error');
+            } finally {
+                sendButton.disabled = false;
+                sendButton.textContent = 'Send SMS to All Clients';
+            }
+        }
+
+        document.getElementById('messageText').addEventListener('input', updateCharCount);
+        document.getElementById('previewButton').addEventListener('click', showPreview);
+        document.getElementById('smsBlastForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (confirm(`Are you sure you want to send this message to ${clientCount} client${clientCount === 1 ? '' : 's'}?`)) {
+                sendSmsBlast();
+            }
+        });
+
+        // Load client count on page load
+        loadClientCount();
+    </script>
+</body>
+</html>
+

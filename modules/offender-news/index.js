@@ -448,6 +448,45 @@ function init(app, dependencies = {}) {
     }
   });
 
+  router.get('/news-items', async (req, res) => {
+    if (!newsModel) {
+      res.status(500).json({ error: 'News model is not available.' });
+      return;
+    }
+
+    const limit = parseInteger(req.query.limit, 500);
+    // Ensure it's an integer (not float) for Neo4j
+    const limitInt = Math.floor(limit);
+
+    try {
+      const items = await newsModel.getAll(limitInt);
+
+      if (auditLogger) {
+        await auditLogger.log(req, {
+          action: 'offender-news.fetch_news_items',
+          resourceType: 'offender_news',
+          success: true,
+          details: { count: items.length }
+        });
+      }
+
+      res.json({ items });
+    } catch (err) {
+      console.error('[offender-news] failed to fetch news items', err);
+
+      if (auditLogger) {
+        await auditLogger.log(req, {
+          action: 'offender-news.fetch_news_items',
+          resourceType: 'offender_news',
+          success: false,
+          message: err.message
+        });
+      }
+
+      res.status(500).json({ error: 'Failed to fetch news items.' });
+    }
+  });
+
   router.get('/matches', async (req, res) => {
     if (!newsModel) {
       res.status(500).json({ error: 'News model is not available.' });

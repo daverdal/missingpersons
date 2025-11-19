@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>News Items - Missing Persons App</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+  <script src="offender-news-menu.js"></script>
+  <style>
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: #23272b;
+      border: 1px solid #333;
+      border-radius: 4px;
+    }
+    .news-item-card {
+      background: #23272b;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .news-item-card h3 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+    }
+    .news-item-card h3 a {
+      color: #6fcf6f;
+      text-decoration: none;
+    }
+    .news-item-card h3 a:hover {
+      text-decoration: underline;
+    }
+    .news-item-meta {
+      color: #aaa;
+      font-size: 0.9em;
+      margin-bottom: 0.5rem;
+    }
+    .news-item-description {
+      margin-top: 0.5rem;
+      color: #ccc;
+      line-height: 1.5;
+    }
+    .news-item-source {
+      display: inline-block;
+      background: #3a3f47;
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      font-size: 0.85em;
+      margin-right: 0.5rem;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: #aaa;
+    }
+    #statusMessage {
+      margin-left: auto;
+      color: #6fcf6f;
+    }
+    #statusMessage.error {
+      color: #ff8080;
+    }
+  </style>
+</head>
+<body>
+  <header style="position:relative;">
+    <h1 style="text-align:center;">News Items</h1>
+    <!-- Navigation will be injected here -->
+  </header>
+  <main>
+    <!-- Offender News menu will be injected here -->
+    <div class="toolbar">
+      <button id="refreshButton">Refresh</button>
+      <label for="limitSelect" style="display:flex;align-items:center;gap:0.6rem;">
+        Show
+        <select id="limitSelect">
+          <option value="100">100 items</option>
+          <option value="250" selected>250 items</option>
+          <option value="500">500 items</option>
+          <option value="1000">1000 items</option>
+        </select>
+      </label>
+      <span id="statusMessage"></span>
+    </div>
+    <div id="itemsContainer"></div>
+  </main>
+
+  <script>
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return 'Unknown date';
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleString();
+      } catch (e) {
+        return dateString;
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function setStatus(message, isError = false) {
+      const statusEl = document.getElementById('statusMessage');
+      statusEl.textContent = message || '';
+      statusEl.className = isError ? 'error' : '';
+    }
+
+    function renderItems(items) {
+      const container = document.getElementById('itemsContainer');
+      container.innerHTML = '';
+
+      if (!items || items.length === 0) {
+        container.innerHTML = '<div class="empty-state">No news items found in database.</div>';
+        return;
+      }
+
+      items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'news-item-card';
+
+        const title = escapeHtml(item.title || '(no title)');
+        const source = escapeHtml(item.source || 'Unknown');
+        const link = item.link || '#';
+        const publishedAt = formatDate(item.publishedAt);
+        const description = escapeHtml(item.description || '');
+
+        card.innerHTML = `
+          <div class="news-item-meta">
+            <span class="news-item-source">${source}</span>
+            <span>${publishedAt}</span>
+          </div>
+          <h3>
+            ${link && link !== '#' ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${title}</a>` : title}
+          </h3>
+          ${description ? `<div class="news-item-description">${description}</div>` : ''}
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    async function fetchNewsItems() {
+      const limit = parseInt(document.getElementById('limitSelect').value, 10);
+      setStatus('Loading...');
+
+      try {
+        const response = await fetch(`/api/offender-news/news-items?limit=${limit}`, {
+          headers: {
+            'Authorization': 'Bearer ' + getToken()
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch news items');
+        }
+
+        const data = await response.json();
+        renderItems(data.items || []);
+        setStatus(`Loaded ${(data.items || []).length} news items`);
+      } catch (err) {
+        console.error('Failed to fetch news items:', err);
+        setStatus('Failed to load news items', true);
+        document.getElementById('itemsContainer').innerHTML = '<div class="empty-state">Failed to load news items.</div>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('refreshButton').addEventListener('click', fetchNewsItems);
+      document.getElementById('limitSelect').addEventListener('change', fetchNewsItems);
+      fetchNewsItems();
+    });
+  </script>
+</body>
+</html>
+

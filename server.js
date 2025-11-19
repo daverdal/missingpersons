@@ -289,12 +289,42 @@ app.get('/api/loved-ones/with-coordinates', authMiddleware, async (req, res) => 
 
 
 // Neo4j connection
+const NEO4J_URI = process.env.NEO4J_URI || 'bolt://localhost:7687';
+const NEO4J_USER = process.env.NEO4J_USER || 'neo4j';
+const NEO4J_PASSWORD = process.env.NEO4J_PASSWORD || 'password';
+
+console.log(`Connecting to Neo4j at ${NEO4J_URI} as user: ${NEO4J_USER}`);
+if (!process.env.NEO4J_PASSWORD) {
+  console.warn('WARNING: Using default Neo4j password. Set NEO4J_PASSWORD in .env file for security.');
+}
+
+// Neo4j 4.0+ encryption configuration
+// For bolt:// (unencrypted), explicitly disable encryption
+// For neo4j:// or neo4j+s:// (encrypted), enable encryption
+const isEncrypted = NEO4J_URI.startsWith('neo4j://') || NEO4J_URI.startsWith('neo4j+s://');
+
+// Use driver constants if available, otherwise use strings
+let encryptionSetting;
+try {
+  encryptionSetting = isEncrypted ? neo4j.util.ENCRYPTION_ON : neo4j.util.ENCRYPTION_OFF;
+} catch (e) {
+  // Fallback to string values if constants not available
+  encryptionSetting = isEncrypted ? 'ENCRYPTION_ON' : 'ENCRYPTION_OFF';
+}
+
+const driverConfig = isEncrypted 
+  ? {
+      encrypted: encryptionSetting,
+      trust: 'TRUST_ALL_CERTIFICATES'
+    }
+  : {
+      encrypted: encryptionSetting
+    };
+
 const driver = neo4j.driver(
-  process.env.NEO4J_URI || 'bolt://localhost:7687',
-  neo4j.auth.basic(
-    process.env.NEO4J_USER || 'neo4j',
-    process.env.NEO4J_PASSWORD || 'password'
-  )
+  NEO4J_URI,
+  neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD),
+  driverConfig
 );
 
 // Default database selection (for Neo4j multi-database setups)
@@ -328,8 +358,28 @@ const auditLogger = new AuditLogger({
   try {
     await auditLogModel.ensureIndexes();
     await auditLogModel.cleanupOlderThan(auditLogger.getRetentionCutoffIso());
+    console.log('Audit logging initialized successfully');
   } catch (err) {
-    console.error('Failed to initialise audit logging', err);
+    if (err.code === 'Neo.ClientError.Security.Unauthorized') {
+      console.error('========================================');
+      console.error('NEO4J AUTHENTICATION FAILED');
+      console.error('========================================');
+      console.error('The Neo4j credentials are incorrect or the database is not accessible.');
+      console.error(`URI: ${NEO4J_URI}`);
+      console.error(`User: ${NEO4J_USER}`);
+      console.error('Password: ' + (NEO4J_PASSWORD ? '***' : '(not set)'));
+      console.error('');
+      console.error('To fix this:');
+      console.error('1. Ensure Neo4j is running');
+      console.error('2. Create a .env file in the project root with:');
+      console.error('   NEO4J_URI=bolt://localhost:7687');
+      console.error('   NEO4J_USER=neo4j');
+      console.error('   NEO4J_PASSWORD=your_actual_password');
+      console.error('3. Restart the server');
+      console.error('========================================');
+    } else {
+      console.error('Failed to initialise audit logging', err.message);
+    }
   }
 })();
 
@@ -369,7 +419,12 @@ let offenderNewsEmailConfig = {
       };
     }
   } catch (err) {
-    console.error('Failed to load Offender News email config from Neo4j', err);
+    if (err.code === 'Neo.ClientError.Security.Unauthorized') {
+      console.error('Failed to load Offender News email config from Neo4j: Authentication failed');
+      console.error('This is likely the same Neo4j authentication issue. Please check your .env file.');
+    } else {
+      console.error('Failed to load Offender News email config from Neo4j', err.message);
+    }
   } finally {
     offenderNews.init(app, {
       authMiddleware,
@@ -415,6 +470,89 @@ app.get(
     });
   }
 );
+
+// Get email settings (admin only)
+app.get('/api/email-settings', authMiddleware, requireRole('admin'), async (req, res) => {
+  try {
+    const stored = await configModel.get('email_settings');
+    res.json({ settings: stored || {} });
+  } catch (err) {
+    console.error('Failed to fetch email settings:', err);
+    res.status(500).json({ error: 'Failed to fetch email settings' });
+  }
+});
+
+// Save email settings (admin only)
+app.post('/api/email-settings', authMiddleware, requireRole('admin'), async (req, res) => {
+  try {
+    const {
+      smtpHost,
+      smtpPort,
+      smtpSecure,
+      smtpUser,
+      smtpPass,
+      emailFrom,
+      emailReplyTo
+    } = req.body || {};
+
+    // Validate required fields
+    if (!smtpHost || !smtpPort || !smtpUser || !emailFrom) {
+      return res.status(400).json({ error: 'SMTP Host, Port, Username, and From Address are required' });
+    }
+
+    if (isNaN(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
+      return res.status(400).json({ error: 'SMTP Port must be a valid port number (1-65535)' });
+    }
+
+    // Get existing settings to preserve password if not provided
+    const existing = await configModel.get('email_settings') || {};
+    
+    const settings = {
+      smtpHost: String(smtpHost).trim(),
+      smtpPort: parseInt(smtpPort, 10),
+      smtpSecure: smtpSecure === true || smtpSecure === 'true',
+      smtpUser: String(smtpUser).trim(),
+      emailFrom: String(emailFrom).trim(),
+      emailReplyTo: emailReplyTo ? String(emailReplyTo).trim() : null
+    };
+
+    // Only update password if provided
+    if (smtpPass && String(smtpPass).trim()) {
+      settings.smtpPass = String(smtpPass).trim();
+    } else if (existing.smtpPass) {
+      // Preserve existing password if not provided
+      settings.smtpPass = existing.smtpPass;
+    } else {
+      return res.status(400).json({ error: 'SMTP Password is required (or must be set previously)' });
+    }
+
+    // Save to database
+    await configModel.set('email_settings', settings);
+
+    await auditLogger.log(req, {
+      action: 'email.settings.update',
+      resourceType: 'email_settings',
+      success: true,
+      details: {
+        smtpHost: settings.smtpHost,
+        smtpPort: settings.smtpPort,
+        smtpUser: settings.smtpUser,
+        emailFrom: settings.emailFrom
+      }
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to save email settings:', err);
+    await auditLogger.log(req, {
+      action: 'email.settings.update',
+      resourceType: 'email_settings',
+      success: false,
+      message: err.message
+    });
+    res.status(500).json({ error: 'Failed to save email settings' });
+  }
+});
 
 
 
@@ -620,6 +758,79 @@ app.get('/api/health/db', async (req, res) => {
     await session.close();
   }
 });
+
+// Get all applicants with phone numbers (admin only) - MUST be before /api/applicants/:id route
+app.get('/api/applicants/with-phone-numbers', authMiddleware, requireRole('admin'), async (req, res) => {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (a:Applicant)
+       WHERE a.contact IS NOT NULL AND a.contact <> ''
+       RETURN a.id AS id, a.name AS name, a.contact AS contact, a.email AS email
+       ORDER BY a.name`
+    );
+    const applicants = result.records.map(r => {
+      const id = r.get('id');
+      const name = r.get('name');
+      const contact = r.get('contact');
+      const email = r.get('email');
+      return {
+        id: id ? String(id) : '',
+        name: name ? String(name) : '',
+        contact: contact ? String(contact) : '',
+        email: email ? String(email) : ''
+      };
+    });
+    res.json({ applicants });
+  } catch (err) {
+    console.error('Failed to fetch applicants with phone numbers:', err);
+    console.error('Error stack:', err.stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch applicants', 
+      details: err.message,
+      code: err.code
+    });
+  } finally {
+    await session.close();
+  }
+});
+
+// Get all applicants with email addresses (admin only) - MUST be before /api/applicants/:id route
+app.get('/api/applicants/with-email-addresses', authMiddleware, requireRole('admin'), async (req, res) => {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (a:Applicant)
+       WHERE a.email IS NOT NULL AND a.email <> ''
+       RETURN a.id AS id, a.name AS name, a.email AS email, a.contact AS contact
+       ORDER BY a.name`
+    );
+    const applicants = result.records.map(r => {
+      const id = r.get('id');
+      const name = r.get('name');
+      const email = r.get('email');
+      const contact = r.get('contact');
+      return {
+        id: id ? String(id) : '',
+        name: name ? String(name) : '',
+        email: email ? String(email) : '',
+        contact: contact ? String(contact) : ''
+      };
+    });
+    res.json({ applicants });
+  } catch (err) {
+    console.error('Failed to fetch applicants with email addresses:', err);
+    console.error('Error stack:', err.stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch applicants', 
+      details: err.message,
+      code: err.code
+    });
+  } finally {
+    await session.close();
+  }
+});
+
 // Get applicant info by ID (for case notes page)
 // Enhanced: Also return referring organization (even if soft deleted)
 app.get('/api/applicants/:id', authMiddleware, async (req, res) => {
@@ -1260,6 +1471,665 @@ app.get('/api/cases/:caseId/events',
   }
 );
 
+// Normalize phone number to E.164 format
+function normalizePhone(raw) {
+  if (!raw) return '';
+  const trimmed = String(raw).trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('+')) {
+    return trimmed;
+  }
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return '+1' + digits;
+  }
+  if (digits.length > 0) {
+    return '+' + digits;
+  }
+  return '';
+}
+
+// Send SMS blast to all clients with phone numbers (admin only)
+app.post('/api/sms-blast', authMiddleware, requireRole('admin'), async (req, res) => {
+  if (!smsService.isConfigured()) {
+    await auditLogger.log(req, {
+      action: 'sms.blast',
+      resourceType: 'sms',
+      resourceId: null,
+      success: false,
+      message: 'SMS service not configured'
+    });
+    return res.status(503).json({ error: 'SMS service is not configured' });
+  }
+
+  const { message } = req.body || {};
+  const trimmedMessage = (message || '').trim();
+  if (!trimmedMessage) {
+    await auditLogger.log(req, {
+      action: 'sms.blast',
+      resourceType: 'sms',
+      resourceId: null,
+      success: false,
+      message: 'Message is required'
+    });
+    return res.status(400).json({ error: 'Message is required' });
+  }
+
+  const session = driver.session();
+  try {
+    // Get all applicants with phone numbers
+    const result = await session.run(
+      `MATCH (a:Applicant)
+       WHERE a.contact IS NOT NULL AND a.contact <> ''
+       RETURN a.id AS id, a.name AS name, a.contact AS contact`
+    );
+
+    const applicants = result.records.map(r => ({
+      id: r.get('id'),
+      name: r.get('name') || '',
+      contact: r.get('contact') || ''
+    }));
+
+    if (applicants.length === 0) {
+      await auditLogger.log(req, {
+        action: 'sms.blast',
+        resourceType: 'sms',
+        resourceId: null,
+        success: false,
+        message: 'No applicants with phone numbers found'
+      });
+      return res.status(400).json({ error: 'No applicants with phone numbers found' });
+    }
+
+    let sent = 0;
+    let failed = 0;
+    const errors = [];
+
+    // Send SMS to each applicant
+    for (const applicant of applicants) {
+      const normalizedPhone = normalizePhone(applicant.contact);
+      if (!normalizedPhone) {
+        failed++;
+        errors.push(`${applicant.name || applicant.id}: Invalid phone number format`);
+        continue;
+      }
+
+      try {
+        await smsService.sendSms({
+          to: normalizedPhone,
+          body: trimmedMessage
+        });
+        sent++;
+
+        // Log as case event if possible
+        try {
+          await caseEventModel.addEvent(applicant.id, {
+            type: 'sms',
+            description: `SMS blast sent: "${trimmedMessage.length > 50 ? trimmedMessage.substring(0, 47) + '...' : trimmedMessage}"`,
+            user: req.user.name || req.user.email || 'admin'
+          });
+        } catch (logErr) {
+          console.warn(`SMS sent to ${applicant.id} but failed to log case event:`, logErr);
+        }
+      } catch (smsErr) {
+        failed++;
+        errors.push(`${applicant.name || applicant.id}: ${smsErr.message}`);
+        console.error(`Failed to send SMS to ${applicant.id} (${normalizedPhone}):`, smsErr);
+      }
+    }
+
+    await auditLogger.log(req, {
+      action: 'sms.blast',
+      resourceType: 'sms',
+      resourceId: null,
+      success: true,
+      details: {
+        total: applicants.length,
+        sent,
+        failed,
+        messageLength: trimmedMessage.length
+      }
+    });
+
+    res.json({
+      success: true,
+      total: applicants.length,
+      sent,
+      failed,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (err) {
+    console.error('Failed to send SMS blast:', err);
+    console.error('Error stack:', err.stack);
+    await auditLogger.log(req, {
+      action: 'sms.blast',
+      resourceType: 'sms',
+      resourceId: null,
+      success: false,
+      message: 'Failed to send SMS blast',
+      details: { error: err.message, code: err.code }
+    });
+    res.status(500).json({ 
+      error: 'Failed to send SMS blast', 
+      details: err.message,
+      code: err.code
+    });
+  } finally {
+    await session.close();
+  }
+});
+
+// Email sending safeguards: Track daily email count (in-memory, resets daily)
+const emailSendTracker = {
+  date: null,
+  count: 0,
+  maxDailyLimit: parseInt(process.env.EMAIL_DAILY_LIMIT || '400', 10) // Default 400 (safe margin under 500)
+};
+
+// Progress tracking for email blasts (in-memory, keyed by job ID)
+const emailBlastProgress = new Map();
+
+function getTodayDateString() {
+  return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+function getTodayEmailCount() {
+  const today = getTodayDateString();
+  if (emailSendTracker.date !== today) {
+    emailSendTracker.date = today;
+    emailSendTracker.count = 0;
+  }
+  return emailSendTracker.count;
+}
+
+function incrementEmailCount(count = 1) {
+  const today = getTodayDateString();
+  if (emailSendTracker.date !== today) {
+    emailSendTracker.date = today;
+    emailSendTracker.count = 0;
+  }
+  emailSendTracker.count += count;
+  return emailSendTracker.count;
+}
+
+// Validate email address format
+function isValidEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  if (trimmed.length === 0) return false;
+  // Basic email validation regex
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(trimmed);
+}
+
+// Check for potential spam trigger words (warning only)
+function checkSpamWords(text) {
+  const spamWords = [
+    'free', 'click here', 'act now', 'limited time', 'urgent', 'guarantee',
+    'winner', 'congratulations', 'prize', 'cash', '$$$', 'viagra', 'casino'
+  ];
+  const lowerText = text.toLowerCase();
+  const found = spamWords.filter(word => lowerText.includes(word));
+  return found;
+}
+
+// Get progress for an email blast job
+app.get('/api/email-blast/progress/:jobId', authMiddleware, requireRole('admin'), (req, res) => {
+  const { jobId } = req.params;
+  const progress = emailBlastProgress.get(jobId);
+  if (!progress) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  res.json(progress);
+});
+
+// Send Email blast to all clients with email addresses (admin only)
+app.post('/api/email-blast', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { subject, message } = req.body || {};
+  const trimmedSubject = (subject || '').trim();
+  const trimmedMessage = (message || '').trim();
+  
+  if (!trimmedSubject || !trimmedMessage) {
+    await auditLogger.log(req, {
+      action: 'email.blast',
+      resourceType: 'email',
+      resourceId: null,
+      success: false,
+      message: 'Subject and message are required'
+    });
+    return res.status(400).json({ error: 'Subject and message are required' });
+  }
+
+  // Check for spam words (warning only, don't block)
+  const spamWords = checkSpamWords(trimmedSubject + ' ' + trimmedMessage);
+  if (spamWords.length > 0) {
+    console.warn('Potential spam words detected:', spamWords);
+  }
+
+  // Get email settings: check database first, then Offender News config, then environment variables
+  let emailSettings = null;
+  
+  // Try to get email settings from database first
+  try {
+    emailSettings = await configModel.get('email_settings');
+  } catch (err) {
+    console.warn('Could not load email settings from database, trying other sources');
+  }
+  
+  // If no database settings, try Offender News email config
+  if (!emailSettings) {
+    let emailConfig = {
+      host: process.env.OFFENDER_NEWS_EMAIL_IMAP_HOST || null,
+      username: process.env.OFFENDER_NEWS_EMAIL_USERNAME || null,
+      password: process.env.OFFENDER_NEWS_EMAIL_PASSWORD || null
+    };
+    
+    try {
+      const stored = await configModel.get('offender_news_email');
+      if (stored && typeof stored === 'object') {
+        emailConfig = {
+          host: stored.host || emailConfig.host,
+          username: stored.username || emailConfig.username,
+          password: stored.password || emailConfig.password
+        };
+      }
+    } catch (err) {
+      // If we can't get stored config, use environment variables
+      console.warn('Could not load stored email config, using environment variables');
+    }
+    
+    // For Gmail, convert IMAP settings to SMTP
+    // Gmail SMTP uses smtp.gmail.com on port 587 (TLS) or 465 (SSL)
+    if (emailConfig.host && emailConfig.username && emailConfig.password) {
+      emailSettings = {
+        smtpHost: emailConfig.host.includes('gmail') ? 'smtp.gmail.com' : emailConfig.host.replace('imap', 'smtp'),
+        smtpPort: 587,
+        smtpSecure: false,
+        smtpUser: emailConfig.username,
+        smtpPass: emailConfig.password,
+        emailFrom: emailConfig.username,
+        emailReplyTo: process.env.EMAIL_BLAST_REPLY_TO || null
+      };
+    }
+  }
+  
+  // Fall back to environment variables if still no settings
+  if (!emailSettings) {
+    emailSettings = {
+      smtpHost: process.env.SMTP_HOST || null,
+      smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
+      smtpSecure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465',
+      smtpUser: process.env.SMTP_USER || null,
+      smtpPass: process.env.SMTP_PASS || null,
+      emailFrom: process.env.EMAIL_FROM || process.env.SMTP_FROM || null,
+      emailReplyTo: process.env.EMAIL_BLAST_REPLY_TO || null
+    };
+  }
+  
+  const emailFrom = emailSettings.emailFrom;
+  const emailHost = emailSettings.smtpHost;
+  const emailUser = emailSettings.smtpUser;
+  const emailPass = emailSettings.smtpPass;
+  
+  if (!emailFrom || !emailHost || !emailUser || !emailPass) {
+    await auditLogger.log(req, {
+      action: 'email.blast',
+      resourceType: 'email',
+      resourceId: null,
+      success: false,
+      message: 'Email service not configured'
+    });
+    return res.status(503).json({ 
+      error: 'Email service is not configured. Please configure email settings in the Email Settings page or set SMTP_* environment variables.' 
+    });
+  }
+
+  // Check daily email limit before proceeding
+  const todayCount = getTodayEmailCount();
+  // Generate a job ID for progress tracking
+  const jobId = require('uuid').v4();
+  const progress = {
+    jobId,
+    total: 0,
+    sent: 0,
+    failed: 0,
+    current: 0,
+    status: 'starting',
+    startTime: new Date().toISOString(),
+    errors: []
+  };
+  emailBlastProgress.set(jobId, progress);
+
+  // Clean up old progress entries (older than 1 hour)
+  const oneHourAgo = Date.now() - (60 * 60 * 1000);
+  for (const [id, p] of emailBlastProgress.entries()) {
+    if (new Date(p.startTime).getTime() < oneHourAgo) {
+      emailBlastProgress.delete(id);
+    }
+  }
+
+  const session = driver.session();
+  try {
+    // Get all applicants with email addresses
+    const result = await session.run(
+      `MATCH (a:Applicant)
+       WHERE a.email IS NOT NULL AND a.email <> ''
+       RETURN a.id AS id, a.name AS name, a.email AS email`
+    );
+
+    const applicants = result.records.map(r => ({
+      id: r.get('id'),
+      name: r.get('name') || '',
+      email: r.get('email') || ''
+    })).filter(a => isValidEmail(a.email)); // Filter out invalid emails upfront
+
+    if (applicants.length === 0) {
+      emailBlastProgress.delete(jobId);
+      await auditLogger.log(req, {
+        action: 'email.blast',
+        resourceType: 'email',
+        resourceId: null,
+        success: false,
+        message: 'No applicants with valid email addresses found'
+      });
+      return res.status(400).json({ error: 'No applicants with valid email addresses found' });
+    }
+
+    // Check if sending this batch would exceed daily limit
+    const wouldExceed = todayCount + applicants.length > emailSendTracker.maxDailyLimit;
+    if (wouldExceed) {
+      const remaining = Math.max(0, emailSendTracker.maxDailyLimit - todayCount);
+      emailBlastProgress.delete(jobId);
+      await auditLogger.log(req, {
+        action: 'email.blast',
+        resourceType: 'email',
+        resourceId: null,
+        success: false,
+        message: `Daily email limit would be exceeded. ${remaining} emails remaining today.`
+      });
+      return res.status(429).json({ 
+        error: `Daily email limit would be exceeded. You can send ${remaining} more emails today (${todayCount}/${emailSendTracker.maxDailyLimit} already sent). Please try again tomorrow or send in smaller batches.` 
+      });
+    }
+
+    // Create transporter for sending emails
+    let nodemailer;
+    try {
+      nodemailer = require('nodemailer');
+    } catch (requireErr) {
+      emailBlastProgress.delete(jobId);
+      await auditLogger.log(req, {
+        action: 'email.blast',
+        resourceType: 'email',
+        resourceId: null,
+        success: false,
+        message: 'nodemailer package not installed'
+      });
+      return res.status(503).json({ 
+        error: 'Email service requires nodemailer package. Please run: npm install nodemailer' 
+      });
+    }
+
+    // Create transporter using settings from database/env
+    const smtpPort = emailSettings.smtpPort || 587;
+    const smtpSecure = emailSettings.smtpSecure || false;
+    
+    const transporter = nodemailer.createTransport({
+      host: emailHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: {
+        user: emailUser,
+        pass: emailPass
+      }
+    });
+
+    // Update progress
+    progress.total = applicants.length;
+    progress.status = 'sending';
+    emailBlastProgress.set(jobId, progress);
+
+    // Return job ID immediately and continue processing in background
+    res.json({ 
+      success: true, 
+      jobId,
+      message: 'Email blast started. Use the jobId to track progress.'
+    });
+
+    // Continue processing asynchronously (don't await)
+    processEmailBlastAsync(jobId, applicants, trimmedSubject, trimmedMessage, emailFrom, transporter, emailSettings, req, auditLogger, caseEventModel, emailSendTracker, spamWords).catch(err => {
+      console.error('Email blast async processing error:', err);
+      const finalProgress = emailBlastProgress.get(jobId);
+      if (finalProgress) {
+        finalProgress.status = 'error';
+        finalProgress.error = err.message;
+        emailBlastProgress.set(jobId, finalProgress);
+      }
+    });
+  } catch (err) {
+    emailBlastProgress.delete(jobId);
+    console.error('Failed to start email blast:', err);
+    // Only send response if headers haven't been sent yet
+    if (!res.headersSent) {
+      await auditLogger.log(req, {
+        action: 'email.blast',
+        resourceType: 'email',
+        resourceId: null,
+        success: false,
+        message: 'Failed to start email blast',
+        details: { error: err.message }
+      });
+      res.status(500).json({ 
+        error: 'Failed to start email blast', 
+        details: err.message
+      });
+    }
+  } finally {
+    await session.close();
+  }
+});
+
+// Async function to process email blast (runs in background)
+async function processEmailBlastAsync(jobId, applicants, trimmedSubject, trimmedMessage, emailFrom, transporter, emailSettings, req, auditLogger, caseEventModel, emailSendTracker, spamWords) {
+  let sent = 0;
+  let failed = 0;
+  const errors = [];
+  const progress = emailBlastProgress.get(jobId);
+  
+  if (!progress) {
+    console.error('Progress tracking not found for job:', jobId);
+    return;
+  }
+
+  try {
+    // Email sending configuration
+  const RATE_LIMIT_DELAY_MS = 1200; // 1.2 second delay = ~50 emails/minute (safe for Gmail)
+  const BATCH_SIZE = 20; // Send in batches of 20
+  const BATCH_BREAK_MS = 5000; // 5 second break between batches
+  const MAX_RETRIES = 2; // Retry failed sends up to 2 times
+  const RETRY_DELAY_MS = 3000; // 3 second delay before retry
+
+  // Helper function to update progress
+  function updateProgress() {
+    if (progress) {
+      progress.sent = sent;
+      progress.failed = failed;
+      progress.current = sent + failed;
+      progress.errors = errors.slice(-10); // Keep last 10 errors
+      emailBlastProgress.set(jobId, progress);
+    }
+  }
+
+  // Helper function to send a single email with retry logic
+  async function sendEmailWithRetry(applicant, retryCount = 0) {
+      const email = applicant.email.trim();
+      
+      try {
+        // Use a separate reply-to address for replies
+        // Note: Bounces typically go to the "from" address (envelope sender), not replyTo
+        // To redirect bounces, you need to use a separate email account for the "from" address
+        const replyTo = emailSettings.emailReplyTo || process.env.EMAIL_BLAST_REPLY_TO || null;
+        
+        const mailOptions = {
+          from: emailFrom,
+          to: email,
+          subject: trimmedSubject,
+          text: trimmedMessage,
+          html: trimmedMessage.replace(/\n/g, '<br>')
+        };
+        
+        // Only add replyTo if specified (some servers don't like null replyTo)
+        if (replyTo) {
+          mailOptions.replyTo = replyTo;
+        }
+        
+        await transporter.sendMail(mailOptions);
+        return { success: true };
+      } catch (emailErr) {
+        const errorMsg = emailErr.message || 'Unknown error';
+        const errorCode = emailErr.code || emailErr.responseCode;
+        
+        // Check if this is a retryable error
+        const isRetryable = (
+          errorMsg.toLowerCase().includes('timeout') ||
+          errorMsg.toLowerCase().includes('connection') ||
+          errorMsg.toLowerCase().includes('temporary') ||
+          errorCode === 'ETIMEDOUT' ||
+          errorCode === 'ECONNRESET' ||
+          (errorCode >= 500 && errorCode < 600) // Server errors
+        );
+        
+        // Check if this is a rate limit/quota error
+        const isRateLimit = (
+          errorMsg.toLowerCase().includes('rate limit') ||
+          errorMsg.toLowerCase().includes('too many') ||
+          errorMsg.toLowerCase().includes('quota') ||
+          errorMsg.toLowerCase().includes('exceeded') ||
+          errorCode === 550 ||
+          errorCode === 421 ||
+          (errorCode >= 430 && errorCode < 450)
+        );
+        
+        // Retry if retryable and haven't exceeded max retries
+        if (isRetryable && retryCount < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (retryCount + 1)));
+          return sendEmailWithRetry(applicant, retryCount + 1);
+        }
+        
+        return { 
+          success: false, 
+          error: errorMsg,
+          isRateLimit,
+          isRetryable
+        };
+      }
+    }
+
+  // Send emails in batches with breaks
+  for (let batchStart = 0; batchStart < applicants.length; batchStart += BATCH_SIZE) {
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, applicants.length);
+    const batch = applicants.slice(batchStart, batchEnd);
+    
+    console.log(`Sending email batch ${Math.floor(batchStart / BATCH_SIZE) + 1} (${batchStart + 1}-${batchEnd} of ${applicants.length})`);
+    
+    for (let i = 0; i < batch.length; i++) {
+      const applicant = batch[i];
+      const email = applicant.email.trim();
+      
+      if (!isValidEmail(email)) {
+        failed++;
+        errors.push(`${applicant.name || applicant.id}: Invalid email address format`);
+        updateProgress();
+        continue;
+      }
+
+      const result = await sendEmailWithRetry(applicant);
+      
+      if (result.success) {
+        sent++;
+        incrementEmailCount(1);
+
+        // Log as case event if possible
+        try {
+          await caseEventModel.addEvent(applicant.id, {
+            type: 'email',
+            description: `Email blast sent: "${trimmedSubject}"`,
+            user: req.user.name || req.user.email || 'admin'
+          });
+        } catch (logErr) {
+          console.warn(`Email sent to ${applicant.id} but failed to log case event:`, logErr);
+        }
+      } else {
+        failed++;
+        errors.push(`${applicant.name || applicant.id}: ${result.error}`);
+        console.error(`Failed to send email to ${applicant.id} (${email}):`, result.error);
+        
+        // If we hit a rate limit error, add extra delay and consider stopping
+        if (result.isRateLimit) {
+          console.warn('Rate limit detected, adding extended delay...');
+          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS * 10)); // 12 second delay
+          
+          // If we're getting rate limited, warn but continue with longer delays
+          if (failed > applicants.length * 0.1) { // If more than 10% are failing
+            console.warn('High failure rate detected, consider stopping the blast');
+          }
+        }
+      }
+      
+      // Update progress after each email
+      updateProgress();
+      
+      // Rate limiting: add delay between emails (except for the last one in batch)
+      if (i < batch.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
+      }
+    }
+    
+    // Break between batches (except after the last batch)
+    if (batchEnd < applicants.length) {
+      console.log(`Batch complete. Taking ${BATCH_BREAK_MS / 1000} second break before next batch...`);
+      await new Promise(resolve => setTimeout(resolve, BATCH_BREAK_MS));
+    }
+  }
+
+  // Mark as complete
+  const finalCount = getTodayEmailCount();
+  progress.status = 'completed';
+  progress.endTime = new Date().toISOString();
+  progress.sent = sent;
+  progress.failed = failed;
+  progress.errors = errors;
+  emailBlastProgress.set(jobId, progress);
+
+  await auditLogger.log(req, {
+    action: 'email.blast',
+    resourceType: 'email',
+    resourceId: jobId,
+    success: true,
+    details: {
+      total: applicants.length,
+      sent,
+      failed,
+      subject: trimmedSubject,
+      messageLength: trimmedMessage.length,
+      dailyCount: finalCount,
+      spamWordsDetected: spamWords.length > 0 ? spamWords : undefined
+    }
+  });
+
+    // Clean up progress after 1 hour
+    setTimeout(() => {
+      emailBlastProgress.delete(jobId);
+    }, 60 * 60 * 1000);
+  } catch (err) {
+    console.error('Error in email blast async processing:', err);
+    if (progress) {
+      progress.status = 'error';
+      progress.error = err.message;
+      emailBlastProgress.set(jobId, progress);
+    }
+  }
+}
 
 // File upload route (case worker or admin)
 // Upload a file to a specific case

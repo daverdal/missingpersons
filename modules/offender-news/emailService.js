@@ -21,6 +21,115 @@ function formatAddress(entry) {
   return name || address || '';
 }
 
+// Detect bounce-back/delivery failure emails
+function isBounceEmail(subject, from, textBody, parsed) {
+  if (!subject && !from && !textBody) return false;
+  
+  const subjectLower = (subject || '').toLowerCase();
+  const fromLower = (from || '').toLowerCase();
+  const textLower = (textBody || '').toLowerCase();
+  
+  // Common bounce-back subject patterns
+  const bounceSubjects = [
+    'delivery status notification',
+    'delivery failure',
+    'undeliverable',
+    'mail delivery failed',
+    'mail delivery subsystem',
+    'returned mail',
+    'failure notice',
+    'delivery notification',
+    'message not delivered',
+    'mail system error',
+    'delivery error',
+    'mailer-daemon',
+    'postmaster',
+    'mail delivery',
+    'delivery problem',
+    'message undeliverable',
+    'bounce',
+    'dsn',
+    'non-delivery report',
+    'noreply',
+    'no-reply',
+    'mailer daemon'
+  ];
+  
+  // Check subject
+  for (const pattern of bounceSubjects) {
+    if (subjectLower.includes(pattern)) {
+      return true;
+    }
+  }
+  
+  // Check from address (common bounce addresses)
+  const bounceFromPatterns = [
+    'mailer-daemon',
+    'mailer daemon',
+    'postmaster',
+    'mail delivery',
+    'mailer@',
+    'noreply@',
+    'no-reply@',
+    'bounce@',
+    'returned@',
+    'undeliverable@'
+  ];
+  
+  for (const pattern of bounceFromPatterns) {
+    if (fromLower.includes(pattern)) {
+      return true;
+    }
+  }
+  
+  // Check email headers for bounce indicators
+  if (parsed && parsed.headers) {
+    const headers = parsed.headers;
+    const autoSubmitted = headers.get('auto-submitted');
+    if (autoSubmitted && autoSubmitted.toLowerCase() === 'auto-generated') {
+      // Check if it's a delivery notification
+      if (subjectLower.includes('delivery') || subjectLower.includes('failure')) {
+        return true;
+      }
+    }
+    
+    // Check return-path for mailer-daemon
+    const returnPath = headers.get('return-path');
+    if (returnPath) {
+      const returnPathLower = returnPath.toLowerCase();
+      if (returnPathLower.includes('mailer-daemon') || 
+          returnPathLower.includes('postmaster') ||
+          returnPathLower.includes('<>')) {
+        return true;
+      }
+    }
+  }
+  
+  // Check body content for common bounce messages
+  const bounceBodyPatterns = [
+    'delivery to the following recipient',
+    'the following address',
+    'permanent failure',
+    'temporary failure',
+    'could not be delivered',
+    'was not delivered',
+    'delivery has failed',
+    'message could not be delivered',
+    'this is an automatically generated',
+    'original message follows',
+    'returned to sender',
+    'unrouteable address'
+  ];
+  
+  for (const pattern of bounceBodyPatterns) {
+    if (textLower.includes(pattern)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 async function fetchEmails(config, options = {}) {
   const {
     host,
@@ -80,9 +189,17 @@ async function fetchEmails(config, options = {}) {
           ? parsed.from.value.map(formatAddress).join(', ')
           : '';
 
+        const subject = parsed.subject || '(no subject)';
+        
+        // Filter out bounce-back/delivery failure emails
+        if (isBounceEmail(subject, from, textBody, parsed)) {
+          console.log('[offender-news] Skipping bounce-back email:', subject);
+          continue; // Skip this email
+        }
+
         emails.push({
           uid: message.uid,
-          subject: parsed.subject || '(no subject)',
+          subject,
           from,
           date: (parsed.date || message.internalDate || new Date()).toISOString(),
           snippet,
