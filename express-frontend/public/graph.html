@@ -66,15 +66,30 @@ RETURN u, r, a, rel, l LIMIT 100`;
       // Get token from cookie
       const match = document.cookie.match(/(^| )token=([^;]+)/);
       const token = match ? match[2] : '';
-      const res = await fetch('/api/graph-cypher', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify({ cypher })
-      });
-      return res.json();
+      try {
+        console.log('[fetchGraph] Sending request with cypher:', cypher);
+        console.log('[fetchGraph] Token present:', !!token);
+        const res = await fetch('/api/graph-cypher', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ cypher })
+        });
+        console.log('[fetchGraph] Response status:', res.status, res.statusText);
+        if (!res.ok) {
+          const error = await res.json();
+          console.error('[fetchGraph] Error response:', error);
+          throw new Error(error.error || `HTTP ${res.status}: ${res.statusText}`);
+        }
+        const data = await res.json();
+        console.log('[fetchGraph] Received data:', { nodes: data.nodes?.length || 0, relationships: data.relationships?.length || 0 });
+        return data;
+      } catch (err) {
+        console.error('[fetchGraph] Failed to fetch graph:', err);
+        throw err;
+      }
     }
 
     function nodeLabel(node) {
@@ -102,34 +117,67 @@ RETURN u, r, a, rel, l LIMIT 100`;
     }
 
     async function renderGraph() {
-      const data = await fetchGraph();
-      if (!data.nodes || !data.relationships) {
-        document.getElementById('viz').innerHTML = '<div style="color:#e74c3c;padding:2em;text-align:center;">No graph data found.</div>';
-        return;
-      }
+      console.log('[renderGraph] Starting graph render...');
+      try {
+        const data = await fetchGraph();
+        console.log('[renderGraph] Data received:', data);
+        if (!data) {
+          document.getElementById('viz').innerHTML = '<div style="color:#e74c3c;padding:2em;text-align:center;">No data returned from server.</div>';
+          return;
+        }
+        if (data.error) {
+          document.getElementById('viz').innerHTML = `<div style="color:#e74c3c;padding:2em;text-align:center;">Error: ${data.error}${data.details ? '<br>Details: ' + data.details : ''}</div>`;
+          return;
+        }
+        if (!data.nodes || !data.relationships) {
+          console.log('[renderGraph] Missing nodes or relationships:', { hasNodes: !!data.nodes, hasRelationships: !!data.relationships });
+          document.getElementById('viz').innerHTML = '<div style="color:#e74c3c;padding:2em;text-align:center;">No graph data found. Nodes: ' + (data.nodes?.length || 0) + ', Relationships: ' + (data.relationships?.length || 0) + '</div>';
+          return;
+        }
       const nodes = data.nodes.map(n => ({
         id: n._id,
         label: nodeLabel(n),
         color: nodeColor(n),
         shape: 'dot',
         size: 24,
-        font: { color: '#fff', size: 18 }
+        font: { color: '#fff', size: 16, face: 'Arial' },
+        title: nodeLabel(n) // Tooltip on hover
       }));
       const edges = data.relationships.map(r => ({
         id: r.id,
         from: r.start,
         to: r.end,
-        label: relLabel(r),
+        label: relLabel(r), // Show relationship labels on edges
         color: '#6fcf6f',
-        font: { color: '#111', size: 14, align: 'middle' },
+        font: { color: '#111', size: 14, align: 'middle', background: 'rgba(255,255,255,0.8)', strokeWidth: 2, strokeColor: '#000' },
         arrows: 'to',
-        width: 2
+        width: 2,
+        title: relLabel(r) // Also show in tooltip
       }));
       const container = document.getElementById('viz');
       const networkData = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
       const options = {
-        nodes: { borderWidth: 2 },
-        edges: { smooth: true },
+        nodes: { 
+          borderWidth: 2,
+          font: {
+            color: '#fff',
+            size: 16,
+            face: 'Arial',
+            align: 'center'
+          },
+          labelHighlightBold: true
+        },
+        edges: { 
+          smooth: true,
+          font: {
+            size: 14,
+            align: 'middle',
+            color: '#111',
+            background: 'rgba(255,255,255,0.8)',
+            strokeWidth: 2,
+            strokeColor: '#000'
+          }
+        },
         physics: {
           stabilization: { enabled: true, iterations: 100 },
           barnesHut: {
@@ -157,7 +205,13 @@ RETURN u, r, a, rel, l LIMIT 100`;
       network.once('stabilizationIterationsDone', function() {
         network.setOptions({ physics: false });
       });
+      console.log('[renderGraph] Graph rendered successfully');
+      } catch (err) {
+        console.error('[renderGraph] Error rendering graph:', err);
+        document.getElementById('viz').innerHTML = `<div style="color:#e74c3c;padding:2em;text-align:center;">Failed to render graph: ${err.message || err}</div>`;
+      }
     }
+    console.log('[graph.html] Calling renderGraph...');
     renderGraph();
   </script>
 </body>

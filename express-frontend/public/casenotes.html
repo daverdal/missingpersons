@@ -724,6 +724,21 @@
                 } else {
                     html += `<div class='loved-one-muted'>(not provided)</div>`;
                 }
+                // Photos section
+                if (lo.id) {
+                    html += `
+                    <div class='loved-one-subtitle' style='margin-top:1em;'>Photos</div>
+                    <div id='photosList-${lo.id}' style='background: #000; max-height: 12em; overflow-y: auto; border-radius: 6px; padding: 0.5em 0.7em; margin-top: 0.5em; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.5em;'>
+                        <div style='color: #888;'>Loading photos...</div>
+                    </div>
+                    <div class='upload-box' style='margin-top: 0.8em;'>
+                        <form class='upload-photo-form' id='uploadPhotoForm-${lo.id}' enctype='multipart/form-data' style='display: flex; gap: 0.5em; align-items: center;'>
+                            <input type='file' name='photo' accept='image/jpeg,image/png,image/gif' style='flex: 1; max-width: 300px;'>
+                            <button type='submit' style='background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;'>Upload Photo</button>
+                        </form>
+                        <div id='photoUploadError-${lo.id}' style='margin-top: 0.5em; color: #a05a5a;'></div>
+                    </div>`;
+                }
                 if (lo.id) {
                     html += `
                     <div style='margin-top:0.6em;'>
@@ -842,6 +857,15 @@
             }
         }
         document.getElementById('caseInfo').innerHTML = html;
+        
+        // Fetch photos for all LovedOnes and setup upload forms
+        setTimeout(() => {
+            document.querySelectorAll('[id^="photosList-"]').forEach(el => {
+                const lovedOneId = el.id.replace('photosList-', '');
+                fetchPhotos(lovedOneId);
+            });
+            setupPhotoUploads();
+        }, 100);
         const smsForm = document.getElementById('smsForm');
         const toggleSmsBtn = document.getElementById('toggleSmsFormBtn');
         const cancelSmsBtn = document.getElementById('cancelSmsBtn');
@@ -1214,6 +1238,11 @@
         });
         document.querySelectorAll('.editLovedOneForm').forEach(form => {
             form.addEventListener('submit', async (e) => {
+                // Don't handle submit if it came from the photo upload form (nested form)
+                const submitButton = e.submitter || e.target;
+                if (submitButton && submitButton.closest('.upload-photo-form')) {
+                    return; // Let the photo upload form handle it
+                }
                 e.preventDefault();
                 const id = form.id.replace('editLovedOneForm-', '');
                 const msg = document.getElementById('editLovedOneMsg-' + id);
@@ -1390,6 +1419,192 @@
     } else {
         document.getElementById('caseInfo').textContent = 'No case selected.';
     }
+
+    // Photo management functions for LovedOnes
+    async function fetchPhotos(lovedOneId) {
+        try {
+            console.log('[fetchPhotos] Fetching photos for LovedOne:', lovedOneId);
+            const res = await fetch(`/api/loved-ones/${encodeURIComponent(lovedOneId)}/photos`, {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+            if (!res.ok) {
+                console.error('[fetchPhotos] Failed to fetch photos, status:', res.status);
+                throw new Error(`HTTP ${res.status}`);
+            }
+            const data = await res.json();
+            console.log('[fetchPhotos] Received photos:', data.photos?.length || 0, 'photos');
+            const photosDiv = document.getElementById(`photosList-${lovedOneId}`);
+            if (!photosDiv) {
+                console.error('[fetchPhotos] Photos div not found for ID:', lovedOneId);
+                return;
+            }
+            
+            if (data.photos && data.photos.length > 0) {
+                console.log('[fetchPhotos] Displaying', data.photos.length, 'photos');
+                photosDiv.innerHTML = data.photos.map(photo => `
+                    <div style='position: relative;'>
+                        <img src='/uploads/${encodeURIComponent(photo.filename)}' 
+                             alt='${escapeHtml(photo.originalname)}' 
+                             style='width: 100%; height: 120px; object-fit: cover; border-radius: 4px; border: 1px solid #444; cursor: pointer;'
+                             onclick='window.open("/uploads/${encodeURIComponent(photo.filename)}", "_blank")'
+                             title='${escapeHtml(photo.originalname)}'>
+                        <button onclick='deletePhoto("${lovedOneId}", "${escapeHtml(photo.filename)}")' 
+                                style='position: absolute; top: 4px; right: 4px; background: rgba(160, 90, 90, 0.9); color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 12px;'
+                                title='Delete photo'>×</button>
+                    </div>
+                `).join('');
+            } else {
+                console.log('[fetchPhotos] No photos found');
+                photosDiv.innerHTML = '<div style="color: #888;">No photos uploaded yet.</div>';
+            }
+        } catch (err) {
+            console.error('[fetchPhotos] Error:', err);
+            const photosDiv = document.getElementById(`photosList-${lovedOneId}`);
+            if (photosDiv) {
+                photosDiv.innerHTML = '<div style="color: #a05a5a;">Failed to load photos: ' + err.message + '</div>';
+            }
+        }
+    }
+
+    async function deletePhoto(lovedOneId, filename) {
+        if (!confirm('Are you sure you want to delete this photo?')) return;
+        try {
+            const res = await fetch(`/api/loved-ones/${encodeURIComponent(lovedOneId)}/photos/${encodeURIComponent(filename)}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+            if (res.ok) {
+                await fetchPhotos(lovedOneId);
+            } else {
+                const result = await res.json();
+                alert('Failed to delete photo: ' + (result.error || 'Unknown error'));
+            }
+        } catch (err) {
+            alert('Failed to delete photo: ' + err.message);
+        }
+    }
+
+    // Set up photo upload forms after case info is loaded
+    function setupPhotoUploads() {
+        const forms = document.querySelectorAll('.upload-photo-form');
+        console.log('[setupPhotoUploads] Found', forms.length, 'photo upload forms');
+        forms.forEach(form => {
+            const lovedOneId = form.id.replace('uploadPhotoForm-', '');
+            console.log('[setupPhotoUploads] Setting up form for LovedOne:', lovedOneId);
+            const errorDiv = document.getElementById(`photoUploadError-${lovedOneId}`);
+            
+            if (!errorDiv) {
+                console.error('[setupPhotoUploads] Error div not found for:', lovedOneId);
+            }
+            
+            // Remove any existing event listeners by cloning the form
+            const newForm = form.cloneNode(true);
+            form.parentNode.replaceChild(newForm, form);
+            
+            console.log('[setupPhotoUploads] Added event listener to form:', newForm.id);
+            
+            newForm.addEventListener('submit', async function(e) {
+                console.log('[setupPhotoUploads] Form submit event triggered for:', lovedOneId);
+                e.preventDefault();
+                e.stopPropagation(); // Prevent event from bubbling to parent form
+                const fileInput = newForm.querySelector('input[type="file"]');
+                const submitButton = newForm.querySelector('button[type="submit"]');
+                
+                if (!errorDiv) {
+                    console.error('Error div not found for lovedOneId:', lovedOneId);
+                    return;
+                }
+                
+                errorDiv.textContent = '';
+                errorDiv.style.color = '#a05a5a';
+                
+                if (!fileInput || !fileInput.files.length) {
+                    errorDiv.textContent = '❌ Error: Please select a photo to upload.';
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                
+                // Check file type
+                if (!file.type.startsWith('image/')) {
+                    errorDiv.textContent = '❌ Error: File must be an image (JPEG, PNG, or GIF). Selected file type: ' + (file.type || 'unknown');
+                    return;
+                }
+                
+                // Check file size (10MB limit)
+                const maxSize = 10 * 1024 * 1024; // 10MB
+                if (file.size > maxSize) {
+                    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                    errorDiv.textContent = `❌ Error: File is too large (${fileSizeMB} MB). Maximum size is 10 MB.`;
+                    return;
+                }
+                
+                // Disable submit button during upload
+                const originalButtonText = submitButton.textContent;
+                submitButton.disabled = true;
+                submitButton.textContent = 'Uploading...';
+                
+                const formData = new FormData();
+                formData.append('photo', file);
+                
+                try {
+                    console.log('[Photo Upload] Sending POST request to upload photo for LovedOne:', lovedOneId);
+                    console.log('[Photo Upload] File details:', { name: file.name, type: file.type, size: file.size });
+                    console.log('[Photo Upload] FormData entries:', Array.from(formData.entries()).map(([k, v]) => [k, v instanceof File ? v.name : v]));
+                    const res = await fetch(`/api/loved-ones/${encodeURIComponent(lovedOneId)}/photos`, {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + getToken() },
+                        body: formData,
+                        cache: 'no-store'
+                    });
+                    console.log('[Photo Upload] Response status:', res.status, res.statusText);
+                    console.log('[Photo Upload] Response headers:', Object.fromEntries(res.headers.entries()));
+                    
+                    let result;
+                    try {
+                        result = await res.json();
+                    } catch (parseErr) {
+                        // If response is not JSON, get text
+                        const text = await res.text();
+                        errorDiv.textContent = `❌ Error: Server returned invalid response (Status ${res.status}): ${text || 'Unknown error'}`;
+                        submitButton.disabled = false;
+                        submitButton.textContent = originalButtonText;
+                        return;
+                    }
+                    
+                    if (!res.ok) {
+                        const errorMsg = result.error || result.message || 'Photo upload failed';
+                        const errorDetails = result.details ? ` Details: ${result.details}` : '';
+                        errorDiv.textContent = `❌ Error: ${errorMsg}${errorDetails}`;
+                        console.error('[Photo Upload] Failed:', result);
+                    } else {
+                        // Success
+                        console.log('[Photo Upload] Success! Response:', result);
+                        errorDiv.textContent = '✅ Photo uploaded successfully! Refreshing photos...';
+                        errorDiv.style.color = '#6fcf6f';
+                        newForm.reset();
+                        // Wait a moment for the server to finish processing, then fetch photos
+                        setTimeout(async () => {
+                            console.log('[Photo Upload] Refreshing photos list...');
+                            await fetchPhotos(lovedOneId);
+                            errorDiv.textContent = '✅ Photo uploaded successfully!';
+                            // Clear success message after 3 seconds
+                            setTimeout(() => {
+                                errorDiv.textContent = '';
+                            }, 3000);
+                        }, 500);
+                    }
+                } catch (err) {
+                    console.error('Photo upload error:', err);
+                    errorDiv.textContent = `❌ Error: Failed to upload photo. ${err.message || 'Network error or server unavailable.'}`;
+                } finally {
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                }
+            });
+        });
+    }
+
     </script>
 </body>
 </html>

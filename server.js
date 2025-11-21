@@ -219,9 +219,15 @@ app.use('/uploads', express.static('uploads'));
 
 // Graph visualization Cypher proxy endpoint
 app.post('/api/graph-cypher', async (req, res) => {
+  console.log('[graph-cypher] Request received');
   const { cypher, params } = req.body || {};
-  if (!cypher) return res.status(400).json({ error: 'Missing cypher query' });
-  const session = driver.session({ database: NEO4J_DATABASE });
+  console.log('[graph-cypher] Cypher query:', cypher);
+  if (!cypher) {
+    console.log('[graph-cypher] Missing cypher query');
+    return res.status(400).json({ error: 'Missing cypher query' });
+  }
+  
+  let session = driver.session({ database: NEO4J_DATABASE });
   try {
     const result = await session.run(cypher, params || {});
     // Extract nodes and relationships for visualization
@@ -248,9 +254,45 @@ app.post('/api/graph-cypher', async (req, res) => {
     });
     res.json({ nodes: Object.values(nodes), relationships: Object.values(relationships) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    // If database doesn't exist, try default 'neo4j' database
+    if (err.message && err.message.includes('Database does not exist')) {
+      console.log(`[graph-cypher] Database '${NEO4J_DATABASE}' does not exist. Trying 'neo4j' instead...`);
+      await session.close();
+      session = driver.session({ database: 'neo4j' });
+      try {
+        const result = await session.run(cypher, params || {});
+        const nodes = {};
+        const relationships = {};
+        result.records.forEach(record => {
+          record.forEach(val => {
+            if (val && val.identity && val.labels) {
+              nodes[val.identity.toString()] = val.properties;
+              nodes[val.identity.toString()]._id = val.identity.toString();
+              nodes[val.identity.toString()]._labels = val.labels;
+            } else if (val && val.identity && val.type) {
+              relationships[val.identity.toString()] = {
+                id: val.identity.toString(),
+                type: val.type,
+                start: val.start.toString(),
+                end: val.end.toString(),
+                properties: val.properties
+              };
+            }
+          });
+        });
+        res.json({ nodes: Object.values(nodes), relationships: Object.values(relationships) });
+      } catch (retryErr) {
+        console.error('[graph-cypher] Error with fallback database:', retryErr);
+        res.status(500).json({ error: retryErr.message, details: 'Failed to execute query even with fallback database' });
+      }
+    } else {
+      console.error('[graph-cypher] Error:', err);
+      res.status(500).json({ error: err.message, details: 'Failed to execute Cypher query' });
+    }
   } finally {
-    await session.close();
+    if (session) {
+      await session.close();
+    }
   }
 });
 
@@ -697,10 +739,201 @@ app.get('/api/communities', async (req, res) => {
   }
 });
 
+// Create or update a community (admin only)
+app.post('/api/communities', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { name, band_number, address, phone, fax, latitude, longitude, id } = req.body;
+  console.log('POST /api/communities called with:', req.body);
+  if (!name) {
+    await auditLogger.log(req, {
+      action: 'community.create',
+      resourceType: 'community',
+      resourceId: null,
+      success: false,
+      message: 'Name is required'
+    });
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  const session = driver.session();
+  try {
+    // If id is provided, update existing community
+    if (id) {
+      const updateProps = { id, name };
+      if (band_number !== undefined) updateProps.band_number = band_number;
+      if (address !== undefined) updateProps.address = address;
+      if (phone !== undefined) updateProps.phone = phone;
+      if (fax !== undefined) updateProps.fax = fax;
+      if (latitude !== undefined && latitude !== null) updateProps.latitude = parseFloat(latitude);
+      if (longitude !== undefined && longitude !== null) updateProps.longitude = parseFloat(longitude);
+      
+      const setClause = Object.keys(updateProps).filter(k => k !== 'id').map(k => `c.${k} = $${k}`).join(', ');
+      const result = await session.run(
+        `MATCH (c:Community {id: $id}) SET ${setClause} RETURN c`,
+        updateProps
+      );
+      
+      if (result.records.length === 0) {
+        await session.close();
+        await auditLogger.log(req, {
+          action: 'community.update',
+          resourceType: 'community',
+          resourceId: id,
+          success: false,
+          message: 'Community not found'
+        });
+        return res.status(404).json({ error: 'Community not found' });
+      }
+      
+      await auditLogger.log(req, {
+        action: 'community.update',
+        resourceType: 'community',
+        resourceId: id,
+        success: true,
+        details: { name }
+      });
+      await session.close();
+      return res.json({ success: true, community: result.records[0].get('c').properties });
+    }
+    
+    // Create new community
+    // Check for duplicate by name
+    const exists = await session.run('MATCH (c:Community {name: $name}) RETURN c', { name });
+    if (exists.records.length) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'community.create',
+        resourceType: 'community',
+        resourceId: null,
+        success: false,
+        message: 'Community with this name already exists'
+      });
+      return res.status(400).json({ error: 'Community with this name already exists' });
+    }
+    
+    const communityId = `COMM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const props = {
+      id: communityId,
+      name,
+      band_number: band_number || null,
+      address: address || null,
+      phone: phone || null,
+      fax: fax || null,
+      latitude: latitude !== undefined && latitude !== null ? parseFloat(latitude) : null,
+      longitude: longitude !== undefined && longitude !== null ? parseFloat(longitude) : null
+    };
+    
+    const result = await session.run(
+      `CREATE (c:Community $props) RETURN c`,
+      { props }
+    );
+    
+    await auditLogger.log(req, {
+      action: 'community.create',
+      resourceType: 'community',
+      resourceId: communityId,
+      success: true,
+      details: { name }
+    });
+    await session.close();
+    res.json({ success: true, community: result.records[0].get('c').properties });
+  } catch (err) {
+    console.error('Error in POST /api/communities:', err);
+    await auditLogger.log(req, {
+      action: 'community.create',
+      resourceType: 'community',
+      resourceId: null,
+      success: false,
+      message: 'Failed to create/update community',
+      details: { error: err.message }
+    });
+    res.status(500).json({ error: 'Failed to create/update community', details: err.message });
+  } finally {
+    if (session) await session.close();
+  }
+});
+
+// Delete a community (admin only)
+app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { id, name } = req.body;
+  console.log('DELETE /api/communities called with:', req.body);
+  if (!id && !name) {
+    await auditLogger.log(req, {
+      action: 'community.delete',
+      resourceType: 'community',
+      resourceId: null,
+      success: false,
+      message: 'ID or name is required'
+    });
+    return res.status(400).json({ error: 'ID or name is required' });
+  }
+  const session = driver.session();
+  try {
+    const matchClause = id ? 'MATCH (c:Community {id: $id})' : 'MATCH (c:Community {name: $name})';
+    const params = id ? { id } : { name };
+    
+    // Check if community is referenced by any LovedOne or Applicant
+    const checkRefs = await session.run(
+      `${matchClause} OPTIONAL MATCH (c)<-[:BELONGS_TO|:FROM]-(n) RETURN count(n) as refCount`,
+      params
+    );
+    const refCount = checkRefs.records[0]?.get('refCount')?.toNumber() || 0;
+    
+    if (refCount > 0) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'community.delete',
+        resourceType: 'community',
+        resourceId: id || name,
+        success: false,
+        message: `Cannot delete community: it is referenced by ${refCount} record(s)`
+      });
+      return res.status(400).json({ error: `Cannot delete community: it is referenced by ${refCount} record(s)` });
+    }
+    
+    const result = await session.run(
+      `${matchClause} DELETE c RETURN c`,
+      params
+    );
+    
+    if (result.records.length === 0) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'community.delete',
+        resourceType: 'community',
+        resourceId: id || name,
+        success: false,
+        message: 'Community not found'
+      });
+      return res.status(404).json({ error: 'Community not found' });
+    }
+    
+    await auditLogger.log(req, {
+      action: 'community.delete',
+      resourceType: 'community',
+      resourceId: id || name,
+      success: true
+    });
+    await session.close();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error in DELETE /api/communities:', err);
+    await auditLogger.log(req, {
+      action: 'community.delete',
+      resourceType: 'community',
+      resourceId: id || name,
+      success: false,
+      message: 'Failed to delete community',
+      details: { error: err.message }
+    });
+    res.status(500).json({ error: 'Failed to delete community', details: err.message });
+  } finally {
+    if (session) await session.close();
+  }
+});
+
   // --- Organization Management Endpoints ---
   // Create a new organization
   app.post('/api/organizations', authMiddleware, requireRole('admin'), async (req, res) => {
-  const { name, contact, phone } = req.body;
+  const { name, contact, phone, id } = req.body;
     console.log('POST /api/organizations called with:', req.body);
     if (!name) {
       console.log('Organization creation failed: Name is required');
@@ -715,6 +948,36 @@ app.get('/api/communities', async (req, res) => {
     }
     const session = driver.session();
     try {
+      // If id is provided, update existing organization
+      if (id) {
+        const result = await session.run(
+          'MATCH (o:Organization {id: $id}) SET o.name = $name, o.contact = $contact, o.phone = $phone RETURN o',
+          { id, name, contact: contact || null, phone: phone || null }
+        );
+        
+        if (result.records.length === 0) {
+          await session.close();
+          await auditLogger.log(req, {
+            action: 'organization.update',
+            resourceType: 'organization',
+            resourceId: id,
+            success: false,
+            message: 'Organization not found'
+          });
+          return res.status(404).json({ error: 'Organization not found' });
+        }
+        
+        await auditLogger.log(req, {
+          action: 'organization.update',
+          resourceType: 'organization',
+          resourceId: id,
+          success: true,
+          details: { name }
+        });
+        await session.close();
+        return res.json({ success: true, organization: result.records[0].get('o').properties });
+      }
+      
       // Check for duplicate (active or inactive)
       const exists = await session.run('MATCH (o:Organization {name: $name}) RETURN o', { name });
       if (exists.records.length) {
@@ -743,13 +1006,16 @@ app.get('/api/communities', async (req, res) => {
       });
         return res.status(409).json({ error: 'Organization already exists' });
       }
-      await session.run('CREATE (o:Organization {name: $name, contact: $contact, phone: $phone, active: true})', { name, contact, phone });
+      
+      // Create new organization with id
+      const orgId = `ORG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await session.run('CREATE (o:Organization {id: $id, name: $name, contact: $contact, phone: $phone, active: true})', { id: orgId, name, contact, phone });
       console.log('Organization created:', name, contact, phone);
       await session.close();
     await auditLogger.log(req, {
       action: 'organization.create',
       resourceType: 'organization',
-      resourceId: name,
+      resourceId: orgId,
       success: true
     });
       res.json({ success: true });
@@ -784,6 +1050,175 @@ app.get('/api/communities', async (req, res) => {
       res.status(500).json({ error: 'Failed to fetch organizations', details: err.message });
     }
   });
+
+// --- Organization Contact Management Endpoints ---
+// Get all contacts for an organization
+app.get('/api/organizations/:orgId/contacts', authMiddleware, async (req, res) => {
+  const { orgId } = req.params;
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      'MATCH (o:Organization {id: $orgId})-[:HAS_CONTACT]->(c:Contact) RETURN c ORDER BY c.name',
+      { orgId }
+    );
+    const contacts = result.records.map(r => r.get('c').properties);
+    await session.close();
+    res.json({ contacts });
+  } catch (err) {
+    console.error('Error fetching contacts:', err);
+    await session.close();
+    res.status(500).json({ error: 'Failed to fetch contacts', details: err.message });
+  }
+});
+
+// Create or update a contact for an organization
+app.post('/api/organizations/:orgId/contacts', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { orgId } = req.params;
+  const { name, phone, email, id } = req.body;
+  console.log('POST /api/organizations/:orgId/contacts called with:', { orgId, name, phone, email, id });
+  
+  if (!name) {
+    await auditLogger.log(req, {
+      action: 'organization.contact.create',
+      resourceType: 'contact',
+      resourceId: null,
+      success: false,
+      message: 'Contact name is required'
+    });
+    return res.status(400).json({ error: 'Contact name is required' });
+  }
+  
+  const session = driver.session();
+  try {
+    // Verify organization exists
+    const orgCheck = await session.run('MATCH (o:Organization {id: $orgId}) RETURN o', { orgId });
+    if (orgCheck.records.length === 0) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'organization.contact.create',
+        resourceType: 'contact',
+        resourceId: null,
+        success: false,
+        message: 'Organization not found'
+      });
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    // If id is provided, update existing contact
+    if (id) {
+      const result = await session.run(
+        `MATCH (o:Organization {id: $orgId})-[:HAS_CONTACT]->(c:Contact {id: $id})
+         SET c.name = $name, c.phone = $phone, c.email = $email
+         RETURN c`,
+        { orgId, id, name, phone: phone || null, email: email || null }
+      );
+      
+      if (result.records.length === 0) {
+        await session.close();
+        await auditLogger.log(req, {
+          action: 'organization.contact.update',
+          resourceType: 'contact',
+          resourceId: id,
+          success: false,
+          message: 'Contact not found'
+        });
+        return res.status(404).json({ error: 'Contact not found' });
+      }
+      
+      await auditLogger.log(req, {
+        action: 'organization.contact.update',
+        resourceType: 'contact',
+        resourceId: id,
+        success: true,
+        details: { name, organizationId: orgId }
+      });
+      await session.close();
+      return res.json({ success: true, contact: result.records[0].get('c').properties });
+    }
+    
+    // Create new contact
+    const contactId = `CONTACT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const result = await session.run(
+      `MATCH (o:Organization {id: $orgId})
+       CREATE (c:Contact {id: $contactId, name: $name, phone: $phone, email: $email})
+       CREATE (o)-[:HAS_CONTACT]->(c)
+       RETURN c`,
+      { orgId, contactId, name, phone: phone || null, email: email || null }
+    );
+    
+    await auditLogger.log(req, {
+      action: 'organization.contact.create',
+      resourceType: 'contact',
+      resourceId: contactId,
+      success: true,
+      details: { name, organizationId: orgId }
+    });
+    await session.close();
+    res.json({ success: true, contact: result.records[0].get('c').properties });
+  } catch (err) {
+    console.error('Error creating/updating contact:', err);
+    await session.close();
+    await auditLogger.log(req, {
+      action: 'organization.contact.create',
+      resourceType: 'contact',
+      resourceId: null,
+      success: false,
+      message: 'Failed to create/update contact',
+      details: { error: err.message }
+    });
+    res.status(500).json({ error: 'Failed to create/update contact', details: err.message });
+  }
+});
+
+// Delete a contact
+app.delete('/api/organizations/:orgId/contacts/:contactId', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { orgId, contactId } = req.params;
+  console.log('DELETE /api/organizations/:orgId/contacts/:contactId called with:', { orgId, contactId });
+  
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (o:Organization {id: $orgId})-[:HAS_CONTACT]->(c:Contact {id: $contactId})
+       DELETE c
+       RETURN c`,
+      { orgId, contactId }
+    );
+    
+    if (result.records.length === 0) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'organization.contact.delete',
+        resourceType: 'contact',
+        resourceId: contactId,
+        success: false,
+        message: 'Contact not found'
+      });
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+    
+    await auditLogger.log(req, {
+      action: 'organization.contact.delete',
+      resourceType: 'contact',
+      resourceId: contactId,
+      success: true,
+      details: { organizationId: orgId }
+    });
+    await session.close();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting contact:', err);
+    await session.close();
+    await auditLogger.log(req, {
+      action: 'organization.contact.delete',
+      resourceType: 'contact',
+      resourceId: contactId,
+      success: false,
+      message: 'Failed to delete contact',
+      details: { error: err.message }
+    });
+    res.status(500).json({ error: 'Failed to delete contact', details: err.message });
+  }
+});
 
 // Soft delete organization
   // --- Client Status Management Endpoints ---
@@ -3704,6 +4139,293 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
       details: { error: err.message, applicantId: applicantId || null }
     });
     return res.status(500).json({ error: 'Failed to update Loved One' });
+  }
+});
+
+// --- Photo Management for LovedOnes (Missing Persons) ---
+
+// Get all photos for a LovedOne
+app.get('/api/loved-ones/:id/photos', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const session = driver.session();
+  try {
+    // First, let's check all files linked to this LovedOne
+    const debugResult = await session.run(
+      `MATCH (l:LovedOne {id: $id})-[r:HAS_PHOTO]->(f:File)
+       RETURN f, r, l.id as lovedOneId`,
+      { id }
+    );
+    console.log(`[GET /api/loved-ones/${id}/photos] DEBUG: Found ${debugResult.records.length} HAS_PHOTO relationships`);
+    debugResult.records.forEach((record, idx) => {
+      const file = record.get('f').properties;
+      console.log(`  [${idx + 1}] File: ${file.filename}, type: ${file.type}, mimetype: ${file.mimetype}`);
+    });
+    
+    const result = await session.run(
+      `MATCH (l:LovedOne {id: $id})-[:HAS_PHOTO]->(f:File)
+       WHERE f.type = 'photo' OR f.mimetype STARTS WITH 'image/'
+       RETURN f ORDER BY f.uploadedAt DESC`,
+      { id }
+    );
+    const photos = result.records.map(r => r.get('f').properties);
+    console.log(`[GET /api/loved-ones/${id}/photos] Query returned ${photos.length} photos after filtering`);
+    // Prevent caching to ensure fresh data
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.json({ photos });
+  } catch (err) {
+    console.error('Failed to fetch photos:', err);
+    res.status(500).json({ error: 'Failed to fetch photos' });
+  } finally {
+    await session.close();
+  }
+});
+
+// Upload a photo for a LovedOne
+app.post('/api/loved-ones/:id/photos',
+  authMiddleware,
+  async (req, res, next) => {
+    console.log(`[POST /api/loved-ones/${req.params?.id}/photos] Upload request received`);
+    // Only allow 'admin' or 'case_worker' roles
+    const roles = req.user && (req.user.roles || req.user.groups || []);
+    if (Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'))) {
+      return next();
+    }
+    await auditLogger.log(req, {
+      action: 'loved_one.photo_upload',
+      resourceType: 'loved_one',
+      resourceId: req.params?.id || null,
+      success: false,
+      message: 'Forbidden: insufficient role'
+    });
+    return res.status(403).json({ error: 'Forbidden: insufficient role' });
+  },
+  upload.single('photo'),
+  async (req, res) => {
+    const { id } = req.params;
+    console.log(`[POST /api/loved-ones/${id}/photos] Processing upload, file:`, req.file ? req.file.originalname : 'NO FILE');
+    
+    // Handle multer errors (file size, etc.)
+    if (req.fileValidationError) {
+      console.log(`[POST /api/loved-ones/${id}/photos] File validation error:`, req.fileValidationError);
+      await auditLogger.log(req, {
+        action: 'loved_one.photo_upload',
+        resourceType: 'loved_one',
+        resourceId: id,
+        success: false,
+        message: req.fileValidationError
+      });
+      return res.status(400).json({ error: req.fileValidationError, details: 'File validation failed' });
+    }
+    
+    if (!req.file) {
+      console.log(`[POST /api/loved-ones/${id}/photos] ERROR: No file in request`);
+      await auditLogger.log(req, {
+        action: 'loved_one.photo_upload',
+        resourceType: 'loved_one',
+        resourceId: id,
+        success: false,
+        message: 'No file uploaded'
+      });
+      return res.status(400).json({ error: 'No file uploaded', details: 'Please select a file to upload' });
+    }
+
+    // Verify it's an image file
+    if (!req.file.mimetype.startsWith('image/')) {
+      await auditLogger.log(req, {
+        action: 'loved_one.photo_upload',
+        resourceType: 'loved_one',
+        resourceId: id,
+        success: false,
+        message: 'File must be an image'
+      });
+      return res.status(400).json({ error: 'File must be an image' });
+    }
+
+    const session = driver.session();
+    try {
+      // Verify LovedOne exists
+      const checkResult = await session.run(
+        'MATCH (l:LovedOne {id: $id}) RETURN l',
+        { id }
+      );
+      if (checkResult.records.length === 0) {
+        await session.close();
+        await auditLogger.log(req, {
+          action: 'loved_one.photo_upload',
+          resourceType: 'loved_one',
+          resourceId: id,
+          success: false,
+          message: 'LovedOne not found'
+        });
+        return res.status(404).json({ error: 'LovedOne not found' });
+      }
+
+      // Save file metadata and link to LovedOne
+      const fileMeta = {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        path: req.file.path,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        type: 'photo',
+        uploadedBy: req.user.email || req.user.name,
+        uploadedAt: new Date().toISOString()
+      };
+
+      // Create File node and link to LovedOne with HAS_PHOTO relationship
+      const createResult = await session.run(
+        `MATCH (l:LovedOne {id: $id})
+        CREATE (f:File {
+          filename: $filename, 
+          originalname: $originalname, 
+          path: $path, 
+          mimetype: $mimetype, 
+          size: $size, 
+          type: $type,
+          uploadedBy: $uploadedBy, 
+          uploadedAt: $uploadedAt
+        })
+        CREATE (l)-[:HAS_PHOTO]->(f)
+        RETURN f, l.id as lovedOneId`,
+        { id, ...fileMeta }
+      );
+      
+      if (createResult.records.length === 0) {
+        throw new Error('Failed to create photo node');
+      }
+      
+      const createdFile = createResult.records[0].get('f').properties;
+      console.log(`[POST /api/loved-ones/${id}/photos] Created photo file: ${fileMeta.filename}`);
+      console.log(`[POST /api/loved-ones/${id}/photos] Created file node with properties:`, createdFile);
+      
+      // Verify the relationship was created
+      const verifyResult = await session.run(
+        `MATCH (l:LovedOne {id: $id})-[r:HAS_PHOTO]->(f:File)
+         RETURN count(r) as photoCount`,
+        { id }
+      );
+      const photoCount = verifyResult.records[0]?.get('photoCount')?.toNumber() || 0;
+      console.log(`[POST /api/loved-ones/${id}/photos] Total photos for this LovedOne after upload: ${photoCount}`);
+
+      await auditLogger.log(req, {
+        action: 'loved_one.photo_upload',
+        resourceType: 'loved_one',
+        resourceId: id,
+        success: true,
+        details: {
+          filename: fileMeta.filename,
+          originalname: fileMeta.originalname,
+          size: fileMeta.size
+        }
+      });
+      res.json({ success: true, photo: fileMeta });
+    } catch (err) {
+      console.error('Failed to save photo metadata:', err);
+      await auditLogger.log(req, {
+        action: 'loved_one.photo_upload',
+        resourceType: 'loved_one',
+        resourceId: id,
+        success: false,
+        message: 'Failed to save photo metadata',
+        details: { error: err.message }
+      });
+      res.status(500).json({ 
+        error: 'Failed to save photo metadata', 
+        details: err.message || 'Database error occurred while saving photo'
+      });
+    } finally {
+      await session.close();
+    }
+  }
+);
+
+// Error handler for multer errors (file size, etc.)
+app.use((err, req, res, next) => {
+  if (err instanceof require('multer').MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ 
+        error: 'File too large', 
+        details: 'Maximum file size is 10MB' 
+      });
+    }
+    return res.status(400).json({ 
+      error: 'File upload error', 
+      details: err.message 
+    });
+  }
+  next(err);
+});
+
+// Delete a photo for a LovedOne
+app.delete('/api/loved-ones/:id/photos/:filename', authMiddleware, async (req, res) => {
+  const { id, filename } = req.params;
+  const session = driver.session();
+  try {
+    // Verify permission: admin or case_worker
+    const roles = req.user && (req.user.roles || req.user.groups || []);
+    const hasPermission = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
+    if (!hasPermission) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'loved_one.photo_delete',
+        resourceType: 'loved_one',
+        resourceId: id,
+        success: false,
+        message: 'Forbidden: insufficient role'
+      });
+      return res.status(403).json({ error: 'Forbidden: insufficient role' });
+    }
+
+    // Find and delete File node and relationship
+    const result = await session.run(
+      `MATCH (l:LovedOne {id: $id})-[r:HAS_PHOTO]->(f:File {filename: $filename})
+       DELETE r, f
+       RETURN f`,
+      { id, filename }
+    );
+
+    if (result.records.length === 0) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'loved_one.photo_delete',
+        resourceType: 'loved_one',
+        resourceId: id,
+        success: false,
+        message: 'Photo not found'
+      });
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+
+    // Delete physical file
+    const filePath = require('path').join(__dirname, 'uploads', filename);
+    const fs = require('fs');
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    await auditLogger.log(req, {
+      action: 'loved_one.photo_delete',
+      resourceType: 'loved_one',
+      resourceId: id,
+      success: true,
+      details: { filename }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to delete photo:', err);
+    await auditLogger.log(req, {
+      action: 'loved_one.photo_delete',
+      resourceType: 'loved_one',
+      resourceId: id,
+      success: false,
+      message: 'Failed to delete photo',
+      details: { filename, error: err.message }
+    });
+    res.status(500).json({ error: 'Failed to delete photo' });
+  } finally {
+    await session.close();
   }
 });
 

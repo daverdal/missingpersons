@@ -20,12 +20,13 @@ CREATE (user1:User {id: 'user1', name: 'Staff User 1', email: 'user1@example.com
 // Note: contact = phone number, smsOptIn and emailOptIn are boolean (true/false/null)
 // NULL means not set (treated as opted-out), true = opted in, false = opted out
 // address = mailing address, community = First Nation/Community, province = province code
-CREATE (a1:Applicant {id: 'A1', name: 'Jane Doe', email: 'jane.doe@example.com', contact: '204-555-0101', address: '123 Main St, Winnipeg, MB R3B 1A1', province: 'MB', community: 'Sagkeeng First Nation', smsOptIn: true, emailOptIn: true, status: 'Open' });
-CREATE (a2:Applicant {id: 'A2', name: 'John Smith', email: 'john.smith@example.com', contact: '403-555-0102', address: '456 Centre St, Calgary, AB T2P 1M5', province: 'AB', community: 'Brokenhead Ojibway Nation', smsOptIn: true, emailOptIn: false, status: 'Open' });
+// status values must match ClientStatus nodes: 'Active', 'Follow-up Required', 'On Hold', 'Closed', 'Referred', 'No Contact'
+CREATE (a1:Applicant {id: 'A1', name: 'Jane Doe', email: 'jane.doe@example.com', contact: '204-555-0101', address: '123 Main St, Winnipeg, MB R3B 1A1', province: 'MB', community: 'Sagkeeng First Nation', smsOptIn: true, emailOptIn: true, status: 'Active' });
+CREATE (a2:Applicant {id: 'A2', name: 'John Smith', email: 'john.smith@example.com', contact: '403-555-0102', address: '456 Centre St, Calgary, AB T2P 1M5', province: 'AB', community: 'Brokenhead Ojibway Nation', smsOptIn: true, emailOptIn: false, status: 'Active' });
 CREATE (a3:Applicant {id: 'A3', name: 'Mary Johnson', email: 'mary.johnson@example.com', contact: '416-555-0103', address: '789 Yonge St, Toronto, ON M4W 2G8', province: 'ON', community: 'Peguis First Nation', smsOptIn: false, emailOptIn: true, status: 'Closed' });
-CREATE (a4:Applicant {id: 'A4', name: 'Carlos Rivera', email: 'carlos.rivera@example.com', contact: '780-555-0104', address: '321 Jasper Ave, Edmonton, AB T5J 3N8', province: 'AB', community: 'Fisher River Cree Nation', smsOptIn: true, emailOptIn: true, status: 'Open' });
-CREATE (a5:Applicant {id: 'A5', name: 'Ava Patel', email: 'ava.patel@example.com', contact: '604-555-0105', address: '654 Granville St, Vancouver, BC V6C 1A1', province: 'BC', community: 'Long Plain First Nation', smsOptIn: true, emailOptIn: true, status: 'Open' });
-CREATE (a6:Applicant {id: 'A6', name: 'Liam Chen', email: 'liam.chen@example.com', contact: '306-555-0106', address: '987 Albert St, Regina, SK S4R 2P7', province: 'SK', community: 'Norway House Cree Nation', smsOptIn: false, emailOptIn: false, status: 'Open' });
+CREATE (a4:Applicant {id: 'A4', name: 'Carlos Rivera', email: 'carlos.rivera@example.com', contact: '780-555-0104', address: '321 Jasper Ave, Edmonton, AB T5J 3N8', province: 'AB', community: 'Fisher River Cree Nation', smsOptIn: true, emailOptIn: true, status: 'Active' });
+CREATE (a5:Applicant {id: 'A5', name: 'Ava Patel', email: 'ava.patel@example.com', contact: '604-555-0105', address: '654 Granville St, Vancouver, BC V6C 1A1', province: 'BC', community: 'Long Plain First Nation', smsOptIn: true, emailOptIn: true, status: 'Active' });
+CREATE (a6:Applicant {id: 'A6', name: 'Liam Chen', email: 'liam.chen@example.com', contact: '306-555-0106', address: '987 Albert St, Regina, SK S4R 2P7', province: 'SK', community: 'Norway House Cree Nation', smsOptIn: false, emailOptIn: false, status: 'Active' });
 
 // Missing Persons (LovedOne nodes)
 // lastLocationLat and lastLocationLon are decimal degrees (WGS84)
@@ -136,9 +137,9 @@ CREATE (cw4:User {id: 'cw4', name: 'Case Worker 4', email: 'caseworker4@example.
 CREATE (staff2:User {id: 'user2', name: 'Staff User 2', email: 'user2@example.com', roles: ['case_worker'], password: '$2b$10$dq/VX0np9ie4JYA27ppoyOfzv1DyhhXMGkzaeI.bJAB7xBBYGR586' });
 
 // --- ADDITIONAL APPLICANTS ---
-CREATE (a7:Applicant {id: 'A7', name: 'Sophia Lee', email: 'sophia.lee@example.com', contact: '250-555-0107', address: '147 Victoria St, Victoria, BC V8W 1W5', province: 'BC', community: 'Sandy Bay First Nation', smsOptIn: true, emailOptIn: true, status: 'Open' });
+CREATE (a7:Applicant {id: 'A7', name: 'Sophia Lee', email: 'sophia.lee@example.com', contact: '250-555-0107', address: '147 Victoria St, Victoria, BC V8W 1W5', province: 'BC', community: 'Sandy Bay First Nation', smsOptIn: true, emailOptIn: true, status: 'Active' });
 CREATE (a8:Applicant {id: 'A8', name: 'Noah Brown', email: 'noah.brown@example.com', contact: '587-555-0108', address: '258 8th Ave SW, Calgary, AB T2P 1B5', province: 'AB', community: 'Red Sucker Lake First Nation', smsOptIn: false, emailOptIn: true, status: 'Closed' });
-CREATE (a9:Applicant {id: 'A9', name: 'Olivia Green', email: 'olivia.green@example.com', contact: '613-555-0109', address: '369 Bank St, Ottawa, ON K1P 5W7', province: 'ON', community: 'Swan Lake First Nation', smsOptIn: true, emailOptIn: false, status: 'Open' });
+CREATE (a9:Applicant {id: 'A9', name: 'Olivia Green', email: 'olivia.green@example.com', contact: '613-555-0109', address: '369 Bank St, Ottawa, ON K1P 5W7', province: 'ON', community: 'Swan Lake First Nation', smsOptIn: true, emailOptIn: false, status: 'Active' });
 
 // --- ADDITIONAL LOVED ONES ---
 CREATE (m5:LovedOne {id: 'M5', name: 'Jacob Lee', dateOfIncident: '2025-06-01', lastLocation: 'Winnipeg', province: 'MB', lastLocationLat: 49.8951, lastLocationLon: -97.1384});

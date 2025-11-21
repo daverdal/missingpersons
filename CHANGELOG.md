@@ -12,7 +12,54 @@ Each entry should include:
 
 ---
 
+## 2025-01-28
+
+### Organization Contact Management
+- **Type**: `feature`, `api`
+- **Description**: Added ability to manage multiple contacts per organization. Each contact has a name, phone number, and email address. Organizations can now have multiple people associated with them, rather than just a single contact field.
+- **API Endpoints**: 
+  - `GET /api/organizations/:orgId/contacts` - Get all contacts for an organization
+  - `POST /api/organizations/:orgId/contacts` - Create or update a contact (if `id` is provided, updates existing; otherwise creates new)
+  - `DELETE /api/organizations/:orgId/contacts/:contactId` - Delete a contact
+- **Database Changes**: 
+  - New node type: `Contact` with properties: `id`, `name`, `phone`, `email`
+  - New relationship: `(Organization)-[:HAS_CONTACT]->(Contact)`
+  - Organizations now require an `id` field for contact management
+- **MCP Impact**: 
+  - [x] Requires new tool in MCP server
+  - [ ] Requires modification to existing tool
+  - [ ] No MCP impact
+- **Tool Manifest Changes Needed**:
+  - Tool ID: `missing.getOrganizationContacts` (GET contacts)
+  - Tool ID: `missing.createOrganizationContact` or `missing.updateOrganizationContact` (POST contact)
+  - Tool ID: `missing.deleteOrganizationContact` (DELETE contact)
+  - Handler type: `rest`
+  - Required parameters: `orgId` (organization ID), `contactId` (for delete/update), `name` (for create/update)
+  - Permission scopes: `missing.read` (for GET), `missing.write` (for POST/DELETE, admin only)
+
 ## 2025-01-27
+
+### Photo Management for Missing Persons (LovedOnes)
+- **Type**: `feature`
+- **Description**: Added ability to upload, view, and delete multiple photos for each missing person (LovedOne). Photos are stored as File nodes with a `HAS_PHOTO` relationship to LovedOne nodes. Each photo includes metadata (filename, originalname, mimetype, size, uploadedBy, uploadedAt) and a `type: 'photo'` field.
+- **API Endpoints**: 
+  - `GET /api/loved-ones/:id/photos` - Get all photos for a LovedOne
+  - `POST /api/loved-ones/:id/photos` - Upload a photo for a LovedOne (multipart/form-data, field name: 'photo')
+  - `DELETE /api/loved-ones/:id/photos/:filename` - Delete a photo for a LovedOne
+- **MCP Impact**: 
+  - [x] Requires new tool in MCP server
+  - [ ] Requires modification to existing tool
+  - [ ] No MCP impact
+- **Tool Manifest Changes Needed**:
+  - Tool ID: `missing.getLovedOnePhotos` (GET photos)
+  - Tool ID: `missing.uploadLovedOnePhoto` (POST photo - may require special handling for file uploads)
+  - Tool ID: `missing.deleteLovedOnePhoto` (DELETE photo)
+  - Handler type: `rest`
+  - Required parameters: `id` (LovedOne ID), `filename` (for delete)
+  - Permission scopes: `missing.read` (for GET), `missing.write` (for POST/DELETE)
+- **Database Changes**: 
+  - New relationship type: `HAS_PHOTO` (LovedOne -> File)
+  - File nodes now support `type: 'photo'` field to distinguish photos from other files
 
 ### Landing Page Setup
 - **Type**: `feature`

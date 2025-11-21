@@ -1,12 +1,15 @@
-/* Darker blue for header nav links in light mode */
-.light-mode .nav-link {
-  color: #b3d8f6 !important;
-}
-/* Light mode styles: override dark theme when .light-mode is on body */
+/* Light mode styles: matching manitobachiefs.com */
 .light-mode {
-  background: #23395d url('sky-bg.jpg') no-repeat center center fixed !important;
-  background-size: cover !important;
-  color: #e3e6ea !important;
+  background: #ffffff !important;
+  color: rgb(38, 38, 38) !important;
+  font-family: Poppins, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" !important;
+}
+.light-mode .nav-link {
+  color: rgb(38, 38, 38) !important;
+}
+.light-mode .nav-link:hover {
+  color: rgb(38, 38, 38) !important;
+  opacity: 0.8 !important;
 }
 .light-mode main,
 .light-mode header,
@@ -14,77 +17,132 @@
 .light-mode section,
 .light-mode table,
 .light-mode form,
-.light-mode input,
-.light-mode select,
-.light-mode textarea,
-.light-mode button,
-.light-mode label,
-.light-mode h1,
-.light-mode h2,
-.light-mode h3,
-.light-mode h4,
-.light-mode h5,
-.light-mode h6,
-.light-mode th,
-.light-mode td,
 .light-mode div {
   background: transparent !important;
-  color: #222 !important;
-  border-color: #d4d4d4 !important;
-  box-shadow: 0 2px 8px #0001 !important;
+  color: rgb(38, 38, 38) !important;
+  border-color: #e5e5e5 !important;
 }
 .light-mode main {
-  background: #b3d8f6 !important;
-  color: #222 !important;
-  border: 2px solid #3a5a7a !important;
-  box-shadow: 0 2px 8px #0001 !important;
+  background: #ffffff !important;
+  color: rgb(38, 38, 38) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.light-mode header {
+  background: transparent !important;
+  color: rgb(38, 38, 38) !important;
 }
 .light-mode h1, .light-mode h2, .light-mode h3, .light-mode h4, .light-mode h5, .light-mode h6 {
-  color: #c9a94a !important;
+  color: rgb(38, 38, 38) !important;
   text-shadow: none !important;
+  font-weight: 600 !important;
 }
 .light-mode button {
-  background: #14325a !important;
-  color: #e3e6ea !important;
-  box-shadow: 0 2px 8px #0003 !important;
-  border-radius: 8px !important;
+  background: rgb(38, 38, 38) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  transition: background 0.2s, opacity 0.2s !important;
 }
 .light-mode button:hover, .light-mode button:focus {
-  background: #c9a94a !important;
-  color: #23395d !important;
+  background: rgb(38, 38, 38) !important;
+  opacity: 0.9 !important;
+  color: #fff !important;
 }
 .light-mode input, .light-mode select, .light-mode textarea {
-  background: #fffbe6 !important;
-  color: #222 !important;
-  border: 1px solid #c9a94a !important;
-  border-radius: 6px !important;
+  background: #fff !important;
+  color: rgb(38, 38, 38) !important;
+  border: 1px solid #e5e5e5 !important;
+  border-radius: 4px !important;
+}
+.light-mode input:focus, .light-mode select:focus, .light-mode textarea:focus {
+  outline: 2px solid rgb(38, 38, 38) !important;
+  border-color: rgb(38, 38, 38) !important;
+}
+.light-mode label {
+  color: rgb(38, 38, 38) !important;
 }
 .light-mode th {
-  background: #204a7a !important;
+  background: rgb(38, 38, 38) !important;
   color: #fff !important;
 }
 .light-mode tr:nth-child(even) {
-  background: #e3f1fb !important;
-  color: #b3d8f6 !important;
+  background: #f9f9f9 !important;
+  color: rgb(38, 38, 38) !important;
 }
 .light-mode tr:nth-child(odd) {
-  background: #e3f1fb !important;
-  color: #4da6ff !important;
+  background: #ffffff !important;
+  color: rgb(38, 38, 38) !important;
 }
 .light-mode #dbStatusBox, .light-mode .retro-warning {
-  background: #14325a !important;
-  color: #c9a94a !important;
-  border: 2px solid #c9a94a !important;
-  box-shadow: 0 2px 8px #0003 !important;
+  background: #ffffff !important;
+  color: rgb(38, 38, 38) !important;
+  border: 1px solid #e5e5e5 !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
 }
 .light-mode .blinker {
-  color: #4da6ff !important;
+  color: rgb(38, 38, 38) !important;
 }
 .light-mode ::-webkit-scrollbar {
-  background: #14325a !important;
+  background: #f5f5f5 !important;
 }
 .light-mode ::-webkit-scrollbar-thumb {
-  background: #c9a94a !important;
+  background: #d4d4d4 !important;
+}
+.light-mode a:link, .light-mode a:visited {
+  color: rgb(38, 38, 38) !important;
+}
+.light-mode a:hover, .light-mode a:active {
+  color: rgb(38, 38, 38) !important;
+  opacity: 0.7 !important;
+}
+/* Light mode list items */
+.light-mode .list-item {
+  background: #ffffff !important;
+  color: rgb(38, 38, 38) !important;
+  border: 1px solid #e5e5e5 !important;
+  border-radius: 4px !important;
+  padding: 0.8rem !important;
+  margin-bottom: 0.5rem !important;
+}
+.light-mode .list-item:hover {
+  background: #f9f9f9 !important;
+}
+/* Light mode file input buttons */
+.light-mode input[type="file"]::-webkit-file-upload-button,
+.light-mode input[type="file"]::file-selector-button {
+  background: rgb(38, 38, 38) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 4px !important;
+}
+.light-mode input[type="file"]:hover::-webkit-file-upload-button,
+.light-mode input[type="file"]:hover::file-selector-button {
+  background: rgb(38, 38, 38) !important;
+  opacity: 0.9 !important;
+}
+/* Light mode delete buttons */
+.light-mode .deleteFileBtn, .light-mode .delete-btn, .light-mode button.delete {
+  color: rgb(38, 38, 38) !important;
+}
+.light-mode .deleteFileBtn:hover, .light-mode .delete-btn:hover, .light-mode button.delete:hover {
+  color: #dc2626 !important;
+}
+/* Light mode settings tabs */
+.light-mode .settings-tab-btn {
+  background: #ffffff !important;
+  color: rgb(38, 38, 38) !important;
+  border: 1px solid #e5e5e5 !important;
+}
+.light-mode .settings-tab-btn.active {
+  background: rgb(38, 38, 38) !important;
+  color: #fff !important;
+}
+/* Light mode note meta */
+.light-mode .note-meta {
+  color: rgb(38, 38, 38) !important;
+  opacity: 0.7 !important;
 }
 /* Nav highlighting styles */
 .nav-link.active, .nav-link[aria-current="page"] {
@@ -139,6 +197,22 @@ input[type="checkbox"]:checked::after {
   border: solid #6fcf6f;
   border-width: 0 0.18em 0.18em 0;
   transform: rotate(45deg);
+}
+/* Light mode checkboxes */
+.light-mode input[type="checkbox"] {
+  background-color: #fff;
+  border: 2px solid rgb(38, 38, 38);
+}
+.light-mode input[type="checkbox"]:checked {
+  background-color: rgb(38, 38, 38);
+  border-color: rgb(38, 38, 38);
+}
+.light-mode input[type="checkbox"]:focus {
+  box-shadow: 0 0 0 2px rgba(38, 38, 38, 0.3);
+}
+.light-mode input[type="checkbox"]:checked::after {
+  border: solid #fff;
+  border-width: 0 0.18em 0.18em 0;
 }
 /* Make the Additional Notes textarea wider */
 textarea[name="notes"] {

@@ -51,6 +51,7 @@
             </div>
             <form id="addOrgForm" style="display:none;margin-top:0.8rem;">
                 <div style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;">
+                    <input type="hidden" id="orgId">
                     <label>Name*:<input type="text" id="orgName" required style="margin-left:0.4rem;"></label>
                     <label>Contact:<input type="text" id="orgContact" style="margin-left:0.4rem;"></label>
                     <label>Phone:<input type="text" id="orgPhone" style="margin-left:0.4rem;"></label>
@@ -61,8 +62,27 @@
             <div class="list" id="organizationList" style="margin-top:0.8rem;"></div>
         </section>
         <section id="settings-fn" style="display:none;">
-            <h2>First Nations</h2>
-            <div class="list" id="communityList"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+                <h2 style="margin:0;">First Nations (Communities)</h2>
+                <button id="addCommunityBtn" style="padding:0.4rem 0.8rem;">Add Community</button>
+            </div>
+            <form id="addCommunityForm" style="display:none;margin-top:0.8rem;">
+                <div style="display:grid;grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:0.6rem;align-items:center;">
+                    <label>Name*:<input type="text" id="communityName" required style="margin-left:0.4rem;width:100%;"></label>
+                    <label>Band Number:<input type="text" id="communityBandNumber" style="margin-left:0.4rem;width:100%;"></label>
+                    <label>Address:<input type="text" id="communityAddress" style="margin-left:0.4rem;width:100%;"></label>
+                    <label>Phone:<input type="text" id="communityPhone" style="margin-left:0.4rem;width:100%;"></label>
+                    <label>Fax:<input type="text" id="communityFax" style="margin-left:0.4rem;width:100%;"></label>
+                    <label>Latitude:<input type="number" id="communityLatitude" step="any" style="margin-left:0.4rem;width:100%;"></label>
+                    <label>Longitude:<input type="number" id="communityLongitude" step="any" style="margin-left:0.4rem;width:100%;"></label>
+                    <input type="hidden" id="communityId">
+                    <div style="grid-column:1 / -1;display:flex;gap:0.6rem;">
+                        <button type="submit">Save</button>
+                        <button type="button" id="cancelAddCommunity">Cancel</button>
+                    </div>
+                </div>
+            </form>
+            <div class="list" id="communityList" style="margin-top:0.8rem;"></div>
         </section>
         <section id="settings-status" style="display:none;">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
@@ -180,34 +200,61 @@
                 }
                 list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
                 const showAdmin = isAdmin();
+                console.log('[loadOrganizations] Loading organizations, count:', list.length);
                 list.forEach(org => {
+                    console.log('[loadOrganizations] Processing org:', org.name, 'id:', org.id);
+                    const orgContainer = document.createElement('div');
+                    orgContainer.className = 'list-item';
+                    orgContainer.style.marginBottom = '1rem';
+                    
                     const row = document.createElement('div');
-                    row.className = 'list-item';
                     row.style.display = 'flex';
                     row.style.alignItems = 'center';
                     row.style.justifyContent = 'space-between';
                     row.style.gap = '0.5rem';
+                    row.style.marginBottom = '0.5rem';
 
                     const infoLine = document.createElement('div');
                     infoLine.style.display = 'flex';
                     infoLine.style.alignItems = 'center';
                     infoLine.style.flexWrap = 'wrap';
+                    infoLine.style.flex = '1';
                     const nameSpan = document.createElement('strong');
                     nameSpan.textContent = org.name || '';
                     infoLine.appendChild(nameSpan);
-                    const metaParts = [];
-                    if (org.contact && (org.contact + '').trim()) metaParts.push('Contact: ' + org.contact);
-                    if (org.phone && (org.phone + '').trim()) metaParts.push('Phone: ' + org.phone);
-                    if (metaParts.length) {
-                        const metaSpan = document.createElement('span');
-                        metaSpan.textContent = ' — ' + metaParts.join('  •  ');
-                        metaSpan.style.marginLeft = '0.25rem';
-                        metaSpan.style.color = '#ccc';
-                        infoLine.appendChild(metaSpan);
+                    if (org.phone && (org.phone + '').trim()) {
+                        const phoneSpan = document.createElement('span');
+                        phoneSpan.textContent = ' — Phone: ' + org.phone;
+                        phoneSpan.style.marginLeft = '0.25rem';
+                        phoneSpan.style.color = '#ccc';
+                        infoLine.appendChild(phoneSpan);
                     }
                     row.appendChild(infoLine);
 
-                    if (showAdmin && (org.name || '').trim()) {
+                    if (showAdmin && (org.id || org.name)) {
+                        const btnContainer = document.createElement('div');
+                        btnContainer.style.display = 'flex';
+                        btnContainer.style.gap = '0.5rem';
+                        
+                        const editBtn = document.createElement('button');
+                        editBtn.textContent = 'Edit';
+                        editBtn.style.background = '#23272b';
+                        editBtn.style.color = '#6fcf6f';
+                        editBtn.style.border = '1px solid #3a3f47';
+                        editBtn.style.padding = '4px 10px';
+                        editBtn.style.borderRadius = '4px';
+                        editBtn.style.cursor = 'pointer';
+                        editBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            document.getElementById('orgId').value = org.id || '';
+                            document.getElementById('orgName').value = org.name || '';
+                            document.getElementById('orgContact').value = org.contact || '';
+                            document.getElementById('orgPhone').value = org.phone || '';
+                            document.getElementById('addOrgForm').style.display = 'block';
+                            document.getElementById('orgName').focus();
+                        });
+                        btnContainer.appendChild(editBtn);
+                        
                         const delBtn = document.createElement('button');
                         delBtn.textContent = 'Delete';
                         delBtn.style.background = '#c00';
@@ -230,12 +277,296 @@
                             .then(r => r.json())
                             .then(() => loadOrganizations());
                         });
-                        row.appendChild(delBtn);
+                        btnContainer.appendChild(delBtn);
+                        
+                        row.appendChild(btnContainer);
                     }
-
-                    container.appendChild(row);
+                    orgContainer.appendChild(row);
+                    
+                    // Contacts section - always show, but only load if org has ID
+                    const contactsDiv = document.createElement('div');
+                    const orgIdentifier = org.id || org.name || 'unknown';
+                    contactsDiv.id = `contacts-${orgIdentifier}`;
+                    contactsDiv.style.marginTop = '0.5rem';
+                    contactsDiv.style.paddingLeft = '1rem';
+                    contactsDiv.style.borderLeft = '2px solid #444';
+                    
+                    if (org.id) {
+                        contactsDiv.innerHTML = '<div style="color: #888; font-size: 0.9em;">Loading contacts...</div>';
+                        orgContainer.appendChild(contactsDiv);
+                        console.log('[loadOrganizations] Loading contacts for org:', org.name, 'id:', org.id);
+                        // Load contacts for this organization
+                        loadOrganizationContacts(org.id);
+                    } else {
+                        contactsDiv.innerHTML = '<div style="color: #888; font-size: 0.85em;">Contacts: (Edit and save this organization first to enable contact management)</div>';
+                        orgContainer.appendChild(contactsDiv);
+                        console.log('[loadOrganizations] Organization has no ID:', org.name, '- contacts section will not load');
+                    }
+                    
+                    container.appendChild(orgContainer);
                 });
             });
+    }
+    
+    // Load and display contacts for an organization
+    function loadOrganizationContacts(orgId) {
+        console.log('[loadOrganizationContacts] Loading contacts for orgId:', orgId);
+        fetch(`/api/organizations/${encodeURIComponent(orgId)}/contacts`, {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(r => {
+            console.log('[loadOrganizationContacts] Response status:', r.status, r.statusText);
+            if (!r.ok) {
+                throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+            }
+            return r.json();
+        })
+        .then(data => {
+            console.log('[loadOrganizationContacts] Received data:', data);
+            const contacts = data.contacts || [];
+            const contactsDiv = document.getElementById(`contacts-${orgId}`);
+            console.log('[loadOrganizationContacts] contactsDiv found:', !!contactsDiv, 'for orgId:', orgId);
+            if (!contactsDiv) {
+                console.error('[loadOrganizationContacts] contactsDiv not found for orgId:', orgId);
+                return;
+            }
+            
+            const showAdmin = isAdmin();
+            
+            if (contacts.length === 0 && !showAdmin) {
+                contactsDiv.innerHTML = '';
+                return;
+            }
+            
+            let html = '<div style="margin-bottom: 0.5rem;"><strong style="font-size: 0.9em;">Contacts:</strong></div>';
+            
+            if (showAdmin) {
+                html += `<div style="margin-bottom: 0.5rem;">
+                    <button class="addContactBtn" data-org-id="${orgId}" style="padding: 0.2rem 0.6rem; font-size: 0.85em; background: #23272b; color: #6fcf6f; border: 1px solid #3a3f47; border-radius: 4px; cursor: pointer;">+ Add Contact</button>
+                </div>`;
+            }
+            
+            if (contacts.length === 0) {
+                html += '<div style="color: #888; font-size: 0.85em; margin-left: 0.5rem;">No contacts added yet.</div>';
+            } else {
+                contacts.forEach(contact => {
+                    html += `<div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.3rem; padding: 0.3rem; background: rgba(34,34,34,0.2); border-radius: 4px;">
+                        <div style="flex: 1;">
+                            <strong style="font-size: 0.9em;">${escapeHtml(contact.name || '')}</strong>`;
+                    if (contact.phone) html += ` <span style="color: #888; font-size: 0.85em;">— Phone: ${escapeHtml(contact.phone)}</span>`;
+                    if (contact.email) html += ` <span style="color: #888; font-size: 0.85em;">— Email: ${escapeHtml(contact.email)}</span>`;
+                    html += `</div>`;
+                    if (showAdmin && contact.id) {
+                        html += `<div style="display: flex; gap: 0.3rem;">
+                            <button class="editContactBtn" data-org-id="${orgId}" data-contact-id="${contact.id}" style="padding: 2px 6px; font-size: 0.75em; background: #23272b; color: #6fcf6f; border: 1px solid #3a3f47; border-radius: 3px; cursor: pointer;">Edit</button>
+                            <button class="deleteContactBtn" data-org-id="${orgId}" data-contact-id="${contact.id}" style="padding: 2px 6px; font-size: 0.75em; background: #c00; color: #fff; border: none; border-radius: 3px; cursor: pointer;">Delete</button>
+                        </div>`;
+                    }
+                    html += `</div>`;
+                });
+            }
+            
+            contactsDiv.innerHTML = html;
+            
+            // Set up event listeners for contact buttons
+            if (showAdmin) {
+                setupContactButtons(orgId);
+            }
+        })
+        .catch(err => {
+            console.error('Error loading contacts:', err);
+            const contactsDiv = document.getElementById(`contacts-${orgId}`);
+            if (contactsDiv) {
+                contactsDiv.innerHTML = '<div style="color: #a05a5a; font-size: 0.85em;">Failed to load contacts.</div>';
+            }
+        });
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function setupContactButtons(orgId) {
+        // Add contact button
+        const addBtn = document.querySelector(`.addContactBtn[data-org-id="${orgId}"]`);
+        if (addBtn) {
+            addBtn.addEventListener('click', function() {
+                showContactForm(orgId);
+            });
+        }
+        
+        // Edit contact buttons
+        document.querySelectorAll(`.editContactBtn[data-org-id="${orgId}"]`).forEach(btn => {
+            btn.addEventListener('click', function() {
+                const contactId = this.getAttribute('data-contact-id');
+                showContactForm(orgId, contactId);
+            });
+        });
+        
+        // Delete contact buttons
+        document.querySelectorAll(`.deleteContactBtn[data-org-id="${orgId}"]`).forEach(btn => {
+            btn.addEventListener('click', function() {
+                const contactId = this.getAttribute('data-contact-id');
+                if (!confirm('Delete this contact?')) return;
+                deleteContact(orgId, contactId);
+            });
+        });
+    }
+    
+    function showContactForm(orgId, contactId) {
+        // Create or show contact form modal
+        let formDiv = document.getElementById(`contactForm-${orgId}`);
+        if (!formDiv) {
+            formDiv = document.createElement('div');
+            formDiv.id = `contactForm-${orgId}`;
+            formDiv.style.position = 'fixed';
+            formDiv.style.top = '50%';
+            formDiv.style.left = '50%';
+            formDiv.style.transform = 'translate(-50%, -50%)';
+            formDiv.style.background = '#23272b';
+            formDiv.style.border = '2px solid #6fcf6f';
+            formDiv.style.borderRadius = '8px';
+            formDiv.style.padding = '1.5rem';
+            formDiv.style.zIndex = '10000';
+            formDiv.style.minWidth = '400px';
+            formDiv.style.maxWidth = '90vw';
+            document.body.appendChild(formDiv);
+        }
+        
+        if (contactId) {
+            // Load contact data for editing
+            fetch(`/api/organizations/${encodeURIComponent(orgId)}/contacts`, {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const contact = (data.contacts || []).find(c => c.id === contactId);
+                if (contact) {
+                    formDiv.innerHTML = `
+                        <h3 style="margin-top: 0;">Edit Contact</h3>
+                        <form id="contactFormForm-${orgId}">
+                            <input type="hidden" id="contactId-${orgId}" value="${contactId}">
+                            <label style="display: block; margin-bottom: 0.8rem;">
+                                Name*:<br>
+                                <input type="text" id="contactName-${orgId}" value="${escapeHtml(contact.name || '')}" required style="width: 100%; margin-top: 0.3rem;">
+                            </label>
+                            <label style="display: block; margin-bottom: 0.8rem;">
+                                Phone:<br>
+                                <input type="text" id="contactPhone-${orgId}" value="${escapeHtml(contact.phone || '')}" style="width: 100%; margin-top: 0.3rem;">
+                            </label>
+                            <label style="display: block; margin-bottom: 0.8rem;">
+                                Email:<br>
+                                <input type="email" id="contactEmail-${orgId}" value="${escapeHtml(contact.email || '')}" style="width: 100%; margin-top: 0.3rem;">
+                            </label>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                                <button type="submit" style="flex: 1;">Save</button>
+                                <button type="button" class="cancelContactForm" data-org-id="${orgId}" style="flex: 1;">Cancel</button>
+                            </div>
+                        </form>
+                    `;
+                    setupContactForm(orgId);
+                }
+            });
+        } else {
+            // New contact
+            formDiv.innerHTML = `
+                <h3 style="margin-top: 0;">Add Contact</h3>
+                <form id="contactFormForm-${orgId}">
+                    <input type="hidden" id="contactId-${orgId}" value="">
+                    <label style="display: block; margin-bottom: 0.8rem;">
+                        Name*:<br>
+                        <input type="text" id="contactName-${orgId}" required style="width: 100%; margin-top: 0.3rem;">
+                    </label>
+                    <label style="display: block; margin-bottom: 0.8rem;">
+                        Phone:<br>
+                        <input type="text" id="contactPhone-${orgId}" style="width: 100%; margin-top: 0.3rem;">
+                    </label>
+                    <label style="display: block; margin-bottom: 0.8rem;">
+                        Email:<br>
+                        <input type="email" id="contactEmail-${orgId}" style="width: 100%; margin-top: 0.3rem;">
+                    </label>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                        <button type="submit" style="flex: 1;">Save</button>
+                        <button type="button" class="cancelContactForm" data-org-id="${orgId}" style="flex: 1;">Cancel</button>
+                    </div>
+                </form>
+            `;
+            setupContactForm(orgId);
+        }
+        
+        formDiv.style.display = 'block';
+    }
+    
+    function setupContactForm(orgId) {
+        const form = document.getElementById(`contactFormForm-${orgId}`);
+        const cancelBtn = document.querySelector(`.cancelContactForm[data-org-id="${orgId}"]`);
+        
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const contactId = document.getElementById(`contactId-${orgId}`).value.trim();
+                const name = document.getElementById(`contactName-${orgId}`).value.trim();
+                const phone = document.getElementById(`contactPhone-${orgId}`).value.trim();
+                const email = document.getElementById(`contactEmail-${orgId}`).value.trim();
+                
+                if (!name) {
+                    alert('Contact name is required');
+                    return;
+                }
+                
+                fetch(`/api/organizations/${encodeURIComponent(orgId)}/contacts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    },
+                    body: JSON.stringify({
+                        id: contactId || undefined,
+                        name,
+                        phone: phone || undefined,
+                        email: email || undefined
+                    })
+                })
+                .then(r => r.json())
+                .then(result => {
+                    if (result && result.success) {
+                        const formDiv = document.getElementById(`contactForm-${orgId}`);
+                        if (formDiv) formDiv.style.display = 'none';
+                        loadOrganizationContacts(orgId);
+                    } else {
+                        alert((result && result.error) || 'Failed to save contact');
+                    }
+                })
+                .catch(err => alert('Error: ' + err));
+            });
+        }
+        
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function() {
+                const formDiv = document.getElementById(`contactForm-${orgId}`);
+                if (formDiv) formDiv.style.display = 'none';
+            });
+        }
+    }
+    
+    function deleteContact(orgId, contactId) {
+        fetch(`/api/organizations/${encodeURIComponent(orgId)}/contacts/${encodeURIComponent(contactId)}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': 'Bearer ' + getToken()
+            }
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result && result.success) {
+                loadOrganizationContacts(orgId);
+            } else {
+                alert((result && result.error) || 'Failed to delete contact');
+            }
+        })
+        .catch(err => alert('Error: ' + err));
     }
     // Fetch and display Client statuses
     function loadClientStatuses() {
@@ -366,25 +697,39 @@
                 const container = document.getElementById('communityList');
                 container.innerHTML = '';
                 if (list.length === 0) {
-                    container.textContent = 'No First Nations found.';
+                    container.textContent = 'No First Nations found. Add one to get started.';
                     return;
                 }
                 list.sort((a, b) => (a.name || a).localeCompare(b.name || b));
+                const showAdmin = isAdmin();
                 list.forEach(item => {
                     const obj = (typeof item === 'string') ? { name: item } : (item || {});
                     const row = document.createElement('div');
                     row.className = 'list-item';
                     row.style.display = 'flex';
                     row.style.alignItems = 'center';
+                    row.style.justifyContent = 'space-between';
+                    row.style.gap = '0.5rem';
                     row.style.flexWrap = 'wrap';
                     row.style.marginBottom = '0.5rem';
 
+                    const infoLine = document.createElement('div');
+                    infoLine.style.display = 'flex';
+                    infoLine.style.alignItems = 'center';
+                    infoLine.style.flexWrap = 'wrap';
+                    infoLine.style.flex = '1';
+                    
                     const nameStrong = document.createElement('strong');
                     nameStrong.textContent = obj.name || '';
-                    row.appendChild(nameStrong);
+                    infoLine.appendChild(nameStrong);
 
                     // Build metadata pieces as nodes so Lat/Lon can be a link
                     const metaNodes = [];
+                    if (obj.band_number && (obj.band_number + '').trim()) {
+                        const s = document.createElement('span');
+                        s.textContent = 'Band: ' + obj.band_number;
+                        metaNodes.push(s);
+                    }
                     if (obj.phone && (obj.phone + '').trim()) {
                         const s = document.createElement('span');
                         s.textContent = 'Phone: ' + obj.phone;
@@ -419,13 +764,359 @@
                             if (idx > 0) meta.appendChild(document.createTextNode('  •  '));
                             meta.appendChild(node);
                         });
-                        row.appendChild(meta);
+                        infoLine.appendChild(meta);
                     }
+                    row.appendChild(infoLine);
 
-                    container.appendChild(row);
+                    if (showAdmin && (obj.id || obj.name)) {
+                        const btnContainer = document.createElement('div');
+                        btnContainer.style.display = 'flex';
+                        btnContainer.style.gap = '0.5rem';
+                        
+                        const editBtn = document.createElement('button');
+                        editBtn.textContent = 'Edit';
+                        editBtn.style.background = '#23272b';
+                        editBtn.style.color = '#6fcf6f';
+                        editBtn.style.border = '1px solid #3a3f47';
+                        editBtn.style.padding = '4px 10px';
+                        editBtn.style.borderRadius = '4px';
+                        editBtn.style.cursor = 'pointer';
+                        editBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            document.getElementById('communityId').value = obj.id || '';
+                            document.getElementById('communityName').value = obj.name || '';
+                            document.getElementById('communityBandNumber').value = obj.band_number || '';
+                            document.getElementById('communityAddress').value = obj.address || '';
+                            document.getElementById('communityPhone').value = obj.phone || '';
+                            document.getElementById('communityFax').value = obj.fax || '';
+                            document.getElementById('communityLatitude').value = obj.latitude || '';
+                            document.getElementById('communityLongitude').value = obj.longitude || '';
+                            document.getElementById('addCommunityForm').style.display = 'block';
+                            document.getElementById('communityName').focus();
+                        });
+                        btnContainer.appendChild(editBtn);
+                        
+                        const delBtn = document.createElement('button');
+                        delBtn.textContent = 'Delete';
+                        delBtn.style.background = '#c00';
+                        delBtn.style.color = '#fff';
+                        delBtn.style.border = 'none';
+                        delBtn.style.padding = '4px 10px';
+                        delBtn.style.borderRadius = '4px';
+                        delBtn.style.cursor = 'pointer';
+                        delBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            if (!confirm('Delete this community? This action cannot be undone.')) return;
+                            fetch('/api/communities', {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': 'Bearer ' + getToken()
+                                },
+                                body: JSON.stringify({ id: obj.id || undefined, name: obj.name })
+                            })
+                            .then(r => r.json())
+                            .then(result => {
+                                if (result && result.success) {
+                                    loadCommunities();
+                                } else {
+                                    alert((result && result.error) || 'Failed to delete community');
+                                }
+                            })
+                            .catch(err => alert('Error: ' + err));
+                        });
+                        btnContainer.appendChild(delBtn);
+                        
+                        row.appendChild(btnContainer);
+                    }
+                    orgContainer.appendChild(row);
+                    
+                    // Contacts section - always show, but only load if org has ID
+                    const contactsDiv = document.createElement('div');
+                    const orgIdentifier = org.id || org.name || 'unknown';
+                    contactsDiv.id = `contacts-${orgIdentifier}`;
+                    contactsDiv.style.marginTop = '0.5rem';
+                    contactsDiv.style.paddingLeft = '1rem';
+                    contactsDiv.style.borderLeft = '2px solid #444';
+                    
+                    if (org.id) {
+                        contactsDiv.innerHTML = '<div style="color: #888; font-size: 0.9em;">Loading contacts...</div>';
+                        orgContainer.appendChild(contactsDiv);
+                        console.log('[loadOrganizations] Loading contacts for org:', org.name, 'id:', org.id);
+                        // Load contacts for this organization
+                        loadOrganizationContacts(org.id);
+                    } else {
+                        contactsDiv.innerHTML = '<div style="color: #888; font-size: 0.85em;">Contacts: (Edit and save this organization first to enable contact management)</div>';
+                        orgContainer.appendChild(contactsDiv);
+                        console.log('[loadOrganizations] Organization has no ID:', org.name, '- contacts section will not load');
+                    }
+                    
+                    container.appendChild(orgContainer);
                 });
             });
     }
+    
+    // Load and display contacts for an organization
+    function loadOrganizationContacts(orgId) {
+        console.log('[loadOrganizationContacts] Loading contacts for orgId:', orgId);
+        fetch(`/api/organizations/${encodeURIComponent(orgId)}/contacts`, {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(r => {
+            console.log('[loadOrganizationContacts] Response status:', r.status, r.statusText);
+            if (!r.ok) {
+                throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+            }
+            return r.json();
+        })
+        .then(data => {
+            console.log('[loadOrganizationContacts] Received data:', data);
+            const contacts = data.contacts || [];
+            const contactsDiv = document.getElementById(`contacts-${orgId}`);
+            console.log('[loadOrganizationContacts] contactsDiv found:', !!contactsDiv, 'for orgId:', orgId);
+            if (!contactsDiv) {
+                console.error('[loadOrganizationContacts] contactsDiv not found for orgId:', orgId);
+                return;
+            }
+            
+            const showAdmin = isAdmin();
+            
+            if (contacts.length === 0 && !showAdmin) {
+                contactsDiv.innerHTML = '';
+                return;
+            }
+            
+            let html = '<div style="margin-bottom: 0.5rem;"><strong style="font-size: 0.9em;">Contacts:</strong></div>';
+            
+            if (showAdmin) {
+                html += `<div style="margin-bottom: 0.5rem;">
+                    <button class="addContactBtn" data-org-id="${orgId}" style="padding: 0.2rem 0.6rem; font-size: 0.85em; background: #23272b; color: #6fcf6f; border: 1px solid #3a3f47; border-radius: 4px; cursor: pointer;">+ Add Contact</button>
+                </div>`;
+            }
+            
+            if (contacts.length === 0) {
+                html += '<div style="color: #888; font-size: 0.85em; margin-left: 0.5rem;">No contacts added yet.</div>';
+            } else {
+                contacts.forEach(contact => {
+                    html += `<div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.3rem; padding: 0.3rem; background: rgba(34,34,34,0.2); border-radius: 4px;">
+                        <div style="flex: 1;">
+                            <strong style="font-size: 0.9em;">${escapeHtml(contact.name || '')}</strong>`;
+                    if (contact.phone) html += ` <span style="color: #888; font-size: 0.85em;">— Phone: ${escapeHtml(contact.phone)}</span>`;
+                    if (contact.email) html += ` <span style="color: #888; font-size: 0.85em;">— Email: ${escapeHtml(contact.email)}</span>`;
+                    html += `</div>`;
+                    if (showAdmin && contact.id) {
+                        html += `<div style="display: flex; gap: 0.3rem;">
+                            <button class="editContactBtn" data-org-id="${orgId}" data-contact-id="${contact.id}" style="padding: 2px 6px; font-size: 0.75em; background: #23272b; color: #6fcf6f; border: 1px solid #3a3f47; border-radius: 3px; cursor: pointer;">Edit</button>
+                            <button class="deleteContactBtn" data-org-id="${orgId}" data-contact-id="${contact.id}" style="padding: 2px 6px; font-size: 0.75em; background: #c00; color: #fff; border: none; border-radius: 3px; cursor: pointer;">Delete</button>
+                        </div>`;
+                    }
+                    html += `</div>`;
+                });
+            }
+            
+            contactsDiv.innerHTML = html;
+            
+            // Set up event listeners for contact buttons
+            if (showAdmin) {
+                setupContactButtons(orgId);
+            }
+        })
+        .catch(err => {
+            console.error('Error loading contacts:', err);
+            const contactsDiv = document.getElementById(`contacts-${orgId}`);
+            if (contactsDiv) {
+                contactsDiv.innerHTML = '<div style="color: #a05a5a; font-size: 0.85em;">Failed to load contacts.</div>';
+            }
+        });
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function setupContactButtons(orgId) {
+        // Add contact button
+        const addBtn = document.querySelector(`.addContactBtn[data-org-id="${orgId}"]`);
+        if (addBtn) {
+            addBtn.addEventListener('click', function() {
+                showContactForm(orgId);
+            });
+        }
+        
+        // Edit contact buttons
+        document.querySelectorAll(`.editContactBtn[data-org-id="${orgId}"]`).forEach(btn => {
+            btn.addEventListener('click', function() {
+                const contactId = this.getAttribute('data-contact-id');
+                showContactForm(orgId, contactId);
+            });
+        });
+        
+        // Delete contact buttons
+        document.querySelectorAll(`.deleteContactBtn[data-org-id="${orgId}"]`).forEach(btn => {
+            btn.addEventListener('click', function() {
+                const contactId = this.getAttribute('data-contact-id');
+                if (!confirm('Delete this contact?')) return;
+                deleteContact(orgId, contactId);
+            });
+        });
+    }
+    
+    function showContactForm(orgId, contactId) {
+        // Create or show contact form modal
+        let formDiv = document.getElementById(`contactForm-${orgId}`);
+        if (!formDiv) {
+            formDiv = document.createElement('div');
+            formDiv.id = `contactForm-${orgId}`;
+            formDiv.style.position = 'fixed';
+            formDiv.style.top = '50%';
+            formDiv.style.left = '50%';
+            formDiv.style.transform = 'translate(-50%, -50%)';
+            formDiv.style.background = '#23272b';
+            formDiv.style.border = '2px solid #6fcf6f';
+            formDiv.style.borderRadius = '8px';
+            formDiv.style.padding = '1.5rem';
+            formDiv.style.zIndex = '10000';
+            formDiv.style.minWidth = '400px';
+            formDiv.style.maxWidth = '90vw';
+            document.body.appendChild(formDiv);
+        }
+        
+        if (contactId) {
+            // Load contact data for editing
+            fetch(`/api/organizations/${encodeURIComponent(orgId)}/contacts`, {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const contact = (data.contacts || []).find(c => c.id === contactId);
+                if (contact) {
+                    formDiv.innerHTML = `
+                        <h3 style="margin-top: 0;">Edit Contact</h3>
+                        <form id="contactFormForm-${orgId}">
+                            <input type="hidden" id="contactId-${orgId}" value="${contactId}">
+                            <label style="display: block; margin-bottom: 0.8rem;">
+                                Name*:<br>
+                                <input type="text" id="contactName-${orgId}" value="${escapeHtml(contact.name || '')}" required style="width: 100%; margin-top: 0.3rem;">
+                            </label>
+                            <label style="display: block; margin-bottom: 0.8rem;">
+                                Phone:<br>
+                                <input type="text" id="contactPhone-${orgId}" value="${escapeHtml(contact.phone || '')}" style="width: 100%; margin-top: 0.3rem;">
+                            </label>
+                            <label style="display: block; margin-bottom: 0.8rem;">
+                                Email:<br>
+                                <input type="email" id="contactEmail-${orgId}" value="${escapeHtml(contact.email || '')}" style="width: 100%; margin-top: 0.3rem;">
+                            </label>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                                <button type="submit" style="flex: 1;">Save</button>
+                                <button type="button" class="cancelContactForm" data-org-id="${orgId}" style="flex: 1;">Cancel</button>
+                            </div>
+                        </form>
+                    `;
+                    setupContactForm(orgId);
+                }
+            });
+        } else {
+            // New contact
+            formDiv.innerHTML = `
+                <h3 style="margin-top: 0;">Add Contact</h3>
+                <form id="contactFormForm-${orgId}">
+                    <input type="hidden" id="contactId-${orgId}" value="">
+                    <label style="display: block; margin-bottom: 0.8rem;">
+                        Name*:<br>
+                        <input type="text" id="contactName-${orgId}" required style="width: 100%; margin-top: 0.3rem;">
+                    </label>
+                    <label style="display: block; margin-bottom: 0.8rem;">
+                        Phone:<br>
+                        <input type="text" id="contactPhone-${orgId}" style="width: 100%; margin-top: 0.3rem;">
+                    </label>
+                    <label style="display: block; margin-bottom: 0.8rem;">
+                        Email:<br>
+                        <input type="email" id="contactEmail-${orgId}" style="width: 100%; margin-top: 0.3rem;">
+                    </label>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                        <button type="submit" style="flex: 1;">Save</button>
+                        <button type="button" class="cancelContactForm" data-org-id="${orgId}" style="flex: 1;">Cancel</button>
+                    </div>
+                </form>
+            `;
+            setupContactForm(orgId);
+        }
+        
+        formDiv.style.display = 'block';
+    }
+    
+    function setupContactForm(orgId) {
+        const form = document.getElementById(`contactFormForm-${orgId}`);
+        const cancelBtn = document.querySelector(`.cancelContactForm[data-org-id="${orgId}"]`);
+        
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const contactId = document.getElementById(`contactId-${orgId}`).value.trim();
+                const name = document.getElementById(`contactName-${orgId}`).value.trim();
+                const phone = document.getElementById(`contactPhone-${orgId}`).value.trim();
+                const email = document.getElementById(`contactEmail-${orgId}`).value.trim();
+                
+                if (!name) {
+                    alert('Contact name is required');
+                    return;
+                }
+                
+                fetch(`/api/organizations/${encodeURIComponent(orgId)}/contacts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    },
+                    body: JSON.stringify({
+                        id: contactId || undefined,
+                        name,
+                        phone: phone || undefined,
+                        email: email || undefined
+                    })
+                })
+                .then(r => r.json())
+                .then(result => {
+                    if (result && result.success) {
+                        const formDiv = document.getElementById(`contactForm-${orgId}`);
+                        if (formDiv) formDiv.style.display = 'none';
+                        loadOrganizationContacts(orgId);
+                    } else {
+                        alert((result && result.error) || 'Failed to save contact');
+                    }
+                })
+                .catch(err => alert('Error: ' + err));
+            });
+        }
+        
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function() {
+                const formDiv = document.getElementById(`contactForm-${orgId}`);
+                if (formDiv) formDiv.style.display = 'none';
+            });
+        }
+    }
+    
+    function deleteContact(orgId, contactId) {
+        fetch(`/api/organizations/${encodeURIComponent(orgId)}/contacts/${encodeURIComponent(contactId)}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': 'Bearer ' + getToken()
+            }
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result && result.success) {
+                loadOrganizationContacts(orgId);
+            } else {
+                alert((result && result.error) || 'Failed to delete contact');
+            }
+        })
+        .catch(err => alert('Error: ' + err));
+    }
+    
     function loadNewsFeedSettings() {
         const token = getToken();
         fetch('/api/offender-news/settings', {
@@ -489,6 +1180,9 @@
             if (addBtn) {
                 addBtn.addEventListener('click', function(e) {
                     e.preventDefault();
+                    // Reset form for new entry
+                    document.getElementById('orgId').value = '';
+                    addForm.reset();
                     addForm.style.display = addForm.style.display === 'none' ? 'block' : 'none';
                     const nameInput = document.getElementById('orgName');
                     if (nameInput) nameInput.focus();
@@ -498,12 +1192,14 @@
                 cancelBtn.addEventListener('click', function(e) {
                     e.preventDefault();
                     addForm.reset();
+                    document.getElementById('orgId').value = '';
                     addForm.style.display = 'none';
                 });
             }
             if (addForm) {
                 addForm.addEventListener('submit', function(e) {
                     e.preventDefault();
+                    const id = document.getElementById('orgId').value.trim();
                     const name = document.getElementById('orgName').value.trim();
                     const contact = document.getElementById('orgContact').value.trim();
                     const phone = document.getElementById('orgPhone').value.trim();
@@ -514,16 +1210,22 @@
                             'Content-Type': 'application/json',
                             'Authorization': 'Bearer ' + getToken()
                         },
-                        body: JSON.stringify({ name, contact, phone })
+                        body: JSON.stringify({ 
+                            id: id || undefined,
+                            name, 
+                            contact: contact || undefined,
+                            phone: phone || undefined
+                        })
                     })
                     .then(r => r.json())
                     .then(result => {
                         if (result && (result.success || result.reactivated)) {
                             addForm.reset();
+                            document.getElementById('orgId').value = '';
                             addForm.style.display = 'none';
                             loadOrganizations();
                         } else {
-                            alert((result && result.error) || 'Failed to add organization');
+                            alert((result && result.error) || 'Failed to save organization');
                         }
                     })
                     .catch(err => alert('Error: ' + err));
@@ -785,6 +1487,77 @@
                             loadClientStatuses();
                         } else {
                             alert((result && result.error) || 'Failed to add status');
+                        }
+                    })
+                    .catch(err => alert('Error: ' + err));
+                });
+            }
+        }
+
+        // Add community form handling
+        const addCommunityBtn = document.getElementById('addCommunityBtn');
+        const addCommunityForm = document.getElementById('addCommunityForm');
+        const cancelAddCommunityBtn = document.getElementById('cancelAddCommunity');
+        if (!isAdmin()) {
+            if (addCommunityBtn) addCommunityBtn.style.display = 'none';
+        } else {
+            if (addCommunityBtn) {
+                addCommunityBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    // Reset form for new entry
+                    document.getElementById('communityId').value = '';
+                    addCommunityForm.reset();
+                    addCommunityForm.style.display = addCommunityForm.style.display === 'none' ? 'block' : 'none';
+                    const nameInput = document.getElementById('communityName');
+                    if (nameInput) nameInput.focus();
+                });
+            }
+            if (cancelAddCommunityBtn) {
+                cancelAddCommunityBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    addCommunityForm.reset();
+                    document.getElementById('communityId').value = '';
+                    addCommunityForm.style.display = 'none';
+                });
+            }
+            if (addCommunityForm) {
+                addCommunityForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const id = document.getElementById('communityId').value.trim();
+                    const name = document.getElementById('communityName').value.trim();
+                    const band_number = document.getElementById('communityBandNumber').value.trim();
+                    const address = document.getElementById('communityAddress').value.trim();
+                    const phone = document.getElementById('communityPhone').value.trim();
+                    const fax = document.getElementById('communityFax').value.trim();
+                    const latitude = document.getElementById('communityLatitude').value.trim();
+                    const longitude = document.getElementById('communityLongitude').value.trim();
+                    if (!name) { alert('Name is required'); return; }
+                    fetch('/api/communities', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getToken()
+                        },
+                        body: JSON.stringify({ 
+                            id: id || undefined,
+                            name, 
+                            band_number: band_number || undefined,
+                            address: address || undefined,
+                            phone: phone || undefined,
+                            fax: fax || undefined,
+                            latitude: latitude || undefined,
+                            longitude: longitude || undefined
+                        })
+                    })
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result && result.success) {
+                            addCommunityForm.reset();
+                            document.getElementById('communityId').value = '';
+                            addCommunityForm.style.display = 'none';
+                            loadCommunities();
+                        } else {
+                            alert((result && result.error) || 'Failed to save community');
                         }
                     })
                     .catch(err => alert('Error: ' + err));
