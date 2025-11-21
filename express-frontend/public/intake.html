@@ -170,7 +170,10 @@ if (!getToken()) {
                 <label>Signature: <input type="text" name="signature"></label>
                 <label>Date: <input type="date" name="consentDate"></label>
             </div>
-            <button type="submit">Submit Intake</button>
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                <button type="submit">Submit Intake</button>
+                <button type="button" id="exportPdfBtn" style="background-color: #6e5a3a;">Export Blank Form to PDF</button>
+            </div>
     </form>
     <div id="formMessage" style="margin-top:1.5rem;font-weight:bold;"></div>
     <div id="dbStatusBox"></div>
@@ -539,5 +542,48 @@ if (communitySearchCheckbox) {
     });
     syncCommunitySearchFieldVisibility();
 }
+
+// Export blank form to PDF
+document.getElementById('exportPdfBtn').addEventListener('click', async function() {
+    try {
+        const token = getToken();
+        const response = await fetch('/api/intake/export-pdf', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to generate PDF');
+        }
+        
+        // Get the PDF blob
+        const blob = await response.blob();
+        
+        // Create a download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Intake_Form_Blank.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        // Show success message
+        const messageEl = document.getElementById('formMessage');
+        messageEl.textContent = 'PDF downloaded successfully!';
+        messageEl.style.color = '#7fffa7';
+        setTimeout(() => {
+            messageEl.textContent = '';
+        }, 3000);
+    } catch (err) {
+        console.error('Error exporting PDF:', err);
+        const messageEl = document.getElementById('formMessage');
+        messageEl.textContent = 'Failed to export PDF. Please try again.';
+        messageEl.style.color = '#ff7f7f';
+    }
+});
 </script>
 </html>

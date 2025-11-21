@@ -555,7 +555,7 @@
         });
         if (!res.ok) return;
         const data = await res.json();
-        let html = '<h1>Case Details</h1>';
+        let html = '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;"><h1 style="margin: 0;">Case Details</h1><button id="exportCasePdfBtn" style="background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;">📄 Export to PDF</button></div>';
         // Show all applicant fields except id and internal Neo4j fields, as a simple list
         if (data.applicant) {
             html += '<div style="margin:1em 0 1.5em 0;">';
@@ -1419,6 +1419,54 @@
     } else {
         document.getElementById('caseInfo').textContent = 'No case selected.';
     }
+
+    // Export case to PDF button handler (using event delegation since button is created dynamically)
+    document.addEventListener('click', async function(e) {
+        if (e.target && e.target.id === 'exportCasePdfBtn') {
+            e.preventDefault();
+            const currentCaseId = getCaseId();
+            if (!currentCaseId) {
+                alert('No case selected.');
+                return;
+            }
+            
+            try {
+                const token = getToken();
+                const response = await fetch(`/api/applicants/${encodeURIComponent(currentCaseId)}/export-pdf`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Case not found');
+                    }
+                    throw new Error('Failed to generate PDF');
+                }
+                
+                // Get the PDF blob
+                const blob = await response.blob();
+                
+                // Create a download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Case_Details_${currentCaseId}_${new Date().toISOString().split('T')[0]}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                // Show success message (you could add a message element if needed)
+                console.log('PDF downloaded successfully');
+            } catch (err) {
+                console.error('Error exporting PDF:', err);
+                alert('Failed to export PDF: ' + (err.message || 'Unknown error'));
+            }
+        }
+    });
 
     // Photo management functions for LovedOnes
     async function fetchPhotos(lovedOneId) {
