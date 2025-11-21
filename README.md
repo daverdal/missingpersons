@@ -74,4 +74,14 @@ If Twilio credentials are absent the endpoint returns `503` so the UI can disabl
 
 ---
 
+## Tracking Changes for MCP Server
+
+When adding new features or API endpoints to this app, please document them in:
+- **CHANGELOG.md** - General changelog tracking all changes
+- **API_CHANGES_FOR_MCP.md** - Specific API changes that need to be reflected in the MCP server
+
+This helps ensure the MCP server's tool manifests stay up-to-date with new capabilities.
+
+---
+
 For questions or help, contact your developer or admin.

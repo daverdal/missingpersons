@@ -78,55 +78,69 @@
 
         <form id="emailSettingsForm">
             <div class="form-group">
-                <label for="smtpHost">SMTP Host *</label>
-                <input type="text" id="smtpHost" placeholder="smtp.gmail.com" required>
-                <div class="help-text">The SMTP server hostname (e.g., smtp.gmail.com for Gmail)</div>
+                <label for="smtpHost">SMTP Host</label>
+                <input type="text" id="smtpHost" placeholder="smtp.gmail.com">
+                <div class="help-text">The SMTP server hostname (e.g., smtp.gmail.com for Gmail). Leave empty to keep current value.</div>
             </div>
 
             <div class="form-group">
-                <label for="smtpPort">SMTP Port *</label>
-                <input type="number" id="smtpPort" placeholder="587" required>
-                <div class="help-text">SMTP port (587 for TLS, 465 for SSL)</div>
+                <label for="smtpPort">SMTP Port</label>
+                <input type="number" id="smtpPort" placeholder="587">
+                <div class="help-text">SMTP port (587 for TLS, 465 for SSL). Leave empty to keep current value.</div>
             </div>
 
             <div class="form-group">
                 <label for="smtpSecure">Use SSL/TLS</label>
                 <select id="smtpSecure" style="padding: 0.5rem; max-width: 500px;">
+                    <option value="">-- Keep current value --</option>
                     <option value="false">TLS (port 587)</option>
                     <option value="true">SSL (port 465)</option>
                 </select>
-                <div class="help-text">Use SSL for secure connection (typically for port 465)</div>
+                <div class="help-text">Use SSL for secure connection (typically for port 465). Select "-- Keep current value --" to leave unchanged.</div>
             </div>
 
             <div class="form-group">
-                <label for="smtpUser">SMTP Username (Email Address) *</label>
-                <input type="email" id="smtpUser" placeholder="your-email@gmail.com" required>
-                <div class="help-text">Your email address used for SMTP authentication</div>
+                <label for="smtpUser">SMTP Username (Email Address)</label>
+                <input type="email" id="smtpUser" placeholder="your-email@gmail.com" autocomplete="username">
+                <div class="help-text">Your email address used for SMTP authentication. Leave empty to keep current value.</div>
             </div>
 
             <div class="form-group">
-                <label for="smtpPass">SMTP Password *</label>
-                <input type="password" id="smtpPass" placeholder="Enter password or app password">
-                <div class="help-text">Your email password or app-specific password (for Gmail, use an App Password)</div>
+                <label for="smtpPass">SMTP Password</label>
+                <input type="password" id="smtpPass" placeholder="Enter new password (leave empty to keep current)" autocomplete="new-password">
+                <div class="help-text">Your email password or app-specific password (for Gmail, use an App Password). Leave empty to keep current password.</div>
             </div>
 
             <div class="form-group">
-                <label for="emailFrom">From Email Address *</label>
-                <input type="email" id="emailFrom" placeholder="your-email@gmail.com" required>
-                <div class="help-text">The "from" address that will appear in sent emails</div>
+                <label for="emailFrom">From Email Address</label>
+                <input type="email" id="emailFrom" name="from-addr" placeholder="noreply@yourdomain.com" autocomplete="off" data-lpignore="true" data-form-type="other">
+                <div class="help-text">The "from" address that recipients will see (e.g., noreply@yourdomain.com). <strong>Note:</strong> When using Gmail, the authenticated Gmail account address will always be shown, regardless of this setting. Leave empty to keep current value.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="emailFromName">From Display Name (Optional)</label>
+                <input type="text" id="emailFromName" name="from-name" placeholder="Missing Persons System" autocomplete="off" data-lpignore="true" data-form-type="other">
+                <div class="help-text">Optional: Display name that appears before the email address. If set, emails will show as "Display Name &lt;email@address.com&gt;". <strong>Note:</strong> With Gmail, the email address will always be your authenticated Gmail account, but you can customize the display name.</div>
             </div>
 
             <div class="form-group">
                 <label for="emailReplyTo">Reply-To Address (Optional)</label>
-                <input type="email" id="emailReplyTo" placeholder="noreply+blast@yourdomain.com">
+                <input type="email" id="emailReplyTo" name="reply-to-addr" placeholder="noreply+blast@yourdomain.com" autocomplete="off" data-lpignore="true" data-form-type="other">
                 <div class="help-text">Optional: Separate address for replies (when recipients click "Reply"). Note: Bounce-back emails go to the "From Address" above, not this field. To redirect bounces, use a separate email account as the "From Address".</div>
             </div>
             
             <div style="background: #2a2f35; border: 1px solid #444; border-radius: 4px; padding: 1rem; margin-top: 1.5rem;">
-                <h3 style="margin-top: 0;">About Bounce-Back Emails</h3>
-                <p><strong>Where do bounces go?</strong> Bounce-back emails go to the "From Address" you specify above, not the Reply-To address.</p>
-                <p><strong>Current protection:</strong> The system automatically filters out bounce-back emails from the Offender News inbox, so they won't trigger SMS alerts even if they arrive in your inbox.</p>
-                <p><strong>Best practice:</strong> If you want to completely separate bounces, create a dedicated Gmail account (e.g., <code>missingpersons-blasts@yourdomain.com</code>) and use it as the "From Address". All bounces will go to that account instead of your main inbox.</p>
+                <h3 style="margin-top: 0;">About Email Sending with Gmail</h3>
+                <p><strong>Gmail Limitation:</strong> When using Gmail SMTP, Gmail will always show the authenticated Gmail account's email address in the "From" field, regardless of what you set in "From Email Address" above. This is a Gmail security feature to prevent email spoofing.</p>
+                <p><strong>What you can customize:</strong> You can set a "From Display Name" to show a friendly name (e.g., "Missing Persons System"), but the email address will still be your Gmail account.</p>
+                <p><strong>To hide the Gmail address:</strong> You would need to either:
+                    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                        <li>Set up Gmail's "Send mail as" feature for the address you want to use (requires verification in Gmail settings)</li>
+                        <li>Use a different email service that allows sending from any address</li>
+                        <li>Use a dedicated Gmail account for email blasts (e.g., <code>missingpersons-blasts@gmail.com</code>)</li>
+                    </ul>
+                </p>
+                <p><strong>About Bounce-Back Emails:</strong> Bounce-back emails go to the authenticated Gmail account, not the Reply-To address. The system automatically filters out bounce-back emails from the Offender News inbox, so they won't trigger SMS alerts.</p>
             </div>
 
             <button type="submit" style="padding: 0.6rem 1.2rem; font-size: 1em;">Save Email Settings</button>
@@ -169,30 +183,63 @@
             .then(r => r.json())
             .then(data => {
                 const settings = data.settings || {};
+                const effective = data.effective || {};
+                const source = data.source || 'unknown';
                 const currentDiv = document.getElementById('currentSettings');
                 
-                if (Object.keys(settings).length === 0) {
-                    currentDiv.innerHTML = '<h3>Current Settings</h3><p>No settings configured in database. Using .env file values or defaults.</p>';
+                // Show effective settings (what's actually being used)
+                const displaySettings = effective && Object.keys(effective).length > 0 ? effective : settings;
+                const sourceText = source === 'database' ? 'Database' : 
+                                  source === 'offender_news_config' ? 'Offender News Config (Gmail)' : 
+                                  'Environment Variables';
+                
+                if (Object.keys(displaySettings).length === 0) {
+                    currentDiv.innerHTML = '<h3>Current Settings</h3><p>No email settings configured. Email blast will not work until settings are configured.</p>';
                 } else {
                     currentDiv.innerHTML = `
-                        <h3>Current Settings</h3>
-                        <p><strong>SMTP Host:</strong> ${settings.smtpHost || '(not set)'}</p>
-                        <p><strong>SMTP Port:</strong> ${settings.smtpPort || '(not set)'}</p>
-                        <p><strong>Use SSL:</strong> ${settings.smtpSecure === true ? 'Yes' : 'No'}</p>
-                        <p><strong>SMTP Username:</strong> ${settings.smtpUser || '(not set)'}</p>
-                        <p><strong>From Address:</strong> ${settings.emailFrom || '(not set)'}</p>
-                        <p><strong>Reply-To:</strong> ${settings.emailReplyTo || '(not set)'}</p>
+                        <h3>Current Settings (Effective)</h3>
+                        <p style="font-size: 0.9em; color: #aaa; margin-bottom: 1rem;"><em>Source: ${sourceText}</em></p>
+                        <p><strong>SMTP Host:</strong> ${displaySettings.smtpHost || '(not set)'}</p>
+                        <p><strong>SMTP Port:</strong> ${displaySettings.smtpPort || '(not set)'}</p>
+                        <p><strong>Use SSL:</strong> ${displaySettings.smtpSecure === true ? 'Yes' : 'No'}</p>
+                        <p><strong>SMTP Username:</strong> ${displaySettings.smtpUser || '(not set)'}</p>
+                        <p><strong>From Address:</strong> ${displaySettings.emailFrom || '(not set)'}</p>
+                        <p><strong>From Display Name:</strong> ${displaySettings.emailFromName || '(not set)'}</p>
+                        <p><strong>Reply-To:</strong> ${displaySettings.emailReplyTo || '(not set)'}</p>
+                        ${source !== 'database' && Object.keys(settings).length > 0 ? 
+                          '<p style="margin-top: 1rem; font-size: 0.9em; color: #aaa;"><em>Note: Some settings are stored in the database and will be merged with the above.</em></p>' : ''}
                     `;
                 }
 
-                // Populate form with current settings (if any)
-                if (settings.smtpHost) document.getElementById('smtpHost').value = settings.smtpHost;
-                if (settings.smtpPort) document.getElementById('smtpPort').value = settings.smtpPort;
-                if (settings.smtpSecure !== undefined) document.getElementById('smtpSecure').value = String(settings.smtpSecure);
-                if (settings.smtpUser) document.getElementById('smtpUser').value = settings.smtpUser;
-                if (settings.emailFrom) document.getElementById('emailFrom').value = settings.emailFrom;
-                if (settings.emailReplyTo) document.getElementById('emailReplyTo').value = settings.emailReplyTo;
+                // Populate form with stored settings (from database) - these are what can be edited
+                // Use effective settings as fallback if stored settings are empty
+                const formSettings = Object.keys(settings).length > 0 ? settings : effective;
+                
+                if (formSettings.smtpHost) document.getElementById('smtpHost').value = formSettings.smtpHost;
+                if (formSettings.smtpPort) document.getElementById('smtpPort').value = formSettings.smtpPort;
+                if (formSettings.smtpSecure !== undefined) document.getElementById('smtpSecure').value = String(formSettings.smtpSecure);
+                if (formSettings.smtpUser) document.getElementById('smtpUser').value = formSettings.smtpUser;
+                if (formSettings.emailFrom) {
+                    const emailFromField = document.getElementById('emailFrom');
+                    emailFromField.value = formSettings.emailFrom;
+                    emailFromField._originalValue = formSettings.emailFrom;
+                }
+                if (formSettings.emailFromName) {
+                    const emailFromNameField = document.getElementById('emailFromName');
+                    emailFromNameField.value = formSettings.emailFromName;
+                    emailFromNameField._originalValue = formSettings.emailFromName;
+                }
+                if (formSettings.emailReplyTo) {
+                    const emailReplyToField = document.getElementById('emailReplyTo');
+                    emailReplyToField.value = formSettings.emailReplyTo;
+                    emailReplyToField._originalValue = formSettings.emailReplyTo;
+                }
                 // Don't populate password for security
+                
+                // Update global original values after loading
+                emailFromOriginal = document.getElementById('emailFrom').value;
+                emailFromNameOriginal = document.getElementById('emailFromName').value;
+                emailReplyToOriginal = document.getElementById('emailReplyTo').value;
             })
             .catch(err => {
                 console.error('Failed to load email settings:', err);
@@ -206,6 +253,72 @@
                 return;
             }
 
+            // Prevent browser autofill from copying values between email fields
+            const emailFromField = document.getElementById('emailFrom');
+            const emailFromNameField = document.getElementById('emailFromName');
+            const emailReplyToField = document.getElementById('emailReplyTo');
+
+            // Function to store current values as originals
+            function storeOriginalValues() {
+                emailFromOriginal = emailFromField.value;
+                emailFromNameOriginal = emailFromNameField.value;
+                emailReplyToOriginal = emailReplyToField.value;
+            }
+
+            // Store initial values
+            storeOriginalValues();
+
+            // Monitor for unwanted autofill changes using input events
+            [emailFromField, emailFromNameField, emailReplyToField].forEach(field => {
+                // Watch for input events to detect autofill
+                field.addEventListener('input', function(e) {
+                    const activeField = document.activeElement;
+                    // If user is typing in one field, prevent others from changing
+                    if (activeField === field) {
+                        // User is actively typing in this field - update original for this field only
+                        if (field === emailFromField) {
+                            emailFromOriginal = field.value;
+                        } else if (field === emailFromNameField) {
+                            emailFromNameOriginal = field.value;
+                        } else if (field === emailReplyToField) {
+                            emailReplyToOriginal = field.value;
+                        }
+                    } else {
+                        // This field changed but user is typing in another field - might be autofill
+                        // Restore the value if it doesn't match the original
+                        if (field === emailFromField && field.value !== emailFromOriginal) {
+                            setTimeout(() => {
+                                if (document.activeElement !== emailFromField) {
+                                    field.value = emailFromOriginal;
+                                }
+                            }, 10);
+                        } else if (field === emailFromNameField && field.value !== emailFromNameOriginal) {
+                            setTimeout(() => {
+                                if (document.activeElement !== emailFromNameField) {
+                                    field.value = emailFromNameOriginal;
+                                }
+                            }, 10);
+                        } else if (field === emailReplyToField && field.value !== emailReplyToOriginal) {
+                            setTimeout(() => {
+                                if (document.activeElement !== emailReplyToField) {
+                                    field.value = emailReplyToOriginal;
+                                }
+                            }, 10);
+                        }
+                    }
+                });
+
+                // Update original when field loses focus (user finished editing)
+                field.addEventListener('blur', function() {
+                    storeOriginalValues();
+                });
+
+                // Store values when field gets focus
+                field.addEventListener('focus', function() {
+                    storeOriginalValues();
+                });
+            });
+
             loadCurrentSettings();
 
             const form = document.getElementById('emailSettingsForm');
@@ -213,31 +326,41 @@
                 e.preventDefault();
                 setStatus('', '');
 
-                const settings = {
-                    smtpHost: document.getElementById('smtpHost').value.trim(),
-                    smtpPort: parseInt(document.getElementById('smtpPort').value, 10),
-                    smtpSecure: document.getElementById('smtpSecure').value === 'true',
-                    smtpUser: document.getElementById('smtpUser').value.trim(),
-                    emailFrom: document.getElementById('emailFrom').value.trim(),
-                    emailReplyTo: document.getElementById('emailReplyTo').value.trim() || null
-                };
+                // Get form values - only include fields that have values (for partial updates)
+                const settings = {};
+                const smtpHostVal = document.getElementById('smtpHost').value.trim();
+                const smtpPortVal = document.getElementById('smtpPort').value.trim();
+                const smtpSecureVal = document.getElementById('smtpSecure').value;
+                const smtpUserVal = document.getElementById('smtpUser').value.trim();
+                const smtpPassVal = document.getElementById('smtpPass').value.trim();
+                const emailFromVal = document.getElementById('emailFrom').value.trim();
+                const emailFromNameVal = document.getElementById('emailFromName').value.trim();
+                const emailReplyToVal = document.getElementById('emailReplyTo').value.trim();
 
-                // Password is optional (only update if provided)
-                const password = document.getElementById('smtpPass').value.trim();
-                if (password) {
-                    settings.smtpPass = password;
+                // Only include fields that have values (for partial updates)
+                if (smtpHostVal) settings.smtpHost = smtpHostVal;
+                if (smtpPortVal) {
+                    const portNum = parseInt(smtpPortVal, 10);
+                    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+                        setStatus('SMTP Port must be a valid port number (1-65535).', 'error');
+                        return;
+                    }
+                    settings.smtpPort = portNum;
                 }
+                if (smtpSecureVal !== '') settings.smtpSecure = smtpSecureVal;
+                if (smtpUserVal) settings.smtpUser = smtpUserVal;
+                if (smtpPassVal) settings.smtpPass = smtpPassVal;
+                if (emailFromVal) settings.emailFrom = emailFromVal;
+                if (emailFromNameVal) settings.emailFromName = emailFromNameVal;
+                if (emailReplyToVal) settings.emailReplyTo = emailReplyToVal;
+                else if (emailReplyToVal === '') settings.emailReplyTo = null; // Allow clearing reply-to
 
-                // Validate required fields
-                if (!settings.smtpHost || !settings.smtpPort || !settings.smtpUser || !settings.emailFrom) {
-                    setStatus('Please fill in all required fields.', 'error');
+                // Check if at least one field is being updated
+                if (Object.keys(settings).length === 0) {
+                    setStatus('Please fill in at least one field to update.', 'error');
                     return;
                 }
-
-                if (isNaN(settings.smtpPort) || settings.smtpPort < 1 || settings.smtpPort > 65535) {
-                    setStatus('SMTP Port must be a valid port number (1-65535).', 'error');
-                    return;
-                }
+                
 
                 fetch('/api/email-settings', {
                     method: 'POST',

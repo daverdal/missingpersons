@@ -158,9 +158,9 @@
                 clientCount = clientList.length;
                 const countEl = document.getElementById('clientCount');
                 if (clientCount === 0) {
-                    countEl.innerHTML = '<strong>No clients with phone numbers found.</strong>';
+                    countEl.innerHTML = '<strong>No clients with phone numbers and SMS opt-in found.</strong><br><small style="color:#aaa;">Clients must have a phone number AND have opted in to receive SMS messages. Please check the "Opt-in to receive SMS text messages" checkbox on the client\'s case page and save.</small>';
                 } else {
-                    countEl.innerHTML = `<strong>${clientCount} client${clientCount === 1 ? '' : 's'} with phone number${clientCount === 1 ? '' : 's'} will receive this message.</strong>`;
+                    countEl.innerHTML = `<strong>${clientCount} client${clientCount === 1 ? '' : 's'} with phone number${clientCount === 1 ? '' : 's'} and SMS opt-in will receive this message.</strong>`;
                 }
             } catch (err) {
                 console.error('Failed to load client count:', err);
@@ -213,7 +213,12 @@
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ error: 'Failed to send SMS blast', details: 'Could not parse error response' }));
                     const errorMsg = errorData.error || 'Failed to send SMS blast';
-                    const details = errorData.details ? ` (${errorData.details})` : '';
+                    let details = '';
+                    if (errorData.details) {
+                        details = `\n\n${errorData.details}`;
+                    } else if (errorData.error) {
+                        details = `\n\n${errorData.error}`;
+                    }
                     throw new Error(errorMsg + details);
                 }
 

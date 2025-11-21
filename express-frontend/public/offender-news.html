@@ -100,11 +100,13 @@
         }
 
         const data = await response.json();
+        console.log('Email fetch response:', data);
+        console.log('Number of emails received:', data.emails?.length || 0);
         renderEmails(data.emails || []);
         setStatus('Loaded ' + (data.emails?.length || 0) + ' email(s).');
       } catch (err) {
-        console.error(err);
-        setStatus('Failed to load emails.', true);
+        console.error('Error fetching emails:', err);
+        setStatus('Failed to load emails: ' + (err.message || 'Unknown error'), true);
       }
     }
 

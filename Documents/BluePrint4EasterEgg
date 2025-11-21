@@ -1,0 +1,96 @@
+
+🧩 Project: Hidden “Adventure-Style” Easter Egg
+
+Goal
+
+Add a secret mini-game hidden inside our main app (Node.js backend + Neo4j).
+The Easter egg should be triggered by the Konami Code (↑↑↓↓←→←→BA) and open a small retro adventure game inspired by Atari Adventure.
+
+
+---
+
+🎮 Core Concept
+
+Trigger: When a user enters the Konami key sequence anywhere in the app.
+
+Result: A full-screen overlay opens containing a mini 2-D game.
+
+Gameplay:
+
+Player controls a small avatar (square or sprite).
+
+Move around using arrow keys.
+
+Find and collect a “key” object.
+
+Bring the key to a “castle” to unlock it.
+
+When unlocked, display a credits screen with the names or photo of the original developers.
+
+
+Exit: Press ESC to close the game and return to the main app.
+
+
+
+---
+
+⚙️ Technical Blueprint
+
+Area Specification
+
+Frontend Language The same language the app currently uses (likely TypeScript or JavaScript). Let Cursor detect and match the framework automatically.
+Game Engine Use a lightweight 2D engine like Phaser.js or an HTML5 <canvas> implementation. No external server required.
+Trigger System Add a Konami code listener that dispatches a global event (e.g., open-easter-egg) when the code is entered.
+Display Layer A full-screen modal or overlay <div> that hosts the game canvas. Should be dismissible.
+Game Loop Simple top-down movement. Small map (≈800×600). Collision optional.
+Art Assets Minimal pixel blocks or placeholder colors (player = green, key = yellow, castle = red). Later can replace with PNG sprites.
+Credit Scene After the castle is opened, display text like:<br>“🏰 You found the secret! Developed by the MANFF Team (2025)”
+Bundle Optimization Load Phaser or game code dynamically only after the Konami event triggers (lazy import) so it doesn’t affect main app performance.
+Security No API calls or DB reads; game runs entirely client-side.
+Accessibility Pause any background audio/video when the game is active.
+
+
+
+---
+
+🧠 Optional Enhancements
+
+Add randomized key position each time.
+
+Play an 8-bit sound when the player gets the key.
+
+Allow touchscreen support (swipe arrows).
+
+Store “found the Easter egg” flag in localStorage for returning users.
+
+
+
+---
+
+🗺️ File Structure Suggestion
+
+src/
+ ├─ components/
+ │ └─ EasterEggGame.(jsx|tsx)
+ ├─ assets/
+ │ ├─ sprites/
+ │ │ ├─ player.png
+ │ │ ├─ key.png
+ │ │ └─ castle.png
+ └─ utils/
+     └─ konamiListener.js
+
+
+---
+
+🧭 Prompt for Cursor
+
+You can copy and paste this into Cursor’s chat:
+
+> “Add a hidden Easter egg feature following this blueprint:
+When a user enters the Konami code (↑↑↓↓←→←→BA), open a small retro 2D adventure game overlay.
+In the game, the player moves a square avatar with arrow keys, picks up a key, opens a castle, and sees developer credits.
+Use Phaser.js or HTML5 Canvas, whichever fits our project stack.
+Make sure the game is lazy-loaded and can be closed with ESC. Follow the attached spec for details.”
+
+

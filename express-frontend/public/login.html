@@ -173,7 +173,21 @@
                 if (result.success) {
                         // Store JWT token in a cookie for authentication
                         document.cookie = `token=${result.token}; path=/; SameSite=Lax`;
-                        window.location.href = 'allcases.html';
+                        // Also store in localStorage for easy access
+                        localStorage.setItem('token', result.token);
+                        // Show token in a message before redirecting
+                        const messageDiv = document.getElementById('loginMessage');
+                        messageDiv.innerHTML = '<div style="background:#000;color:#4aff4a;padding:1rem;border:2px solid #4aff4a;border-radius:8px;margin-top:1rem;font-family:monospace;font-size:0.9em;">' +
+                            '<strong>Login successful!</strong><br>' +
+                            '<div style="margin-top:0.5rem;word-break:break-all;">JWT Token: ' + result.token + '</div>' +
+                            '<button onclick="navigator.clipboard.writeText(\'' + result.token + '\');alert(\'Token copied!\');" ' +
+                            'style="margin-top:0.5rem;padding:0.3rem 0.8rem;background:#4aff4a;color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Copy Token</button>' +
+                            '<div style="margin-top:0.5rem;font-size:0.85em;opacity:0.8;">Redirecting in 3 seconds... (or <a href="allcases.html" style="color:#4aff4a;">click here</a>)</div>' +
+                            '</div>';
+                        messageDiv.style.color = '#4aff4a';
+                        setTimeout(() => {
+                            window.location.href = 'allcases.html';
+                        }, 3000);
                 } else {
                         document.getElementById('loginMessage').textContent = result.error || 'Login failed.';
                         document.getElementById('loginMessage').style.color = '#ff7f7f';

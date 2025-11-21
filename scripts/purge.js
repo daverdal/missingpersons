@@ -1,9 +1,7 @@
-// Simple seed runner for Neo4j using env-configured connection
-// Reads purge_and_seed.cypher and executes statements sequentially
+// Purge script to delete all nodes and relationships from Neo4j database
+// WARNING: This will delete ALL data in the database!
 
 require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
 const neo4j = require('neo4j-driver');
 
 async function run() {
@@ -11,20 +9,6 @@ async function run() {
   const user = process.env.NEO4J_USER || 'neo4j';
   const password = process.env.NEO4J_PASSWORD || 'password';
   const database = process.env.NEO4J_DATABASE || 'neo4j';
-
-  const filePath = path.join(__dirname, '..', 'purge_and_seed.cypher');
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const text = raw.replace(/\r/g, '');
-  // Split on semicolons; ignore empty/comment-only chunks
-  const queries = text
-    .split(';')
-    .map(q => q.trim())
-    .filter(q => q && !q.split('\n').every(line => line.trim().startsWith('//') || line.trim() === ''));
-
-  if (!queries.length) {
-    console.log('No queries found in purge_and_seed.cypher');
-    process.exit(0);
-  }
 
   console.log(`Connecting to ${uri} (db=${database}) as ${user} ...`);
   
@@ -56,16 +40,16 @@ async function run() {
   }
   
   try {
-    console.log(`Seeding database '${actualDatabase}'...`);
-    let i = 0;
-    for (const q of queries) {
-      i += 1;
-      console.log(`Running statement ${i}/${queries.length} ...`);
-      await session.run(q);
-    }
-    console.log('Seed completed successfully.');
+    console.log(`WARNING: This will delete ALL nodes and relationships in database '${actualDatabase}'!`);
+    console.log('Purging database...');
+    
+    const result = await session.run('MATCH (n) DETACH DELETE n RETURN count(n) as deleted');
+    const deletedCount = result.records[0].get('deleted');
+    
+    console.log(`Successfully deleted ${deletedCount} nodes and all relationships.`);
+    console.log('Database purge completed.');
   } catch (err) {
-    console.error('Seed failed:', err.message);
+    console.error('Purge failed:', err.message);
     process.exitCode = 1;
   } finally {
     await session.close();
@@ -74,12 +58,4 @@ async function run() {
 }
 
 run();
-
-
-
-
-
-
-
-
 

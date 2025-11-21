@@ -1,0 +1,185 @@
+FULL SYSTEM BLUEPRINT: Manitoba Offender & Missing Person Alert System
+
+🧩 Purpose
+
+A modular system to:
+
+1. Monitor public sources for missing persons and offender releases.
+
+
+2. Store, classify, and verify alerts in Neo4j.
+
+
+3. Notify subscribed clients and public users safely.
+
+
+4. Provide community-sensitive features for First Nations and Indigenous communities.
+
+
+
+
+---
+
+1️⃣ Internal App (Private / Core System)
+
+Responsibilities:
+
+Scraping / Parsing: Pulls data from WPS, RCMP, news feeds, RSS.
+
+Classification: Tags events as Missing Person, Offender Release, or News Alert.
+
+Storage: Inserts nodes and relationships in Neo4j.
+
+Verification: Admin dashboard for verifying alerts, flagging incorrect info.
+
+Notification Trigger: Sends SMS via Twilio or push notifications (to internal or public subscribers).
+
+Admin Controls: Full access to historical alerts, trends, and audit logs.
+
+
+Neo4j Schema (Core + Community Enhancements):
+
+(:Agency { name, url })
+(:Event { type, date, source_url, verified, content_level })
+(:Person { name, age, community, status })
+(:Community { name, region, type })
+(:User { phone, preferences, community_subscribed })
+(:Service { name, url, type })
+
+Relationships:
+(Agency)-[:REPORTED]->(Event)
+(Event)-[:INVOLVES]->(Person)
+(Event)-[:RELEVANT_TO]->(Community)
+(User)-[:SUBSCRIBED_TO]->(Community)
+(Alert)-[:SOURCE]->(Service)
+
+
+---
+
+2️⃣ Community-Sensitive Enhancements
+
+Community Filtering: Alerts sent only to relevant regions/communities.
+
+Content Sensitivity: Options for full/high-level alert details; disclaimers for incomplete info.
+
+Privacy & Security: Encrypted user data, opt-in/opt-out controls.
+
+Verification: Flagging and approval by community coordinators.
+
+Accessibility: SMS for low-internet users, optional push notifications.
+
+Optional Cultural Features: Community notice board, Indigenous language messages, support service links.
+
+
+
+---
+
+3️⃣ Public App (Community-Facing)
+
+Responsibilities:
+
+Subscriptions for community members.
+
+Receives filtered and sanitized alerts via secure endpoints from the internal app.
+
+Sends SMS / push notifications to subscribers.
+
+Displays only community-relevant data; no sensitive info exposed.
+
+
+Flow:
+
+User subscribes → Requests alerts → Internal App API filters & sanitizes → Alerts delivered via SMS / Push
+
+
+---
+
+4️⃣ Client/Internal App (Hybrid for Coordinators)
+
+Internal clients access the full alert system.
+
+Can verify alerts, manage communities, view trends.
+
+Uses same internal endpoints with full permissions.
+
+
+
+---
+
+5️⃣ Communication via Secure Endpoints
+
+Public app consumes only filtered data from internal app endpoints.
+
+Protects the database from direct access.
+
+Enables authentication, rate-limiting, logging, and auditing.
+
+
+
+---
+
+6️⃣ Modular File Structure Recommendation
+
+modules/
+├─ alerts/
+│ ├─ scraper.js # fetch & parse feeds
+│ ├─ classifier.js # classify events
+│ ├─ storage.js # Neo4j interactions
+│ ├─ notifier.js # SMS / push notifications
+│ ├─ filters.js # community & content filters
+│ └─ config.js # feed URLs, keywords, community list
+server.js # main app imports modules
+
+
+---
+
+7️⃣ ASCII Flowchart: Full System
+
+┌───────────────────────────────┐
+           │ Internal App (Private) │
+           │-------------------------------│
+           │ - Scraper / Parser │
+           │ - Classification │
+           │ - Neo4j DB │
+           │ - Alert Verification │
+           │ - Admin Dashboard │
+           └─────────────┬─────────────────┘
+                         │
+       Secure / Filtered API Endpoints
+                         │
+         ┌───────────────┴─────────────────┐
+         ▼ ▼
+ ┌───────────────────────────┐ ┌───────────────────────────┐
+ │ Public App (Community) │ │ Client App (Internal) │
+ │---------------------------│ │---------------------------│
+ │ - Subscription Mgmt │ │ - Full Alert Access │
+ │ - SMS / Push Notifications│ │ - Community Management │
+ │ - Filtered / Sanitized │ │ - Admin Controls │
+ │ Alert Data │ │ - Verification & Audit │
+ └───────────────────────────┘ └───────────────────────────┘
+
+
+---
+
+8️⃣ Future Enhancements
+
+NLP to detect Indigenous names or communities automatically.
+
+Multi-language alerts (Indigenous languages).
+
+Historical dashboards showing trends by community or region.
+
+Integration with local liaison officers for faster verification.
+
+
+
+---
+
+This full blueprint covers the entire system: core scraping & notifications, community-sensitive logic, and separation between internal and public apps.
+
+It’s ready for Cursor AI or your dev team to generate the modules.
+
+
+---
+
+If you want, I can also make a condensed “Cursor-ready prompt” version of this full blueprint that you could paste directly into Cursor to generate the entire system. This would combine Part 1, Part 2, and the public/internal architecture into one prompt.

@@ -48,6 +48,12 @@ if (!getToken()) {
             <div class="two-col-form">
                 <label>Name: <input type="text" name="applicantName"></label>
                 <label>Kinship Role<input type="text" name="kinshipRole"></label>
+                <label>Status:
+                    <select name="clientStatus" id="clientStatusDropdown">
+                        <option value="">-- Select Status (optional) --</option>
+                        <!-- Options will be populated by JS -->
+                    </select>
+                </label>
                 <label>Contact Number: <input type="tel" name="contact"></label>
                 <label>Email Address: <input type="email" name="email"></label>
                 <label>Mailing Address: <input type="text" name="address"></label>
@@ -70,6 +76,12 @@ if (!getToken()) {
             <div class="section-title">Missing Loved One</div>
             <label>Name of Loved One: <input type="text" name="lovedOneName"></label>
             <label>Client's Relationship to Loved One: <input type="text" name="relationship"></label>
+            <label>Status:
+                <select name="lovedOneStatus" id="lovedOneStatusDropdown">
+                    <option value="">-- Select Status (optional) --</option>
+                    <!-- Options will be populated by JS -->
+                </select>
+            </label>
             <label>Date of Incident (if known): <input type="date" name="incidentDate"></label>
             <label>Location of Incident or Last Known Location: <input type="text" name="lastLocation"></label>
             <label>Lat/Long (e.g., 49.887129, -97.153645): <input type="text" name="lastLocationLatLon" placeholder="49.887129, -97.153645"></label>
@@ -144,6 +156,12 @@ if (!getToken()) {
 
             <div class="section-title">Additional Notes or Story (optional)</div>
             <textarea name="notes" rows="4" placeholder="Share anything about your loved one, your family’s journey, or the support you hope to receive."></textarea>
+
+            <div class="section-title">Communication Preferences</div>
+            <div class="consent">
+                <label><input type="checkbox" name="smsOptIn"> I consent to receive SMS text messages about case updates and important information.</label><br>
+                <label><input type="checkbox" name="emailOptIn"> I consent to receive email updates about case updates and important information.</label><br>
+            </div>
 
             <div class="section-title">Consent & Confidentiality</div>
             <div class="consent">
@@ -278,6 +296,52 @@ fetch('/api/communities')
             }
         });
     });
+// Load Loved One statuses
+fetch('/api/loved-one-statuses', {
+    headers: { 'Authorization': 'Bearer ' + getToken() }
+})
+    .then(r => r.json())
+    .then(data => {
+        const list = (data.statuses || []).filter(s => s.active !== false);
+        const dropdown = document.getElementById('lovedOneStatusDropdown');
+        if (!dropdown) return;
+        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        list.forEach(status => {
+            const opt = document.createElement('option');
+            opt.value = status.name;
+            opt.textContent = status.name;
+            dropdown.appendChild(opt);
+        });
+    })
+    .catch(() => {
+        const dropdown = document.getElementById('lovedOneStatusDropdown');
+        if (dropdown) {
+            dropdown.innerHTML = '<option value="">(Unable to load statuses)</option>';
+        }
+    });
+// Load Client statuses
+fetch('/api/client-statuses', {
+    headers: { 'Authorization': 'Bearer ' + getToken() }
+})
+    .then(r => r.json())
+    .then(data => {
+        const list = (data.statuses || []).filter(s => s.active !== false);
+        const dropdown = document.getElementById('clientStatusDropdown');
+        if (!dropdown) return;
+        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        list.forEach(status => {
+            const opt = document.createElement('option');
+            opt.value = status.name;
+            opt.textContent = status.name;
+            dropdown.appendChild(opt);
+        });
+    })
+    .catch(() => {
+        const dropdown = document.getElementById('clientStatusDropdown');
+        if (dropdown) {
+            dropdown.innerHTML = '<option value="">(Unable to load statuses)</option>';
+        }
+    });
 // Set the intake date to today automatically
 document.getElementById('intakeDateAuto').value = new Date().toISOString().slice(0, 10);
 
@@ -370,6 +434,7 @@ document.getElementById('intakeForm').addEventListener('submit', async function(
         language: form.language.value,
         contactTime: form.contactTime.value,
         lovedOneName: form.lovedOneName.value,
+        lovedOneStatus: form.lovedOneStatus ? form.lovedOneStatus.value : '',
         relationship: form.relationship.value,
         incidentDate: form.incidentDate.value,
         lastLocation: form.lastLocation.value,
@@ -389,7 +454,9 @@ document.getElementById('intakeForm').addEventListener('submit', async function(
         consentShare: form.consentShare.checked,
         signature: form.signature.value,
         consentDate: form.consentDate.value,
-        referringOrganization: form.referringOrganization.value
+        referringOrganization: form.referringOrganization.value,
+        smsOptIn: form.smsOptIn ? form.smsOptIn.checked : false,
+        emailOptIn: form.emailOptIn ? form.emailOptIn.checked : false
     };
     // Basic consent check
     // Consent check removed for testing/demo purposes

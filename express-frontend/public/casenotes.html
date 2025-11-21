@@ -559,10 +559,22 @@
         // Show all applicant fields except id and internal Neo4j fields, as a simple list
         if (data.applicant) {
             html += '<div style="margin:1em 0 1.5em 0;">';
+            // Show status first if it exists, highlighted
+            if (data.applicant.status) {
+                html += `<div style='margin-bottom:0.5em;'><span style='color:#aaa;'>Status:</span> <span style='font-weight:bold;color:#6fcf6f;'>${escapeHtml(data.applicant.status)}</span></div>`;
+            }
             for (const [key, value] of Object.entries(data.applicant)) {
-                if (["id", "_id", "_labels", "__v"].includes(key)) continue;
+                if (["id", "_id", "_labels", "__v", "smsOptIn", "emailOptIn", "status"].includes(key)) continue;
                 html += `<div style='margin-bottom:0.5em;'><span style='color:#aaa;'>${key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}:</span> <span>${value || ''}</span></div>`;
             }
+            // Display opt-in statuses in a more readable format
+            const smsOptIn = data.applicant.smsOptIn;
+            const emailOptIn = data.applicant.emailOptIn;
+            html += '<div style="margin-top:1em;padding:0.8em;background:#23272b;border:1px solid #333;border-radius:4px;">';
+            html += '<div style="font-weight:bold;margin-bottom:0.5em;color:#6fcf6f;">Communication Preferences:</div>';
+            html += `<div style='margin-bottom:0.3em;'><span style='color:#aaa;'>SMS Opt-in:</span> <span style='color:${smsOptIn === true ? '#6fcf6f' : '#ff8080'};font-weight:bold;'>${smsOptIn === true ? '✓ Opted In' : smsOptIn === false ? '✗ Opted Out' : '○ Not Set'}</span></div>`;
+            html += `<div><span style='color:#aaa;'>Email Opt-in:</span> <span style='color:${emailOptIn === true ? '#6fcf6f' : '#ff8080'};font-weight:bold;'>${emailOptIn === true ? '✓ Opted In' : emailOptIn === false ? '✗ Opted Out' : '○ Not Set'}</span></div>`;
+            html += '</div>';
             html += '</div>';
             // Controls available for admin or case_worker roles
             const canEditCase = userHasRole(['admin', 'case_worker']);
@@ -582,6 +594,11 @@
                         <div style="display:grid;grid-template-columns: 1fr; gap: 0.8em;">
                             <label>Name: <input type="text" name="name" value="${a.name || ''}"></label>
                             <label>Kinship Role: <input type="text" name="kinshipRole" value="${a.kinshipRole || ''}"></label>
+                            <label>Status:
+                                <select name="status" id="editCaseStatusDropdown" data-current="${a.status || ''}">
+                                    <option value="">-- Select Status (optional) --</option>
+                                </select>
+                            </label>
                             <label>Contact Number: <input type="text" name="contact" value="${a.contact || ''}"></label>
                             <label>Email Address: <input type="email" name="email" value="${a.email || ''}"></label>
                             <label style="grid-column: 1 / -1;">Mailing Address: <input type="text" name="address" value="${a.address || ''}" style="width:100%;"></label>
@@ -599,6 +616,10 @@
                                     <option value="">-- Select Referring Organization --</option>
                                 </select>
                             </label>
+                            <div style="grid-column: 1 / -1; margin-top: 0.5em;">
+                                <label style="display: block; margin-bottom: 0.5em;"><input type="checkbox" name="smsOptIn" ${a.smsOptIn ? 'checked' : ''}> Opt-in to receive SMS text messages</label>
+                                <label style="display: block;"><input type="checkbox" name="emailOptIn" ${a.emailOptIn ? 'checked' : ''}> Opt-in to receive email updates</label>
+                            </div>
                         </div>
                         <div style="margin-top:0.6em;">
                             <button type="submit" style="background:#222;color:#6fcf6f;border:none;border-radius:4px;padding:0.35em 1em;font-weight:bold;cursor:pointer;">Save</button>
@@ -648,6 +669,7 @@
                 const additionalNotesValueHtml = escapeHtml(lo.additionalNotes || '');
                 html += `<div class='loved-one-card' style='margin:0.5em 0 1em 1em; padding:0.5em; border-left:3px solid #e6b85c;'>`;
                 if (lo.name) html += `<div><span style='color:#aaa;'>Name:</span> <span>${lo.name}</span></div>`;
+                if (lo.status) html += `<div><span style='color:#aaa;'>Status:</span> <span style='font-weight:bold;color:#6fcf6f;'>${escapeHtml(lo.status)}</span></div>`;
                 html += `<div><span style='color:#aaa;'>Coummunity of Loved One:</span> <span>${lo.community || '(not specified)'}</span></div>`;
                 if (lo.relationship) html += `<div><span style='color:#aaa;'>Relationship:</span> <span>${lo.relationship}</span></div>`;
                 if (lo.dateOfIncident) html += `<div><span style='color:#aaa;'>Date of Incident:</span> <span>${lo.dateOfIncident}</span></div>`;
@@ -711,7 +733,12 @@
                         <div style='display:grid;grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 0.8em 2em;'>
                             <label>Name: <input type='text' name='name' value='${lo.name || ''}'></label>
                             <label style='grid-column: 2; display:inline-flex; white-space:normal; align-items:center; gap:0.6em; justify-content: space-between; min-width:0;'>Relationship: <input type='text' name='relationship' value='${lo.relationship || ''}' style='flex:1 1 auto; min-width:0;'></label>
-                            <label>Date of Incident: <input type='date' name='dateOfIncident' value='${lo.dateOfIncident || ''}'></label>
+                            <label>Status:
+                                <select name='status' class='editStatusDropdown' data-current='${lo.status || ''}'>
+                                    <option value=''>-- Select Status (optional) --</option>
+                                </select>
+                            </label>
+                            <label style='grid-column: 1 / -1;'>Date of Incident: <input type='date' name='dateOfIncident' value='${lo.dateOfIncident || ''}'></label>
                             <div style='grid-column:1 / -1; font-weight:bold; text-decoration:underline;'>Investigation Status</div>
                             <label style='grid-column: 1 / -1;'>Police Investigation Number: <input type='text' name='policeInvestigationNumber' value='${lo.policeInvestigationNumber || ''}'></label>
                             <label style='grid-column: 1 / -1;'>Legal Action Case Number: <input type='text' name='legalActionCaseNumber' value='${lo.legalActionCaseNumber || ''}'></label>
@@ -761,6 +788,11 @@
                     <div style='display:grid;grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 0.8em 2em;'>
                         <label>Name: <input type='text' name='name' required></label>
                         <label style='grid-column: 2; display:inline-flex; white-space:normal; align-items:center; gap:0.6em; justify-content: space-between; min-width:0;'>Relationship: <input type='text' name='relationship' style='flex:1 1 auto; min-width:0;'></label>
+                        <label>Status:
+                            <select name='status' id='addLovedOneStatusDropdown'>
+                                <option value=''>-- Select Status (optional) --</option>
+                            </select>
+                        </label>
                         <label>Date of Incident: <input type='date' name='incidentDate'></label>
                         <div style='grid-column:1 / -1; font-weight:bold; text-decoration:underline;'>Investigation Status</div>
                         <label style='grid-column: 1 / -1; margin-left:1.5em;'>Police Investigation Number: <input type='text' name='policeInvestigationNumber'></label>
@@ -916,6 +948,26 @@
                             if (currentOrg) refOrgDD.value = currentOrg;
                         } catch {}
                     }
+                    // Populate client status dropdown
+                    const statusDD = document.getElementById('editCaseStatusDropdown');
+                    if (statusDD && statusDD.options.length <= 1) {
+                        try {
+                            const r3 = await fetch('/api/client-statuses', {
+                                headers: { 'Authorization': 'Bearer ' + getToken() }
+                            });
+                            const d3 = await r3.json();
+                            const list = (d3.statuses || []).filter(s => s.active !== false);
+                            list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                            list.forEach(status => {
+                                const opt = document.createElement('option');
+                                opt.value = status.name;
+                                opt.textContent = status.name;
+                                statusDD.appendChild(opt);
+                            });
+                            const currentStatus = statusDD.getAttribute('data-current') || '';
+                            if (currentStatus) statusDD.value = currentStatus;
+                        } catch {}
+                    }
                 }
             });
         }
@@ -934,6 +986,7 @@
                 const payload = {
                     name: (fd.get('name') || '').trim() || null,
                     kinshipRole: (fd.get('kinshipRole') || '').trim() || null,
+                    status: (fd.get('status') || '').trim() || null,
                     contact: (fd.get('contact') || '').trim() || null,
                     email: (fd.get('email') || '').trim() || null,
                     address: (fd.get('address') || '').trim() || null,
@@ -945,7 +998,9 @@
                         const raw = (fd.get('newsKeywords') || '').trim();
                         if (!raw) return [];
                         return raw.split(',').map(s => s.trim()).filter(Boolean);
-                    })()
+                    })(),
+                    smsOptIn: fd.get('smsOptIn') === 'on',
+                    emailOptIn: fd.get('emailOptIn') === 'on'
                 };
                 // Normalize empty referringOrganization to null (means remove)
                 if (payload.referringOrganization === '') payload.referringOrganization = null;
@@ -1011,6 +1066,24 @@
                         });
                     } catch {}
                 }
+                // Populate status dropdown when opening
+                const statusDropdown = document.getElementById('addLovedOneStatusDropdown');
+                if (formEl.style.display === 'block' && statusDropdown && statusDropdown.options.length <= 1) {
+                    try {
+                        const r = await fetch('/api/loved-one-statuses', {
+                            headers: { 'Authorization': 'Bearer ' + getToken() }
+                        });
+                        const d = await r.json();
+                        const list = (d.statuses || []).filter(s => s.active !== false);
+                        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                        list.forEach(status => {
+                            const opt = document.createElement('option');
+                            opt.value = status.name;
+                            opt.textContent = status.name;
+                            statusDropdown.appendChild(opt);
+                        });
+                    } catch {}
+                }
             });
         }
         if (cancelBtn && formEl) {
@@ -1039,6 +1112,7 @@
                 const payload = {
                     name: fd.get('name'),
                     relationship: fd.get('relationship') || '',
+                    status: fd.get('status') || '',
                     incidentDate: fd.get('incidentDate') || '',
                     lastLocation: fd.get('lastLocation') || '',
                     community: fd.get('community') || '',
@@ -1106,6 +1180,26 @@
                         const current = dd.getAttribute('data-current') || '';
                         if (current) dd.value = current;
                     }
+                    // Populate status dropdown
+                    const statusDD = form.querySelector('.editStatusDropdown');
+                    if (statusDD && statusDD.options.length <= 1) {
+                        try {
+                            const r = await fetch('/api/loved-one-statuses', {
+                                headers: { 'Authorization': 'Bearer ' + getToken() }
+                            });
+                            const d = await r.json();
+                            const list = (d.statuses || []).filter(s => s.active !== false);
+                            list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                            list.forEach(status => {
+                                const opt = document.createElement('option');
+                                opt.value = status.name;
+                                opt.textContent = status.name;
+                                statusDD.appendChild(opt);
+                            });
+                            const currentStatus = statusDD.getAttribute('data-current') || '';
+                            if (currentStatus) statusDD.value = currentStatus;
+                        } catch {}
+                    }
                 }
             });
         });
@@ -1128,6 +1222,7 @@
                     applicantId: getCaseId(),
                     name: fd.get('name') || null,
                     relationship: fd.get('relationship') || null,
+                    status: fd.get('status') || null,
                     dateOfIncident: fd.get('dateOfIncident') || null,
                     lastLocation: fd.get('lastLocation') || null,
                     community: fd.get('community') || null,

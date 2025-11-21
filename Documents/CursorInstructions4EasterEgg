@@ -1,0 +1,63 @@
+What I’ve built
+1. Konami Code listener (global, lazy-loads the game)
+In navbar.js (which is already loaded on all pages), I added a global key listener that watches for the Konami sequence:
+Sequence: ArrowUp, ArrowUp, ArrowDown, ArrowDown, ArrowLeft, ArrowRight, ArrowLeft, ArrowRight, B, A.
+The listener:
+Keeps an internal konamiIndex and advances it as you press the correct keys.
+When the full sequence is entered, it calls triggerEasterEgg().
+triggerEasterEgg() does lazy loading:
+If window.startEasterEggGame is already defined, it calls it directly.
+Otherwise, it dynamically injects a <script src="easter-egg.js?v=1" data-easter-egg="true"> tag into document.body.
+When that script finishes loading, it calls window.startEasterEggGame().
+The same global listener also listens for Escape:
+If you press Esc and window.closeEasterEggGame exists (i.e., the game is open), it calls closeEasterEggGame() to exit.
+2. New game script: express-frontend/public/easter-egg.js
+This is a self-contained script that defines two global functions:
+window.startEasterEggGame() – creates and starts the game overlay.
+window.closeEasterEggGame() – cleanly stops the game and removes the overlay.
+When startEasterEggGame() runs:
+It creates a full-screen overlay #easter-egg-overlay:
+position: fixed; top:0; left:0; width:100vw; height:100vh; background: rgba(0,0,0,0.9);
+plus flexbox centering and retro font/colors to match your retro.css style.
+Adds a small instructions bar (“Use arrow keys to move… Press ESC to exit.”).
+Adds an <canvas> (800×600) inside the overlay and gets a 2D context.
+The gameplay:
+Top‑down 2D “room”:
+Dark background, a “floor” strip at the bottom.
+A player: a 24×24 square (blue by default, green when holding the key).
+A key: small yellow square at a fixed position for now (we can randomize later).
+A castle: red block on the right side.
+Controls:
+Arrow keys move the player (with simple bounds checking).
+When the player’s square overlaps the key, the key is “picked up” and disappears; HUD shows “Key collected! Go to the castle.”
+When the player (with key) touches the castle, gameWon becomes true; the loop continues long enough to show a win screen:
+> “🏰 You found the secret!
+> Developed by the MANFF Team (2025)
+> Press ESC to return to the app.”
+Game loop & cleanup:
+A loop() runs via requestAnimationFrame, calling update() and render() while gameRunning is true.
+closeEasterEggGame():
+Stops the loop (cancelAnimationFrame).
+Removes key listeners.
+Removes the overlay from the DOM.
+Calls resumeMedia() to resume any previously playing <audio>/<video> elements.
+Media pause/resume:
+On start, it finds all <audio>/<video> tags and pauses any that are currently playing, marking them with a data-easterEggWasPlaying="true".
+On close, it resumes only those that had been playing.
+Optional tracking:
+When you unlock the castle, it writes localStorage.setItem('easterEggFound', 'true'). That gives us a flag we can use later (e.g., to show a subtle “🏰” icon in the header for people who found it).
+How to try it
+Refresh any page (e.g., the dashboard, Offender News, etc.).
+On your keyboard, type the Konami code:
+Up, Up, Down, Down, Left, Right, Left, Right, B, A
+The Easter egg overlay should appear with the mini‑game.
+Use arrow keys to move the square, pick up the key, then move to the castle.
+When you reach the castle with the key:
+You’ll see the “You found the secret!” credit screen.
+Press Esc to close the game and return to the app.
+Any audio/video playback the app had running will resume.
+Next tweaks we can add (optional)
+Randomize the key’s position each time you start the game.
+Add a small 8‑bit “pickup” sound when grabbing the key.
+Show a subtle indicator in the navbar if localStorage.easterEggFound === 'true' (e.g., a small 🧩 icon next to “Offender News”).
+If you’d like, I can implement any of those polish touches next.

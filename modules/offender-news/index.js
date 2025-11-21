@@ -241,6 +241,8 @@ function init(app, dependencies = {}) {
         { limit }
       );
 
+      console.log(`[offender-news] Fetched ${emails.length} emails from inbox (limit: ${limit})`);
+
       if (auditLogger) {
         await auditLogger.log(req, {
           action: 'offender-news.fetch_emails',

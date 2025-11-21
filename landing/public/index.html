@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Assembly of Manitoba Chiefs - Landing Page</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -11,16 +14,24 @@
     <header>
       <img src="https://www.manitobachiefs.com/wp-content/uploads/2019/07/AMC-Logo-Colour.png" alt="AMC Logo" class="logo">
       <h1>Assembly of Manitoba Chiefs</h1>
-      <h2>Welcome to the Portal</h2>
+      <h2>Application Portal</h2>
     </header>
     <main>
+      <p class="description">Select an application to get started:</p>
       <div class="links">
-        <a href="http://localhost:4000" class="app-link">Missing Persons App</a>
-        <a href="http://localhost:5000" class="app-link">Second Node App</a>
+        <a href="http://192.168.2.27:5000" class="app-link">
+          <span class="app-name">Missing Persons</span>
+          <span class="app-desc">Case management and tracking system</span>
+        </a>
+        <a href="http://192.168.2.27:3001" class="app-link">
+          <span class="app-name">MCP Server</span>
+          <span class="app-desc">AI-powered query interface</span>
+        </a>
       </div>
     </main>
     <footer>
       <p>&copy; 2025 Assembly of Manitoba Chiefs</p>
+      <p style="font-size: 0.8em; color: #999;">Server IP: 192.168.2.27 | Updated: 2025-01-27</p>
     </footer>
   </div>
 </body>

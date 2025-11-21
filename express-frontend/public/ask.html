@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ask - Missing Persons</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+    <style>
+        /* Minimal custom styles - retro.css handles most styling */
+        .query-panel {
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-group textarea {
+            width: 100%;
+            min-height: 120px;
+            box-sizing: border-box;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        .result-content {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 1rem;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-top: 1rem;
+        }
+
+        .result-content.success {
+            border-color: #6fcf6f;
+            background: #0a1a0a;
+        }
+
+        .result-content.error {
+            border-color: #a86a6a;
+            background: #1a0a0a;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid #333;
+            border-top: 3px solid #6fcf6f;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .examples {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 4px;
+        }
+
+        .examples h3 {
+            margin-bottom: 1rem;
+            font-size: 1.2em;
+        }
+
+        .example-queries {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .example-btn {
+            padding: 0.5rem 1rem;
+            background: #23272b;
+            color: #6fcf6f;
+            border: 1px solid #333;
+            border-radius: 4px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .example-btn:hover {
+            background: #2a2f35;
+            border-color: #6fcf6f;
+            color: #aaffaa;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.online {
+            background: #6fcf6f;
+            box-shadow: 0 0 4px #6fcf6f;
+        }
+
+        .status-indicator.offline {
+            background: #a86a6a;
+        }
+
+        .status-text {
+            color: #8fbc8f;
+            font-size: 0.9em;
+        }
+
+        .param-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .param-group label {
+            margin-bottom: 0;
+            white-space: nowrap;
+            font-size: 0.9em;
+        }
+
+        .param-group select {
+            flex: 1;
+            min-width: 200px;
+            max-width: 300px;
+        }
+
+        .example-with-param {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .example-with-param .example-btn {
+            align-self: flex-start;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Ask - AI Query Assistant</h1>
+    </header>
+    <main>
+        <div class="query-panel">
+            <h2>Ask a Question</h2>
+            <p style="margin-bottom: 1.5rem; color: #8fbc8f;">
+                Ask questions about cases, communities, events, and more in plain English.
+                <span id="serverStatus" style="margin-left: 10px;">
+                    <span class="status-indicator offline"></span>
+                    <span id="statusText" class="status-text">Checking connection...</span>
+                </span>
+            </p>
+            <form id="queryForm">
+                <div class="form-group">
+                    <label for="query">Your Question:</label>
+                    <textarea id="query" placeholder="e.g., 'Show all cases' or 'List all communities' or 'Get case A with all details'" required></textarea>
+                </div>
+                <div class="button-group">
+                    <button type="submit" id="submitBtn">Ask</button>
+                    <button type="button" id="clearBtn">Clear</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="result-panel">
+            <h2>Result</h2>
+            <div id="result" class="result-content">Ready to answer your questions. Enter a question above and click "Ask".</div>
+        </div>
+
+        <div class="examples">
+            <h3>Example Questions:</h3>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('List all communities')">List all communities</button>
+                <button class="example-btn" onclick="setQuery('Show all cases')">Show all cases</button>
+                <button class="example-btn" onclick="setQuery('Show active cases')">Show active cases</button>
+                <button class="example-btn" onclick="setQuery('Find closed cases')">Find closed cases</button>
+                <button class="example-btn" onclick="setQuery('Search cases')">Search cases</button>
+            </div>
+            
+            <div class="example-with-param">
+                <div class="param-group">
+                    <label>Get case by ID:</label>
+                    <select id="caseIdSelect">
+                        <option value="">Loading cases...</option>
+                    </select>
+                    <button class="example-btn" onclick="setQueryWithCaseId('Get case {caseId}', 'caseIdSelect')">Get Case</button>
+                </div>
+            </div>
+
+            <div class="example-with-param">
+                <div class="param-group">
+                    <label>Case with all details:</label>
+                    <select id="caseIdSelect2">
+                        <option value="">Loading cases...</option>
+                    </select>
+                    <button class="example-btn" onclick="setQueryWithCaseId('Show me case {caseId} with all details', 'caseIdSelect2')">Get Details</button>
+                </div>
+            </div>
+
+            <div class="example-with-param">
+                <div class="param-group">
+                    <label>Get events for case:</label>
+                    <select id="caseIdSelect3">
+                        <option value="">Loading cases...</option>
+                    </select>
+                    <button class="example-btn" onclick="setQueryWithCaseId('What events happened for case {caseId}?', 'caseIdSelect3')">Get Events</button>
+                </div>
+            </div>
+
+            <div class="example-with-param">
+                <div class="param-group">
+                    <label>Search nearby sightings for community:</label>
+                    <select id="communitySelect">
+                        <option value="">Loading communities...</option>
+                    </select>
+                    <button class="example-btn" onclick="setQueryWithCommunity('Search nearby sightings for {community}')">Search Sightings</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // MCP Server configuration - update this to match your MCP server URL
+        const MCP_SERVER_URL = 'http://192.168.2.27:3001';
+
+        // Get JWT token from cookies or storage
+        function getToken() {
+            const cookies = document.cookie.split(';');
+            for (let c of cookies) {
+                const [key, value] = c.trim().split('=');
+                if (key === 'token') return decodeURIComponent(value);
+            }
+            return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        }
+
+        // Check MCP server status
+        async function checkServerStatus() {
+            const statusIndicator = document.querySelector('.status-indicator');
+            const statusText = document.getElementById('statusText');
+            
+            try {
+                const response = await fetch(`${MCP_SERVER_URL}/health`);
+                if (response.ok) {
+                    statusIndicator.className = 'status-indicator online';
+                    statusText.textContent = 'Connected';
+                } else {
+                    throw new Error('Server not responding');
+                }
+            } catch (error) {
+                statusIndicator.className = 'status-indicator offline';
+                statusText.textContent = 'Disconnected';
+            }
+        }
+
+        // Store loaded data
+        let communities = [];
+        let cases = [];
+
+        // Load communities and cases
+        async function loadData() {
+            const token = getToken();
+
+            try {
+                // Load communities (no auth required)
+                const commResponse = await fetch('/api/communities');
+                if (commResponse.ok) {
+                    const commData = await commResponse.json();
+                    communities = commData.communities || [];
+                    populateCommunitySelect();
+                }
+
+                // Load cases (auth required)
+                if (token) {
+                    const casesResponse = await fetch('/api/cases', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (casesResponse.ok) {
+                        const casesData = await casesResponse.json();
+                        cases = casesData.cases || [];
+                        populateCaseSelects();
+                    } else if (casesResponse.status === 401) {
+                        // Not authenticated - cases dropdowns will show "Please log in"
+                        populateCaseSelects();
+                    }
+                } else {
+                    populateCaseSelects(); // Will show "Please log in" message
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        // Populate community dropdown
+        function populateCommunitySelect() {
+            const select = document.getElementById('communitySelect');
+            select.innerHTML = '<option value="">Select a community...</option>';
+            communities.forEach(comm => {
+                const option = document.createElement('option');
+                option.value = comm.name || comm.id || '';
+                option.textContent = comm.name || comm.id || 'Unknown';
+                select.appendChild(option);
+            });
+        }
+
+        // Populate case dropdowns
+        function populateCaseSelects() {
+            const selects = ['caseIdSelect', 'caseIdSelect2', 'caseIdSelect3'];
+            const token = getToken();
+            
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (!token) {
+                    select.innerHTML = '<option value="">Please log in to see cases</option>';
+                    return;
+                }
+                
+                if (cases.length === 0) {
+                    select.innerHTML = '<option value="">No cases available</option>';
+                    return;
+                }
+                
+                select.innerHTML = '<option value="">Select a case...</option>';
+                cases.forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c.id || '';
+                    const displayName = c.name || c.email || c.id || 'Unknown';
+                    option.textContent = `${c.id || 'N/A'} - ${displayName}`;
+                    select.appendChild(option);
+                });
+            });
+        }
+
+        // Set example query
+        function setQuery(text) {
+            document.getElementById('query').value = text;
+            document.getElementById('query').focus();
+        }
+
+        // Set query with case ID from dropdown
+        function setQueryWithCaseId(template, selectId) {
+            const select = document.getElementById(selectId);
+            const caseId = select.value;
+            if (!caseId) {
+                alert('Please select a case first');
+                return;
+            }
+            const query = template.replace('{caseId}', caseId);
+            setQuery(query);
+        }
+
+        // Set query with community from dropdown
+        function setQueryWithCommunity(template) {
+            const select = document.getElementById('communitySelect');
+            const community = select.value;
+            if (!community) {
+                alert('Please select a community first');
+                return;
+            }
+            const query = template.replace('{community}', community);
+            setQuery(query);
+        }
+
+        // Execute query
+        async function executeQuery(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const resultDiv = document.getElementById('result');
+            const query = document.getElementById('query').value.trim();
+            const token = getToken();
+            
+            if (!token) {
+                resultDiv.className = 'result-content error';
+                resultDiv.textContent = 'Error: No authentication token found. Please log in first.';
+                return;
+            }
+            
+            if (!query) {
+                resultDiv.className = 'result-content error';
+                resultDiv.textContent = 'Error: Please enter a question.';
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Processing... <span class="loading"></span>';
+            resultDiv.className = 'result-content';
+            resultDiv.textContent = 'Processing your question...';
+            
+            try {
+                // Use the chat endpoint for conversational English responses
+                const response = await fetch(`${MCP_SERVER_URL}/mcp/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: query,
+                        jwt: token,
+                        formatResponse: true  // Request AI-formatted English response
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'ok') {
+                    resultDiv.className = 'result-content success';
+                    
+                    // Display the AI-formatted English response
+                    let formattedResult = `Question: ${query}\n\n`;
+                    formattedResult += `Answer:\n${data.response || 'No response generated'}`;
+                    
+                    // Optionally show which tool was used (for debugging)
+                    if (data.toolUsed) {
+                        formattedResult += `\n\n[Tool used: ${data.toolUsed}]`;
+                    }
+                    
+                    resultDiv.textContent = formattedResult;
+                } else {
+                    resultDiv.className = 'result-content error';
+                    const errorMsg = data.error?.message || 'Unknown error';
+                    resultDiv.textContent = `Error: ${errorMsg}\n\nDetails:\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result-content error';
+                resultDiv.textContent = `Error: ${error.message}\n\nMake sure the MCP server is running at ${MCP_SERVER_URL}`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Ask';
+            }
+        }
+
+        // Clear result
+        function clearResult() {
+            document.getElementById('query').value = '';
+            document.getElementById('result').className = 'result-content';
+            document.getElementById('result').textContent = 'Ready to answer your questions. Enter a question above and click "Ask".';
+        }
+
+        // Event listeners
+        document.getElementById('queryForm').addEventListener('submit', executeQuery);
+        document.getElementById('clearBtn').addEventListener('click', clearResult);
+
+        // Load data and check server status on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();
+            checkServerStatus();
+        });
+
+        // Check server status periodically
+        setInterval(checkServerStatus, 30000); // Check every 30 seconds
+    </script>
+</body>
+</html>

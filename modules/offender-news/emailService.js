@@ -29,7 +29,17 @@ function isBounceEmail(subject, from, textBody, parsed) {
   const fromLower = (from || '').toLowerCase();
   const textLower = (textBody || '').toLowerCase();
   
+  // Exclude legitimate Gmail security notifications
+  if (subjectLower.includes('security alert') || 
+      subjectLower.includes('2-step verification') ||
+      subjectLower.includes('new sign-in') ||
+      fromLower.includes('noreply@accounts.google.com') ||
+      fromLower.includes('no-reply@accounts.google.com')) {
+    return false;
+  }
+  
   // Common bounce-back subject patterns
+  // Note: Only include patterns that are specific to bounce/delivery failures
   const bounceSubjects = [
     'delivery status notification',
     'delivery failure',
@@ -38,20 +48,18 @@ function isBounceEmail(subject, from, textBody, parsed) {
     'mail delivery subsystem',
     'returned mail',
     'failure notice',
-    'delivery notification',
+    'delivery notification (failure)',
     'message not delivered',
     'mail system error',
     'delivery error',
     'mailer-daemon',
     'postmaster',
-    'mail delivery',
+    'mail delivery failed',
     'delivery problem',
     'message undeliverable',
     'bounce',
     'dsn',
     'non-delivery report',
-    'noreply',
-    'no-reply',
     'mailer daemon'
   ];
   
@@ -63,14 +71,19 @@ function isBounceEmail(subject, from, textBody, parsed) {
   }
   
   // Check from address (common bounce addresses)
+  // Exclude legitimate Gmail security emails first
+  if (fromLower.includes('accounts.google.com') || 
+      fromLower.includes('no-reply@accounts.google.com') ||
+      fromLower.includes('noreply@accounts.google.com')) {
+    return false;
+  }
+  
   const bounceFromPatterns = [
     'mailer-daemon',
     'mailer daemon',
     'postmaster',
     'mail delivery',
     'mailer@',
-    'noreply@',
-    'no-reply@',
     'bounce@',
     'returned@',
     'undeliverable@'
@@ -85,18 +98,23 @@ function isBounceEmail(subject, from, textBody, parsed) {
   // Check email headers for bounce indicators
   if (parsed && parsed.headers) {
     const headers = parsed.headers;
-    const autoSubmitted = headers.get('auto-submitted');
-    if (autoSubmitted && autoSubmitted.toLowerCase() === 'auto-generated') {
-      // Check if it's a delivery notification
-      if (subjectLower.includes('delivery') || subjectLower.includes('failure')) {
-        return true;
+      const autoSubmitted = headers.get('auto-submitted');
+      if (autoSubmitted && autoSubmitted.toLowerCase() === 'auto-generated') {
+        // Only flag as bounce if it's clearly a delivery failure notification
+        if (subjectLower.includes('delivery failure') || 
+            subjectLower.includes('delivery status notification') ||
+            subjectLower.includes('undeliverable') ||
+            subjectLower.includes('message not delivered')) {
+          return true;
+        }
       }
-    }
     
     // Check return-path for mailer-daemon
     const returnPath = headers.get('return-path');
     if (returnPath) {
-      const returnPathLower = returnPath.toLowerCase();
+      // returnPath might be a string or an object, convert to string first
+      const returnPathStr = typeof returnPath === 'string' ? returnPath : String(returnPath);
+      const returnPathLower = returnPathStr.toLowerCase();
       if (returnPathLower.includes('mailer-daemon') || 
           returnPathLower.includes('postmaster') ||
           returnPathLower.includes('<>')) {
@@ -193,7 +211,7 @@ async function fetchEmails(config, options = {}) {
         
         // Filter out bounce-back/delivery failure emails
         if (isBounceEmail(subject, from, textBody, parsed)) {
-          console.log('[offender-news] Skipping bounce-back email:', subject);
+          console.log('[offender-news] Skipping bounce-back email:', subject, 'from:', from);
           continue; // Skip this email
         }
 

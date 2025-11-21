@@ -38,7 +38,10 @@
         <div class="settings-tabs">
             <button type="button" class="settings-tab-btn active" data-target="settings-org">Organizations</button>
             <button type="button" class="settings-tab-btn" data-target="settings-fn">First Nations</button>
+            <button type="button" class="settings-tab-btn" data-target="settings-status">Loved One Statuses</button>
+            <button type="button" class="settings-tab-btn" data-target="settings-client-status">Client Statuses</button>
             <button type="button" class="settings-tab-btn" data-target="settings-news">News Feed Settings</button>
+            <button type="button" class="settings-tab-btn" data-target="settings-token">JWT Token</button>
             <a href="email-settings.html" class="settings-tab-btn" style="text-decoration: none; display: inline-block;">Email Settings</a>
         </div>
         <section id="settings-org">
@@ -60,6 +63,34 @@
         <section id="settings-fn" style="display:none;">
             <h2>First Nations</h2>
             <div class="list" id="communityList"></div>
+        </section>
+        <section id="settings-status" style="display:none;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+                <h2 style="margin:0;">Loved One Statuses</h2>
+                <button id="addStatusBtn" style="padding:0.4rem 0.8rem;">Add Status</button>
+            </div>
+            <form id="addStatusForm" style="display:none;margin-top:0.8rem;">
+                <div style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;">
+                    <label>Status Name*:<input type="text" id="statusName" required style="margin-left:0.4rem;"></label>
+                    <button type="submit">Save</button>
+                    <button type="button" id="cancelAddStatus">Cancel</button>
+                </div>
+            </form>
+            <div class="list" id="statusList" style="margin-top:0.8rem;"></div>
+        </section>
+        <section id="settings-client-status" style="display:none;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+                <h2 style="margin:0;">Client Statuses</h2>
+                <button id="addClientStatusBtn" style="padding:0.4rem 0.8rem;">Add Status</button>
+            </div>
+            <form id="addClientStatusForm" style="display:none;margin-top:0.8rem;">
+                <div style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;">
+                    <label>Status Name*:<input type="text" id="clientStatusName" required style="margin-left:0.4rem;"></label>
+                    <button type="submit">Save</button>
+                    <button type="button" id="cancelAddClientStatus">Cancel</button>
+                </div>
+            </form>
+            <div class="list" id="clientStatusList" style="margin-top:0.8rem;"></div>
         </section>
         <section id="settings-news" style="display:none;">
             <h2>News Feed Settings</h2>
@@ -83,6 +114,36 @@
                     <button type="submit">Save Email Credentials</button>
                     <span id="newsEmailCredsStatus" style="margin-left:0.8rem;"></span>
                 </form>
+            </div>
+        </section>
+        <section id="settings-token" style="display:none;">
+            <h2>JWT Token</h2>
+            <p>Your authentication token for use with the MCP Server and API access.</p>
+            <div style="margin-top:1rem;">
+                <label style="display:block;margin-bottom:0.5rem;font-weight:bold;">Current JWT Token:</label>
+                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                    <input type="text" id="jwtTokenDisplay" readonly 
+                           style="flex:1;min-width:300px;padding:0.5rem;font-family:monospace;font-size:0.9em;background:#1a1a1a;color:#6fcf6f;border:1px solid #3a3f47;border-radius:4px;"
+                           placeholder="No token found. Please log in again.">
+                    <button type="button" id="copyTokenBtn" style="padding:0.5rem 1rem;background:#6fcf6f;color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Copy Token</button>
+                    <button type="button" id="refreshTokenBtn" style="padding:0.5rem 1rem;background:#23272b;color:#6fcf6f;border:1px solid #3a3f47;border-radius:4px;cursor:pointer;">Refresh</button>
+                </div>
+                <div id="tokenStatus" style="margin-top:0.5rem;font-size:0.9em;"></div>
+                <div style="margin-top:1.5rem;padding:1rem;background:#1a1a1a;border:1px solid #3a3f47;border-radius:4px;">
+                    <h3 style="margin-top:0;margin-bottom:0.5rem;">Token Information:</h3>
+                    <div id="tokenInfo" style="font-family:monospace;font-size:0.85em;color:#ccc;">
+                        <p>Loading token information...</p>
+                    </div>
+                </div>
+                <div style="margin-top:1rem;padding:1rem;background:#1a1a1a;border:1px solid #3a3f47;border-radius:4px;">
+                    <h3 style="margin-top:0;margin-bottom:0.5rem;">How to Use:</h3>
+                    <ul style="margin:0;padding-left:1.5rem;color:#ccc;">
+                        <li>Copy the token above and paste it into the MCP Server interface</li>
+                        <li>Use it for API calls with: <code style="background:#000;padding:2px 4px;border-radius:2px;">Authorization: Bearer &lt;token&gt;</code></li>
+                        <li>Token expires after 8 hours - you'll need to refresh this page to get a new one</li>
+                        <li>MCP Server URL: <code style="background:#000;padding:2px 4px;border-radius:2px;">http://192.168.2.27:3001/</code></li>
+                    </ul>
+                </div>
             </div>
         </section>
     </main>
@@ -176,6 +237,124 @@
                 });
             });
     }
+    // Fetch and display Client statuses
+    function loadClientStatuses() {
+        fetch('/api/client-statuses', {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+            .then(r => r.json())
+            .then(data => {
+                const list = (data.statuses || []).filter(s => s.active !== false);
+                const container = document.getElementById('clientStatusList');
+                container.innerHTML = '';
+                if (list.length === 0) {
+                    container.textContent = 'No statuses found. Add one to get started.';
+                    return;
+                }
+                list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                const showAdmin = isAdmin();
+                list.forEach(status => {
+                    const row = document.createElement('div');
+                    row.className = 'list-item';
+                    row.style.display = 'flex';
+                    row.style.alignItems = 'center';
+                    row.style.justifyContent = 'space-between';
+                    row.style.gap = '0.5rem';
+
+                    const nameSpan = document.createElement('strong');
+                    nameSpan.textContent = status.name || '';
+                    row.appendChild(nameSpan);
+
+                    if (showAdmin && (status.name || '').trim()) {
+                        const delBtn = document.createElement('button');
+                        delBtn.textContent = 'Delete';
+                        delBtn.style.background = '#c00';
+                        delBtn.style.color = '#fff';
+                        delBtn.style.border = 'none';
+                        delBtn.style.padding = '4px 10px';
+                        delBtn.style.borderRadius = '4px';
+                        delBtn.style.cursor = 'pointer';
+                        delBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            if (!confirm('Delete this status?')) return;
+                            fetch('/api/client-statuses', {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': 'Bearer ' + getToken()
+                                },
+                                body: JSON.stringify({ name: status.name })
+                            })
+                            .then(r => r.json())
+                            .then(() => loadClientStatuses());
+                        });
+                        row.appendChild(delBtn);
+                    }
+
+                    container.appendChild(row);
+                });
+            });
+    }
+
+    // Fetch and display Loved One statuses
+    function loadStatuses() {
+        fetch('/api/loved-one-statuses', {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+            .then(r => r.json())
+            .then(data => {
+                const list = (data.statuses || []).filter(s => s.active !== false);
+                const container = document.getElementById('statusList');
+                container.innerHTML = '';
+                if (list.length === 0) {
+                    container.textContent = 'No statuses found. Add one to get started.';
+                    return;
+                }
+                list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                const showAdmin = isAdmin();
+                list.forEach(status => {
+                    const row = document.createElement('div');
+                    row.className = 'list-item';
+                    row.style.display = 'flex';
+                    row.style.alignItems = 'center';
+                    row.style.justifyContent = 'space-between';
+                    row.style.gap = '0.5rem';
+
+                    const nameSpan = document.createElement('strong');
+                    nameSpan.textContent = status.name || '';
+                    row.appendChild(nameSpan);
+
+                    if (showAdmin && (status.name || '').trim()) {
+                        const delBtn = document.createElement('button');
+                        delBtn.textContent = 'Delete';
+                        delBtn.style.background = '#c00';
+                        delBtn.style.color = '#fff';
+                        delBtn.style.border = 'none';
+                        delBtn.style.padding = '4px 10px';
+                        delBtn.style.borderRadius = '4px';
+                        delBtn.style.cursor = 'pointer';
+                        delBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            if (!confirm('Delete this status?')) return;
+                            fetch('/api/loved-one-statuses', {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': 'Bearer ' + getToken()
+                                },
+                                body: JSON.stringify({ name: status.name })
+                            })
+                            .then(r => r.json())
+                            .then(() => loadStatuses());
+                        });
+                        row.appendChild(delBtn);
+                    }
+
+                    container.appendChild(row);
+                });
+            });
+    }
+
     // Fetch and display communities (First Nations)
     function loadCommunities() {
         fetch('/api/communities', {
@@ -352,18 +531,115 @@
             }
         }
 
+        // Load and display JWT token
+        function loadJWTToken() {
+            const token = getToken();
+            const tokenDisplay = document.getElementById('jwtTokenDisplay');
+            const tokenInfo = document.getElementById('tokenInfo');
+            
+            if (token) {
+                tokenDisplay.value = token;
+                
+                // Decode and display token info
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    const exp = payload.exp ? new Date(payload.exp * 1000) : null;
+                    const now = new Date();
+                    const timeLeft = exp ? Math.max(0, Math.floor((exp - now) / 1000 / 60)) : null;
+                    
+                    let infoHtml = '<p><strong>Email:</strong> ' + (payload.email || 'N/A') + '</p>';
+                    infoHtml += '<p><strong>Name:</strong> ' + (payload.name || 'N/A') + '</p>';
+                    infoHtml += '<p><strong>Roles:</strong> ' + (Array.isArray(payload.roles) ? payload.roles.join(', ') : (payload.roles || 'N/A')) + '</p>';
+                    if (exp) {
+                        infoHtml += '<p><strong>Expires:</strong> ' + exp.toLocaleString() + '</p>';
+                        if (timeLeft !== null) {
+                            if (timeLeft > 0) {
+                                const hours = Math.floor(timeLeft / 60);
+                                const minutes = timeLeft % 60;
+                                infoHtml += '<p><strong>Time Remaining:</strong> ' + hours + 'h ' + minutes + 'm</p>';
+                            } else {
+                                infoHtml += '<p style="color:#ff7f7f;"><strong>Status:</strong> EXPIRED - Please log in again</p>';
+                            }
+                        }
+                    }
+                    tokenInfo.innerHTML = infoHtml;
+                } catch (e) {
+                    tokenInfo.innerHTML = '<p style="color:#ff7f7f;">Error decoding token: ' + e.message + '</p>';
+                }
+            } else {
+                tokenDisplay.value = '';
+                tokenDisplay.placeholder = 'No token found. Please log in again.';
+                tokenInfo.innerHTML = '<p style="color:#ff7f7f;">No token found. Please log in to get a token.</p>';
+            }
+        }
+
+        // Copy token to clipboard
+        document.getElementById('copyTokenBtn').addEventListener('click', function() {
+            const tokenDisplay = document.getElementById('jwtTokenDisplay');
+            const statusDiv = document.getElementById('tokenStatus');
+            
+            if (!tokenDisplay.value) {
+                statusDiv.textContent = 'No token to copy. Please log in first.';
+                statusDiv.style.color = '#ff7f7f';
+                return;
+            }
+            
+            tokenDisplay.select();
+            tokenDisplay.setSelectionRange(0, 99999); // For mobile devices
+            
+            try {
+                document.execCommand('copy');
+                statusDiv.textContent = '✓ Token copied to clipboard!';
+                statusDiv.style.color = '#6fcf6f';
+                setTimeout(() => {
+                    statusDiv.textContent = '';
+                }, 3000);
+            } catch (err) {
+                // Fallback for modern browsers
+                navigator.clipboard.writeText(tokenDisplay.value).then(() => {
+                    statusDiv.textContent = '✓ Token copied to clipboard!';
+                    statusDiv.style.color = '#6fcf6f';
+                    setTimeout(() => {
+                        statusDiv.textContent = '';
+                    }, 3000);
+                }).catch(() => {
+                    statusDiv.textContent = 'Failed to copy. Please select and copy manually.';
+                    statusDiv.style.color = '#ff7f7f';
+                });
+            }
+        });
+
+        // Refresh token display
+        document.getElementById('refreshTokenBtn').addEventListener('click', function() {
+            loadJWTToken();
+            const statusDiv = document.getElementById('tokenStatus');
+            statusDiv.textContent = 'Token refreshed.';
+            statusDiv.style.color = '#6fcf6f';
+            setTimeout(() => {
+                statusDiv.textContent = '';
+            }, 2000);
+        });
+
         // Settings tab toggling
         const tabButtons = document.querySelectorAll('.settings-tab-btn');
         function showSettingsSection(id) {
             document.getElementById('settings-org').style.display = (id === 'settings-org') ? 'block' : 'none';
             document.getElementById('settings-fn').style.display = (id === 'settings-fn') ? 'block' : 'none';
+            document.getElementById('settings-status').style.display = (id === 'settings-status') ? 'block' : 'none';
+            document.getElementById('settings-client-status').style.display = (id === 'settings-client-status') ? 'block' : 'none';
             document.getElementById('settings-news').style.display = (id === 'settings-news') ? 'block' : 'none';
+            document.getElementById('settings-token').style.display = (id === 'settings-token') ? 'block' : 'none';
             tabButtons.forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('data-target') === id);
+                if (btn.getAttribute('data-target')) {
+                    btn.classList.toggle('active', btn.getAttribute('data-target') === id);
+                }
             });
             if (id === 'settings-org') loadOrganizations();
             if (id === 'settings-fn') loadCommunities();
+            if (id === 'settings-status') loadStatuses();
+            if (id === 'settings-client-status') loadClientStatuses();
             if (id === 'settings-news') loadNewsFeedSettings();
+            if (id === 'settings-token') loadJWTToken();
         }
         tabButtons.forEach(btn => {
             btn.addEventListener('click', function() {
@@ -414,6 +690,106 @@
                     statusSpan.textContent = 'Failed to update credentials.';
                 });
             });
+        }
+
+        // Add status form handling
+        const addStatusBtn = document.getElementById('addStatusBtn');
+        const addStatusForm = document.getElementById('addStatusForm');
+        const cancelAddStatusBtn = document.getElementById('cancelAddStatus');
+        if (!isAdmin()) {
+            if (addStatusBtn) addStatusBtn.style.display = 'none';
+        } else {
+            if (addStatusBtn) {
+                addStatusBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    addStatusForm.style.display = addStatusForm.style.display === 'none' ? 'block' : 'none';
+                    const nameInput = document.getElementById('statusName');
+                    if (nameInput) nameInput.focus();
+                });
+            }
+            if (cancelAddStatusBtn) {
+                cancelAddStatusBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    addStatusForm.reset();
+                    addStatusForm.style.display = 'none';
+                });
+            }
+            if (addStatusForm) {
+                addStatusForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const name = document.getElementById('statusName').value.trim();
+                    if (!name) { alert('Status name is required'); return; }
+                    fetch('/api/loved-one-statuses', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getToken()
+                        },
+                        body: JSON.stringify({ name })
+                    })
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result && (result.success || result.reactivated)) {
+                            addStatusForm.reset();
+                            addStatusForm.style.display = 'none';
+                            loadStatuses();
+                        } else {
+                            alert((result && result.error) || 'Failed to add status');
+                        }
+                    })
+                    .catch(err => alert('Error: ' + err));
+                });
+            }
+        }
+
+        // Add client status form handling
+        const addClientStatusBtn = document.getElementById('addClientStatusBtn');
+        const addClientStatusForm = document.getElementById('addClientStatusForm');
+        const cancelAddClientStatusBtn = document.getElementById('cancelAddClientStatus');
+        if (!isAdmin()) {
+            if (addClientStatusBtn) addClientStatusBtn.style.display = 'none';
+        } else {
+            if (addClientStatusBtn) {
+                addClientStatusBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    addClientStatusForm.style.display = addClientStatusForm.style.display === 'none' ? 'block' : 'none';
+                    const nameInput = document.getElementById('clientStatusName');
+                    if (nameInput) nameInput.focus();
+                });
+            }
+            if (cancelAddClientStatusBtn) {
+                cancelAddClientStatusBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    addClientStatusForm.reset();
+                    addClientStatusForm.style.display = 'none';
+                });
+            }
+            if (addClientStatusForm) {
+                addClientStatusForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const name = document.getElementById('clientStatusName').value.trim();
+                    if (!name) { alert('Status name is required'); return; }
+                    fetch('/api/client-statuses', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getToken()
+                        },
+                        body: JSON.stringify({ name })
+                    })
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result && (result.success || result.reactivated)) {
+                            addClientStatusForm.reset();
+                            addClientStatusForm.style.display = 'none';
+                            loadClientStatuses();
+                        } else {
+                            alert((result && result.error) || 'Failed to add status');
+                        }
+                    })
+                    .catch(err => alert('Error: ' + err));
+                });
+            }
         }
 
         // Initial load: Organizations tab

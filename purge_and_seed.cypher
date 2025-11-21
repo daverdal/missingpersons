@@ -1,4 +1,7 @@
 // PURGE
+// Note: There is also a separate purge script at scripts/purge.js
+// You can run: node scripts/purge.js to purge the database separately
+// Or leave this line uncommented to purge before seeding
 
 MATCH (n) DETACH DELETE n;
 
@@ -14,18 +17,23 @@ CREATE (user1:User {id: 'user1', name: 'Staff User 1', email: 'user1@example.com
 // APPLICANTS
 
 // Applicants (cases)
-CREATE (a1:Applicant {id: 'A1', name: 'Jane Doe', email: 'jane.doe@example.com', status: 'Open' });
-CREATE (a2:Applicant {id: 'A2', name: 'John Smith', email: 'john.smith@example.com', status: 'Open' });
-CREATE (a3:Applicant {id: 'A3', name: 'Mary Johnson', email: 'mary.johnson@example.com', status: 'Closed' });
-CREATE (a4:Applicant {id: 'A4', name: 'Carlos Rivera', email: 'carlos.rivera@example.com', status: 'Open' });
-CREATE (a5:Applicant {id: 'A5', name: 'Ava Patel', email: 'ava.patel@example.com', status: 'Open' });
-CREATE (a6:Applicant {id: 'A6', name: 'Liam Chen', email: 'liam.chen@example.com', status: 'Open' });
+// Note: contact = phone number, smsOptIn and emailOptIn are boolean (true/false/null)
+// NULL means not set (treated as opted-out), true = opted in, false = opted out
+// address = mailing address, community = First Nation/Community, province = province code
+CREATE (a1:Applicant {id: 'A1', name: 'Jane Doe', email: 'jane.doe@example.com', contact: '204-555-0101', address: '123 Main St, Winnipeg, MB R3B 1A1', province: 'MB', community: 'Sagkeeng First Nation', smsOptIn: true, emailOptIn: true, status: 'Open' });
+CREATE (a2:Applicant {id: 'A2', name: 'John Smith', email: 'john.smith@example.com', contact: '403-555-0102', address: '456 Centre St, Calgary, AB T2P 1M5', province: 'AB', community: 'Brokenhead Ojibway Nation', smsOptIn: true, emailOptIn: false, status: 'Open' });
+CREATE (a3:Applicant {id: 'A3', name: 'Mary Johnson', email: 'mary.johnson@example.com', contact: '416-555-0103', address: '789 Yonge St, Toronto, ON M4W 2G8', province: 'ON', community: 'Peguis First Nation', smsOptIn: false, emailOptIn: true, status: 'Closed' });
+CREATE (a4:Applicant {id: 'A4', name: 'Carlos Rivera', email: 'carlos.rivera@example.com', contact: '780-555-0104', address: '321 Jasper Ave, Edmonton, AB T5J 3N8', province: 'AB', community: 'Fisher River Cree Nation', smsOptIn: true, emailOptIn: true, status: 'Open' });
+CREATE (a5:Applicant {id: 'A5', name: 'Ava Patel', email: 'ava.patel@example.com', contact: '604-555-0105', address: '654 Granville St, Vancouver, BC V6C 1A1', province: 'BC', community: 'Long Plain First Nation', smsOptIn: true, emailOptIn: true, status: 'Open' });
+CREATE (a6:Applicant {id: 'A6', name: 'Liam Chen', email: 'liam.chen@example.com', contact: '306-555-0106', address: '987 Albert St, Regina, SK S4R 2P7', province: 'SK', community: 'Norway House Cree Nation', smsOptIn: false, emailOptIn: false, status: 'Open' });
 
 // Missing Persons (LovedOne nodes)
-CREATE (m1:LovedOne {id: 'M1', name: 'Emily Doe', dateOfIncident: '2025-01-15', lastLocation: 'Vancouver', community: 'Sagkeeng First Nation'});
-CREATE (m2:LovedOne {id: 'M2', name: 'Michael Smith', dateOfIncident: '2024-11-02', lastLocation: 'Toronto', community: 'Brokenhead Ojibway Nation'});
-CREATE (m3:LovedOne {id: 'M3', name: 'Priya Patel', dateOfIncident: '2025-03-10', lastLocation: 'Calgary', community: 'Peguis First Nation'});
-CREATE (m4:LovedOne {id: 'M4', name: 'Lucas Chen', dateOfIncident: '2025-05-22', lastLocation: 'Edmonton', community: 'Fisher River Cree Nation'});
+// lastLocationLat and lastLocationLon are decimal degrees (WGS84)
+// province field added to support location-based queries
+CREATE (m1:LovedOne {id: 'M1', name: 'Emily Doe', dateOfIncident: '2025-01-15', lastLocation: 'Vancouver', province: 'BC', lastLocationLat: 49.2827, lastLocationLon: -123.1207, community: 'Sagkeeng First Nation'});
+CREATE (m2:LovedOne {id: 'M2', name: 'Michael Smith', dateOfIncident: '2024-11-02', lastLocation: 'Toronto', province: 'ON', lastLocationLat: 43.6532, lastLocationLon: -79.3832, community: 'Brokenhead Ojibway Nation'});
+CREATE (m3:LovedOne {id: 'M3', name: 'Priya Patel', dateOfIncident: '2025-03-10', lastLocation: 'Calgary', province: 'AB', lastLocationLat: 51.0447, lastLocationLon: -114.0719, community: 'Peguis First Nation'});
+CREATE (m4:LovedOne {id: 'M4', name: 'Lucas Chen', dateOfIncident: '2025-05-22', lastLocation: 'Edmonton', province: 'AB', lastLocationLat: 53.5461, lastLocationLon: -113.4938, community: 'Fisher River Cree Nation'});
 
 
 // ASSIGN CASES
@@ -128,13 +136,13 @@ CREATE (cw4:User {id: 'cw4', name: 'Case Worker 4', email: 'caseworker4@example.
 CREATE (staff2:User {id: 'user2', name: 'Staff User 2', email: 'user2@example.com', roles: ['case_worker'], password: '$2b$10$dq/VX0np9ie4JYA27ppoyOfzv1DyhhXMGkzaeI.bJAB7xBBYGR586' });
 
 // --- ADDITIONAL APPLICANTS ---
-CREATE (a7:Applicant {id: 'A7', name: 'Sophia Lee', email: 'sophia.lee@example.com', status: 'Open' });
-CREATE (a8:Applicant {id: 'A8', name: 'Noah Brown', email: 'noah.brown@example.com', status: 'Closed' });
-CREATE (a9:Applicant {id: 'A9', name: 'Olivia Green', email: 'olivia.green@example.com', status: 'Open' });
+CREATE (a7:Applicant {id: 'A7', name: 'Sophia Lee', email: 'sophia.lee@example.com', contact: '250-555-0107', address: '147 Victoria St, Victoria, BC V8W 1W5', province: 'BC', community: 'Sandy Bay First Nation', smsOptIn: true, emailOptIn: true, status: 'Open' });
+CREATE (a8:Applicant {id: 'A8', name: 'Noah Brown', email: 'noah.brown@example.com', contact: '587-555-0108', address: '258 8th Ave SW, Calgary, AB T2P 1B5', province: 'AB', community: 'Red Sucker Lake First Nation', smsOptIn: false, emailOptIn: true, status: 'Closed' });
+CREATE (a9:Applicant {id: 'A9', name: 'Olivia Green', email: 'olivia.green@example.com', contact: '613-555-0109', address: '369 Bank St, Ottawa, ON K1P 5W7', province: 'ON', community: 'Swan Lake First Nation', smsOptIn: true, emailOptIn: false, status: 'Open' });
 
 // --- ADDITIONAL LOVED ONES ---
-CREATE (m5:LovedOne {id: 'M5', name: 'Jacob Lee', dateOfIncident: '2025-06-01', lastLocation: 'Winnipeg'});
-CREATE (m6:LovedOne {id: 'M6', name: 'Ella Brown', dateOfIncident: '2025-07-12', lastLocation: 'Regina'});
+CREATE (m5:LovedOne {id: 'M5', name: 'Jacob Lee', dateOfIncident: '2025-06-01', lastLocation: 'Winnipeg', province: 'MB', lastLocationLat: 49.8951, lastLocationLon: -97.1384});
+CREATE (m6:LovedOne {id: 'M6', name: 'Ella Brown', dateOfIncident: '2025-07-12', lastLocation: 'Regina', province: 'SK', lastLocationLat: 50.4452, lastLocationLon: -104.6189});
 
 // --- ASSIGN CASES ---
 MATCH (cw:User {email: 'caseworker4@example.com'}), (a:Applicant {id: 'A7'}) CREATE (cw)-[:ASSIGNED_TO]->(a);

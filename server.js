@@ -472,10 +472,99 @@ app.get(
 );
 
 // Get email settings (admin only)
+// Returns both stored settings and effective settings (what's actually being used)
 app.get('/api/email-settings', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
-    const stored = await configModel.get('email_settings');
-    res.json({ settings: stored || {} });
+    const stored = await configModel.get('email_settings') || {};
+    
+    // Calculate effective settings (what's actually being used for email blasts)
+    let effectiveSettings = null;
+    let dbSettings = stored;
+    
+    // Check if stored settings have all required fields
+    if (dbSettings && typeof dbSettings === 'object' && 
+        dbSettings.smtpHost && dbSettings.smtpUser && dbSettings.smtpPass && dbSettings.emailFrom) {
+      effectiveSettings = { ...dbSettings };
+    }
+    
+    // If no complete database settings, try Offender News email config
+    if (!effectiveSettings) {
+      let emailConfig = {
+        host: process.env.OFFENDER_NEWS_EMAIL_IMAP_HOST || null,
+        username: process.env.OFFENDER_NEWS_EMAIL_USERNAME || null,
+        password: process.env.OFFENDER_NEWS_EMAIL_PASSWORD || null
+      };
+      
+      try {
+        const offenderNewsConfig = await configModel.get('offender_news_email');
+        if (offenderNewsConfig && typeof offenderNewsConfig === 'object') {
+          emailConfig = {
+            host: offenderNewsConfig.host || emailConfig.host,
+            username: offenderNewsConfig.username || emailConfig.username,
+            password: offenderNewsConfig.password || emailConfig.password
+          };
+        }
+      } catch (err) {
+        // Ignore errors
+      }
+      
+      // For Gmail, convert IMAP settings to SMTP
+      if (emailConfig.host && emailConfig.username && emailConfig.password) {
+        effectiveSettings = {
+          smtpHost: emailConfig.host.includes('gmail') ? 'smtp.gmail.com' : emailConfig.host.replace('imap', 'smtp'),
+          smtpPort: 587,
+          smtpSecure: false,
+          smtpUser: emailConfig.username,
+          smtpPass: '***hidden***', // Don't expose password
+          emailFrom: emailConfig.username,
+          emailReplyTo: process.env.EMAIL_BLAST_REPLY_TO || null
+        };
+        
+        // Merge in any partial settings from database
+        if (dbSettings && typeof dbSettings === 'object') {
+          if (dbSettings.emailFrom) effectiveSettings.emailFrom = dbSettings.emailFrom;
+          if (dbSettings.emailFromName) effectiveSettings.emailFromName = dbSettings.emailFromName;
+          if (dbSettings.emailReplyTo !== undefined) effectiveSettings.emailReplyTo = dbSettings.emailReplyTo;
+          if (dbSettings.smtpPort) effectiveSettings.smtpPort = dbSettings.smtpPort;
+          if (dbSettings.smtpSecure !== undefined) effectiveSettings.smtpSecure = dbSettings.smtpSecure;
+        }
+      }
+    }
+    
+    // Fall back to environment variables if still no settings
+    if (!effectiveSettings) {
+      effectiveSettings = {
+        smtpHost: process.env.SMTP_HOST || null,
+        smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
+        smtpSecure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465',
+        smtpUser: process.env.SMTP_USER || null,
+        smtpPass: process.env.SMTP_PASS ? '***hidden***' : null,
+        emailFrom: process.env.EMAIL_FROM || process.env.SMTP_FROM || null,
+        emailReplyTo: process.env.EMAIL_BLAST_REPLY_TO || null
+      };
+      
+      // Merge in any partial settings from database
+      if (dbSettings && typeof dbSettings === 'object') {
+        if (dbSettings.emailFrom) effectiveSettings.emailFrom = dbSettings.emailFrom;
+        if (dbSettings.emailFromName) effectiveSettings.emailFromName = dbSettings.emailFromName;
+        if (dbSettings.emailReplyTo !== undefined) effectiveSettings.emailReplyTo = dbSettings.emailReplyTo;
+        if (dbSettings.smtpPort) effectiveSettings.smtpPort = dbSettings.smtpPort;
+        if (dbSettings.smtpSecure !== undefined) effectiveSettings.smtpSecure = dbSettings.smtpSecure;
+      }
+    }
+    
+    // Hide password in stored settings too
+    const storedForDisplay = { ...stored };
+    if (storedForDisplay.smtpPass) {
+      storedForDisplay.smtpPass = '***hidden***';
+    }
+    
+    res.json({ 
+      settings: storedForDisplay,
+      effective: effectiveSettings,
+      source: effectiveSettings === stored ? 'database' : 
+              (process.env.OFFENDER_NEWS_EMAIL_USERNAME ? 'offender_news_config' : 'environment')
+    });
   } catch (err) {
     console.error('Failed to fetch email settings:', err);
     res.status(500).json({ error: 'Failed to fetch email settings' });
@@ -492,39 +581,51 @@ app.post('/api/email-settings', authMiddleware, requireRole('admin'), async (req
       smtpUser,
       smtpPass,
       emailFrom,
+      emailFromName,
       emailReplyTo
     } = req.body || {};
 
-    // Validate required fields
-    if (!smtpHost || !smtpPort || !smtpUser || !emailFrom) {
-      return res.status(400).json({ error: 'SMTP Host, Port, Username, and From Address are required' });
-    }
-
-    if (isNaN(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
-      return res.status(400).json({ error: 'SMTP Port must be a valid port number (1-65535)' });
-    }
-
-    // Get existing settings to preserve password if not provided
-    const existing = await configModel.get('email_settings') || {};
+    // Get existing settings to preserve values that aren't being updated
+    const existing = await configModel.get('email_settings');
+    const existingSettings = existing && typeof existing === 'object' ? existing : {};
     
+    // Validate port if provided
+    if (smtpPort !== undefined && smtpPort !== null && smtpPort !== '') {
+      const portNum = parseInt(smtpPort, 10);
+      if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+        return res.status(400).json({ error: 'SMTP Port must be a valid port number (1-65535)' });
+      }
+    }
+
+    // Build settings object, using existing values if not provided
     const settings = {
-      smtpHost: String(smtpHost).trim(),
-      smtpPort: parseInt(smtpPort, 10),
-      smtpSecure: smtpSecure === true || smtpSecure === 'true',
-      smtpUser: String(smtpUser).trim(),
-      emailFrom: String(emailFrom).trim(),
-      emailReplyTo: emailReplyTo ? String(emailReplyTo).trim() : null
+      smtpHost: smtpHost && String(smtpHost).trim() ? String(smtpHost).trim() : (existingSettings.smtpHost || null),
+      smtpPort: smtpPort !== undefined && smtpPort !== null && smtpPort !== '' 
+        ? parseInt(smtpPort, 10) 
+        : (existingSettings.smtpPort !== undefined ? existingSettings.smtpPort : 587),
+      smtpSecure: smtpSecure !== undefined && smtpSecure !== '' && smtpSecure !== null
+        ? (smtpSecure === true || smtpSecure === 'true')
+        : (existingSettings.smtpSecure !== undefined ? existingSettings.smtpSecure : false),
+      smtpUser: smtpUser && String(smtpUser).trim() ? String(smtpUser).trim() : (existingSettings.smtpUser || null),
+      emailFrom: emailFrom && String(emailFrom).trim() ? String(emailFrom).trim() : (existingSettings.emailFrom || null),
+      emailFromName: emailFromName !== undefined && emailFromName !== null
+        ? (emailFromName && String(emailFromName).trim() ? String(emailFromName).trim() : null)
+        : (existingSettings.emailFromName !== undefined ? existingSettings.emailFromName : null),
+      emailReplyTo: emailReplyTo !== undefined && emailReplyTo !== null
+        ? (emailReplyTo && String(emailReplyTo).trim() ? String(emailReplyTo).trim() : null)
+        : (existingSettings.emailReplyTo !== undefined ? existingSettings.emailReplyTo : null)
     };
 
-    // Only update password if provided
+    // Allow partial updates - don't require all fields to be present
+    // Validation of required fields will happen when actually sending emails
+
+    // Only update password if provided, otherwise preserve existing
     if (smtpPass && String(smtpPass).trim()) {
       settings.smtpPass = String(smtpPass).trim();
-    } else if (existing.smtpPass) {
-      // Preserve existing password if not provided
-      settings.smtpPass = existing.smtpPass;
-    } else {
-      return res.status(400).json({ error: 'SMTP Password is required (or must be set previously)' });
+    } else if (existingSettings.smtpPass) {
+      settings.smtpPass = existingSettings.smtpPass;
     }
+    // Note: Password is not required for partial updates - validation happens when sending emails
 
     // Save to database
     await configModel.set('email_settings', settings);
@@ -685,6 +786,242 @@ app.get('/api/communities', async (req, res) => {
   });
 
 // Soft delete organization
+  // --- Client Status Management Endpoints ---
+  // Get all Client statuses
+  app.get('/api/client-statuses', authMiddleware, async (req, res) => {
+    const session = driver.session();
+    try {
+      const result = await session.run('MATCH (s:ClientStatus) RETURN s ORDER BY s.name');
+      const statuses = result.records.map(r => r.get('s').properties);
+      await session.close();
+      res.json({ statuses });
+    } catch (err) {
+      await session.close();
+      res.status(500).json({ error: 'Failed to fetch statuses' });
+    }
+  });
+
+  // Create a new Client status
+  app.post('/api/client-statuses', authMiddleware, requireRole('admin'), async (req, res) => {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      await auditLogger.log(req, {
+        action: 'clientStatus.create',
+        resourceType: 'clientStatus',
+        resourceId: null,
+        success: false,
+        message: 'Name is required'
+      });
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    const trimmedName = name.trim();
+    const session = driver.session();
+    try {
+      // Check for duplicate
+      const exists = await session.run('MATCH (s:ClientStatus {name: $name}) RETURN s', { name: trimmedName });
+      if (exists.records.length) {
+        const status = exists.records[0].get('s').properties;
+        if (status.active === false) {
+          // Reactivate if inactive
+          await session.run('MATCH (s:ClientStatus {name: $name}) SET s.active = true', { name: trimmedName });
+          await session.close();
+          await auditLogger.log(req, {
+            action: 'clientStatus.reactivate',
+            resourceType: 'clientStatus',
+            resourceId: trimmedName,
+            success: true
+          });
+          return res.json({ success: true, reactivated: true });
+        }
+        await session.close();
+        await auditLogger.log(req, {
+          action: 'clientStatus.create',
+          resourceType: 'clientStatus',
+          resourceId: trimmedName,
+          success: false,
+          message: 'Status already exists'
+        });
+        return res.status(409).json({ error: 'Status already exists' });
+      }
+      await session.run('CREATE (s:ClientStatus {name: $name, active: true})', { name: trimmedName });
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'clientStatus.create',
+        resourceType: 'clientStatus',
+        resourceId: trimmedName,
+        success: true
+      });
+      res.json({ success: true });
+    } catch (err) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'clientStatus.create',
+        resourceType: 'clientStatus',
+        resourceId: trimmedName,
+        success: false,
+        message: err.message
+      });
+      res.status(500).json({ error: 'Failed to create status' });
+    }
+  });
+
+  // Delete a Client status (soft delete by setting active: false)
+  app.delete('/api/client-statuses', authMiddleware, requireRole('admin'), async (req, res) => {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    const trimmedName = name.trim();
+    const session = driver.session();
+    try {
+      // Soft delete by setting active: false
+      const result = await session.run(
+        'MATCH (s:ClientStatus {name: $name}) SET s.active = false RETURN s',
+        { name: trimmedName }
+      );
+      if (result.records.length === 0) {
+        await session.close();
+        return res.status(404).json({ error: 'Status not found' });
+      }
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'clientStatus.delete',
+        resourceType: 'clientStatus',
+        resourceId: trimmedName,
+        success: true
+      });
+      res.json({ success: true });
+    } catch (err) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'clientStatus.delete',
+        resourceType: 'clientStatus',
+        resourceId: trimmedName,
+        success: false,
+        message: err.message
+      });
+      res.status(500).json({ error: 'Failed to delete status' });
+    }
+  });
+
+  // --- Loved One Status Management Endpoints ---
+  // Get all Loved One statuses
+  app.get('/api/loved-one-statuses', authMiddleware, async (req, res) => {
+    const session = driver.session();
+    try {
+      const result = await session.run('MATCH (s:LovedOneStatus) RETURN s ORDER BY s.name');
+      const statuses = result.records.map(r => r.get('s').properties);
+      await session.close();
+      res.json({ statuses });
+    } catch (err) {
+      await session.close();
+      res.status(500).json({ error: 'Failed to fetch statuses' });
+    }
+  });
+
+  // Create a new Loved One status
+  app.post('/api/loved-one-statuses', authMiddleware, requireRole('admin'), async (req, res) => {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      await auditLogger.log(req, {
+        action: 'lovedOneStatus.create',
+        resourceType: 'lovedOneStatus',
+        resourceId: null,
+        success: false,
+        message: 'Name is required'
+      });
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    const trimmedName = name.trim();
+    const session = driver.session();
+    try {
+      // Check for duplicate
+      const exists = await session.run('MATCH (s:LovedOneStatus {name: $name}) RETURN s', { name: trimmedName });
+      if (exists.records.length) {
+        const status = exists.records[0].get('s').properties;
+        if (status.active === false) {
+          // Reactivate if inactive
+          await session.run('MATCH (s:LovedOneStatus {name: $name}) SET s.active = true', { name: trimmedName });
+          await session.close();
+          await auditLogger.log(req, {
+            action: 'lovedOneStatus.reactivate',
+            resourceType: 'lovedOneStatus',
+            resourceId: trimmedName,
+            success: true
+          });
+          return res.json({ success: true, reactivated: true });
+        }
+        await session.close();
+        await auditLogger.log(req, {
+          action: 'lovedOneStatus.create',
+          resourceType: 'lovedOneStatus',
+          resourceId: trimmedName,
+          success: false,
+          message: 'Status already exists'
+        });
+        return res.status(409).json({ error: 'Status already exists' });
+      }
+      await session.run('CREATE (s:LovedOneStatus {name: $name, active: true})', { name: trimmedName });
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'lovedOneStatus.create',
+        resourceType: 'lovedOneStatus',
+        resourceId: trimmedName,
+        success: true
+      });
+      res.json({ success: true });
+    } catch (err) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'lovedOneStatus.create',
+        resourceType: 'lovedOneStatus',
+        resourceId: trimmedName,
+        success: false,
+        message: err.message
+      });
+      res.status(500).json({ error: 'Failed to create status' });
+    }
+  });
+
+  // Delete a Loved One status (soft delete by setting active: false)
+  app.delete('/api/loved-one-statuses', authMiddleware, requireRole('admin'), async (req, res) => {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    const trimmedName = name.trim();
+    const session = driver.session();
+    try {
+      // Soft delete by setting active: false
+      const result = await session.run(
+        'MATCH (s:LovedOneStatus {name: $name}) SET s.active = false RETURN s',
+        { name: trimmedName }
+      );
+      if (result.records.length === 0) {
+        await session.close();
+        return res.status(404).json({ error: 'Status not found' });
+      }
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'lovedOneStatus.delete',
+        resourceType: 'lovedOneStatus',
+        resourceId: trimmedName,
+        success: true
+      });
+      res.json({ success: true });
+    } catch (err) {
+      await session.close();
+      await auditLogger.log(req, {
+        action: 'lovedOneStatus.delete',
+        resourceType: 'lovedOneStatus',
+        resourceId: trimmedName,
+        success: false,
+        message: err.message
+      });
+      res.status(500).json({ error: 'Failed to delete status' });
+    }
+  });
+
 app.delete('/api/organizations', authMiddleware, requireRole('admin'), async (req, res) => {
   const { name } = req.body;
   console.log('DELETE /api/organizations called with:', req.body);
@@ -765,8 +1102,8 @@ app.get('/api/applicants/with-phone-numbers', authMiddleware, requireRole('admin
   try {
     const result = await session.run(
       `MATCH (a:Applicant)
-       WHERE a.contact IS NOT NULL AND a.contact <> ''
-       RETURN a.id AS id, a.name AS name, a.contact AS contact, a.email AS email
+       WHERE a.contact IS NOT NULL AND a.contact <> '' AND a.smsOptIn = true
+       RETURN a.id AS id, a.name AS name, a.contact AS contact, a.email AS email, a.smsOptIn AS smsOptIn
        ORDER BY a.name`
     );
     const applicants = result.records.map(r => {
@@ -801,8 +1138,8 @@ app.get('/api/applicants/with-email-addresses', authMiddleware, requireRole('adm
   try {
     const result = await session.run(
       `MATCH (a:Applicant)
-       WHERE a.email IS NOT NULL AND a.email <> ''
-       RETURN a.id AS id, a.name AS name, a.email AS email, a.contact AS contact
+       WHERE a.email IS NOT NULL AND a.email <> '' AND a.emailOptIn = true
+       RETURN a.id AS id, a.name AS name, a.email AS email, a.contact AS contact, a.emailOptIn AS emailOptIn
        ORDER BY a.name`
     );
     const applicants = result.records.map(r => {
@@ -1517,28 +1854,49 @@ app.post('/api/sms-blast', authMiddleware, requireRole('admin'), async (req, res
 
   const session = driver.session();
   try {
-    // Get all applicants with phone numbers
+    // Get all applicants with phone numbers who have explicitly opted in to SMS
+    // NULL is treated as opted-out (privacy-first approach)
     const result = await session.run(
       `MATCH (a:Applicant)
-       WHERE a.contact IS NOT NULL AND a.contact <> ''
-       RETURN a.id AS id, a.name AS name, a.contact AS contact`
+       WHERE a.contact IS NOT NULL AND a.contact <> '' AND a.smsOptIn = true
+       RETURN a.id AS id, a.name AS name, a.contact AS contact, a.smsOptIn AS smsOptIn`
     );
 
     const applicants = result.records.map(r => ({
       id: r.get('id'),
       name: r.get('name') || '',
-      contact: r.get('contact') || ''
+      contact: r.get('contact') || '',
+      smsOptIn: r.get('smsOptIn') || false
     }));
 
     if (applicants.length === 0) {
+      // Check if there are any clients with phone numbers at all (for debugging)
+      const checkResult = await session.run(
+        `MATCH (a:Applicant)
+         WHERE a.contact IS NOT NULL AND a.contact <> ''
+         RETURN count(a) AS total, 
+                sum(CASE WHEN a.smsOptIn = true THEN 1 ELSE 0 END) AS optedIn,
+                sum(CASE WHEN a.smsOptIn = false THEN 1 ELSE 0 END) AS optedOut,
+                sum(CASE WHEN a.smsOptIn IS NULL THEN 1 ELSE 0 END) AS notSet`
+      );
+      const record = checkResult.records[0];
+      const total = record ? (record.get('total')?.toNumber ? record.get('total').toNumber() : Number(record.get('total') || 0)) : 0;
+      const optedIn = record ? (record.get('optedIn')?.toNumber ? record.get('optedIn').toNumber() : Number(record.get('optedIn') || 0)) : 0;
+      const optedOut = record ? (record.get('optedOut')?.toNumber ? record.get('optedOut').toNumber() : Number(record.get('optedOut') || 0)) : 0;
+      const notSet = record ? (record.get('notSet')?.toNumber ? record.get('notSet').toNumber() : Number(record.get('notSet') || 0)) : 0;
+      
       await auditLogger.log(req, {
         action: 'sms.blast',
         resourceType: 'sms',
         resourceId: null,
         success: false,
-        message: 'No applicants with phone numbers found'
+        message: 'No applicants with phone numbers and SMS opt-in found',
+        details: { total, optedIn, optedOut, notSet }
       });
-      return res.status(400).json({ error: 'No applicants with phone numbers found' });
+      return res.status(400).json({ 
+        error: 'No applicants with phone numbers and SMS opt-in found',
+        details: `Total clients with phone numbers: ${total}. Opted in: ${optedIn}, Opted out: ${optedOut}, Not set: ${notSet}. Please ensure clients have opted in to receive SMS messages.`
+      });
     }
 
     let sent = 0;
@@ -1708,15 +2066,21 @@ app.post('/api/email-blast', authMiddleware, requireRole('admin'), async (req, r
 
   // Get email settings: check database first, then Offender News config, then environment variables
   let emailSettings = null;
+  let dbSettings = null;
   
   // Try to get email settings from database first
   try {
-    emailSettings = await configModel.get('email_settings');
+    dbSettings = await configModel.get('email_settings');
+    // Only use database settings if they have all required fields
+    if (dbSettings && typeof dbSettings === 'object' && 
+        dbSettings.smtpHost && dbSettings.smtpUser && dbSettings.smtpPass && dbSettings.emailFrom) {
+      emailSettings = dbSettings;
+    }
   } catch (err) {
     console.warn('Could not load email settings from database, trying other sources');
   }
   
-  // If no database settings, try Offender News email config
+  // If no complete database settings, try Offender News email config
   if (!emailSettings) {
     let emailConfig = {
       host: process.env.OFFENDER_NEWS_EMAIL_IMAP_HOST || null,
@@ -1750,6 +2114,15 @@ app.post('/api/email-blast', authMiddleware, requireRole('admin'), async (req, r
         emailFrom: emailConfig.username,
         emailReplyTo: process.env.EMAIL_BLAST_REPLY_TO || null
       };
+      
+      // Merge in any partial settings from database (like emailFrom, emailFromName, emailReplyTo)
+      if (dbSettings && typeof dbSettings === 'object') {
+        if (dbSettings.emailFrom) emailSettings.emailFrom = dbSettings.emailFrom;
+        if (dbSettings.emailFromName) emailSettings.emailFromName = dbSettings.emailFromName;
+        if (dbSettings.emailReplyTo !== undefined) emailSettings.emailReplyTo = dbSettings.emailReplyTo;
+        if (dbSettings.smtpPort) emailSettings.smtpPort = dbSettings.smtpPort;
+        if (dbSettings.smtpSecure !== undefined) emailSettings.smtpSecure = dbSettings.smtpSecure;
+      }
     }
   }
   
@@ -1764,6 +2137,15 @@ app.post('/api/email-blast', authMiddleware, requireRole('admin'), async (req, r
       emailFrom: process.env.EMAIL_FROM || process.env.SMTP_FROM || null,
       emailReplyTo: process.env.EMAIL_BLAST_REPLY_TO || null
     };
+    
+    // Merge in any partial settings from database (like emailFrom, emailFromName, emailReplyTo)
+    if (dbSettings && typeof dbSettings === 'object') {
+      if (dbSettings.emailFrom) emailSettings.emailFrom = dbSettings.emailFrom;
+      if (dbSettings.emailFromName) emailSettings.emailFromName = dbSettings.emailFromName;
+      if (dbSettings.emailReplyTo !== undefined) emailSettings.emailReplyTo = dbSettings.emailReplyTo;
+      if (dbSettings.smtpPort) emailSettings.smtpPort = dbSettings.smtpPort;
+      if (dbSettings.smtpSecure !== undefined) emailSettings.smtpSecure = dbSettings.smtpSecure;
+    }
   }
   
   const emailFrom = emailSettings.emailFrom;
@@ -1810,11 +2192,12 @@ app.post('/api/email-blast', authMiddleware, requireRole('admin'), async (req, r
 
   const session = driver.session();
   try {
-    // Get all applicants with email addresses
+    // Get all applicants with email addresses who have explicitly opted in to email
+    // NULL is treated as opted-out (privacy-first approach)
     const result = await session.run(
       `MATCH (a:Applicant)
-       WHERE a.email IS NOT NULL AND a.email <> ''
-       RETURN a.id AS id, a.name AS name, a.email AS email`
+       WHERE a.email IS NOT NULL AND a.email <> '' AND a.emailOptIn = true
+       RETURN a.id AS id, a.name AS name, a.email AS email, a.emailOptIn AS emailOptIn`
     );
 
     const applicants = result.records.map(r => ({
@@ -1970,8 +2353,21 @@ async function processEmailBlastAsync(jobId, applicants, trimmedSubject, trimmed
         // To redirect bounces, you need to use a separate email account for the "from" address
         const replyTo = emailSettings.emailReplyTo || process.env.EMAIL_BLAST_REPLY_TO || null;
         
+        // Format the "from" address with optional display name
+        // Note: Gmail will always show the authenticated account's email address
+        // even if we try to use a different "from" address. The display name can be customized.
+        let fromAddress = emailFrom;
+        if (emailSettings.emailFromName) {
+          // Use display name with the authenticated email (Gmail requirement)
+          // The email address will still show, but the display name will be what we set
+          fromAddress = `${emailSettings.emailFromName} <${emailUser}>`;
+        } else {
+          // If no display name, use the authenticated email
+          fromAddress = emailUser;
+        }
+        
         const mailOptions = {
-          from: emailFrom,
+          from: fromAddress,
           to: email,
           subject: trimmedSubject,
           text: trimmedMessage,
@@ -2345,7 +2741,7 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
     const applicantId = 'A' + Date.now();
     // Create Applicant node with id
     const applicantResult = await session.run(
-      `CREATE (a:Applicant {id: $id, name: $name, kinshipRole: $kinshipRole, contact: $contact, email: $email, address: $address, language: $language, community: $community, contactTime: $contactTime, staff: $staff, notes: $notes}) RETURN a`,
+      `CREATE (a:Applicant {id: $id, name: $name, kinshipRole: $kinshipRole, contact: $contact, email: $email, address: $address, language: $language, community: $community, contactTime: $contactTime, staff: $staff, notes: $notes, smsOptIn: $smsOptIn, emailOptIn: $emailOptIn, status: $status}) RETURN a`,
       {
         id: applicantId,
         name: data.applicantName || '',
@@ -2357,7 +2753,10 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
         community: data.community || '',
         contactTime: data.contactTime || '',
         staff,
-        notes: data.notes || ''
+        notes: data.notes || '',
+        smsOptIn: data.smsOptIn === true || data.smsOptIn === 'true',
+        emailOptIn: data.emailOptIn === true || data.emailOptIn === 'true',
+        status: data.clientStatus || ''
       }
     );
     // Create LovedOne node if provided
@@ -2365,7 +2764,7 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
     if (data.lovedOneName || data.relationship) {
       const lovedOneId = 'L' + Date.now() + '-' + Math.floor(Math.random()*1e6);
       const lovedOneResult = await session.run(
-        `CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon, policeInvestigationNumber: $policeInvestigationNumber, investigation: $investigation, otherInvestigation: $otherInvestigation, supportSelections: $supportSelections, otherSupport: $otherSupport, additionalNotes: $additionalNotes}) RETURN l`,
+        `CREATE (l:LovedOne {id: $id, name: $name, dateOfIncident: $dateOfIncident, lastLocation: $lastLocation, community: $community, lastLocationLat: $lastLocationLat, lastLocationLon: $lastLocationLon, policeInvestigationNumber: $policeInvestigationNumber, investigation: $investigation, otherInvestigation: $otherInvestigation, supportSelections: $supportSelections, otherSupport: $otherSupport, additionalNotes: $additionalNotes, status: $status}) RETURN l`,
         {
           id: lovedOneId,
           name: data.lovedOneName || '',
@@ -2379,7 +2778,8 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
           otherInvestigation: data.otherInvestigation || '',
           supportSelections: Array.isArray(data.support) ? data.support : [],
           otherSupport: data.otherSupport || '',
-          additionalNotes: data.notes || ''
+          additionalNotes: data.notes || '',
+          status: data.lovedOneStatus || ''
         }
       );
       lovedOneNode = lovedOneResult.records[0]?.get('l');
@@ -2444,13 +2844,121 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+// Initialize default client statuses on first startup
+async function initializeClientStatuses() {
+  const defaultStatuses = [
+    'Active',
+    'Follow-up Required',
+    'On Hold',
+    'Closed',
+    'Referred',
+    'No Contact'
+  ];
+
+  const session = driver.session();
+  try {
+    console.log('Checking for default client statuses...');
+    for (const statusName of defaultStatuses) {
+      // Check if status already exists
+      const existing = await session.run(
+        'MATCH (s:ClientStatus {name: $name}) RETURN s',
+        { name: statusName }
+      );
+
+      if (existing.records.length === 0) {
+        // Create the status if it doesn't exist
+        await session.run(
+          'CREATE (s:ClientStatus {name: $name, active: true})',
+          { name: statusName }
+        );
+        console.log(`  ✓ Created client status: ${statusName}`);
+      } else {
+        // Reactivate if it exists but is inactive
+        const status = existing.records[0].get('s').properties;
+        if (status.active === false) {
+          await session.run(
+            'MATCH (s:ClientStatus {name: $name}) SET s.active = true',
+            { name: statusName }
+          );
+          console.log(`  ✓ Reactivated client status: ${statusName}`);
+        } else {
+          console.log(`  - Client status already exists: ${statusName}`);
+        }
+      }
+    }
+    console.log('Client status initialization complete.');
+  } catch (err) {
+    console.error('Error initializing client statuses:', err.message);
+  } finally {
+    await session.close();
+  }
+}
+
+// Initialize default Loved One (Missing Person) statuses on first startup
+async function initializeLovedOneStatuses() {
+  const defaultStatuses = [
+    'Active',
+    'Under Investigation',
+    'Search in Progress',
+    'Awaiting Information',
+    'Found Safe',
+    'Found Deceased',
+    'Voluntary Return',
+    'Case Closed',
+    'Suspended',
+    'Cold Case'
+  ];
+
+  const session = driver.session();
+  try {
+    console.log('Checking for default Loved One statuses...');
+    for (const statusName of defaultStatuses) {
+      // Check if status already exists
+      const existing = await session.run(
+        'MATCH (s:LovedOneStatus {name: $name}) RETURN s',
+        { name: statusName }
+      );
+
+      if (existing.records.length === 0) {
+        // Create the status if it doesn't exist
+        await session.run(
+          'CREATE (s:LovedOneStatus {name: $name, active: true})',
+          { name: statusName }
+        );
+        console.log(`  ✓ Created Loved One status: ${statusName}`);
+      } else {
+        // Reactivate if it exists but is inactive
+        const status = existing.records[0].get('s').properties;
+        if (status.active === false) {
+          await session.run(
+            'MATCH (s:LovedOneStatus {name: $name}) SET s.active = true',
+            { name: statusName }
+          );
+          console.log(`  ✓ Reactivated Loved One status: ${statusName}`);
+        } else {
+          console.log(`  - Loved One status already exists: ${statusName}`);
+        }
+      }
+    }
+    console.log('Loved One status initialization complete.');
+  } catch (err) {
+    console.error('Error initializing Loved One statuses:', err.message);
+  } finally {
+    await session.close();
+  }
+}
+
+app.listen(PORT, async () => {
   // Set Windows CMD window title
   process.stdout.write(`\x1b]2;Missing Persons App - Port ${PORT}\x07`);
   console.log('========================================');
   console.log('   Missing Persons App Server Started');
   console.log(`   Listening on port: ${PORT}`);
   console.log('========================================');
+  
+  // Initialize default statuses
+  await initializeClientStatuses();
+  await initializeLovedOneStatuses();
 });
 
 // Export for testing
@@ -2609,7 +3117,7 @@ app.post('/api/cases/:caseId/unassign', authMiddleware, requireRole('admin'), as
 // Add an additional Loved One to an Applicant (case)
 app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { name, relationship, incidentDate, lastLocation, community, policeInvestigationNumber, investigation, otherInvestigation, supportSelections, support, otherSupport, additionalNotes } = req.body || {};
+  const { name, relationship, incidentDate, lastLocation, community, policeInvestigationNumber, investigation, otherInvestigation, supportSelections, support, otherSupport, additionalNotes, status } = req.body || {};
   const user = req.user;
   if (!name || !name.trim()) {
     await auditLogger.log(req, {
@@ -2659,6 +3167,7 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
          dateOfIncident: $dateOfIncident,
          lastLocation: $lastLocation,
          community: $community,
+         status: $status,
          lastLocationLat: $lastLocationLat,
          lastLocationLon: $lastLocationLon,
          policeInvestigationNumber: $policeInvestigationNumber,
@@ -2685,7 +3194,8 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
         otherInvestigation: otherInvestigation || '',
         supportSelections: supportList,
         otherSupport: otherSupport || '',
-        additionalNotes: additionalNotes || ''
+        additionalNotes: additionalNotes || '',
+        status: status || ''
       }
     );
     const lnode = createRes.records[0]?.get('l');
@@ -2773,6 +3283,110 @@ app.get('/api/loved-ones/by-date', authMiddleware, async (req, res) => {
   }
 });
 
+// Search Loved Ones by province (admin and case_worker)
+// Supports province code (e.g., 'AB', 'BC', 'ON', 'MB', 'SK') or full name (e.g., 'Alberta', 'British Columbia')
+app.get('/api/loved-ones/by-province', authMiddleware, async (req, res) => {
+  const { province } = req.query;
+  if (!province || !province.trim()) {
+    return res.status(400).json({ error: 'province is required (e.g., "AB", "Alberta", "BC", "British Columbia")' });
+  }
+  const roles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
+  const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
+  if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
+  
+  // Map province names to codes for flexible querying
+  const provinceMap = {
+    'alberta': 'AB',
+    'british columbia': 'BC',
+    'manitoba': 'MB',
+    'new brunswick': 'NB',
+    'newfoundland and labrador': 'NL',
+    'northwest territories': 'NT',
+    'nova scotia': 'NS',
+    'nunavut': 'NU',
+    'ontario': 'ON',
+    'prince edward island': 'PE',
+    'quebec': 'QC',
+    'saskatchewan': 'SK',
+    'yukon': 'YT'
+  };
+  
+  const provinceLower = province.trim().toLowerCase();
+  const provinceCode = provinceMap[provinceLower] || province.trim().toUpperCase();
+  
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (l:LovedOne)<-[rel:RELATED_TO]-(a:Applicant)
+       WHERE l.province = $provinceCode
+       RETURN l, a, rel.relationship AS relationship
+       ORDER BY l.name`,
+      { provinceCode }
+    );
+    const results = result.records.map(r => ({
+      lovedOne: r.get('l').properties,
+      applicant: r.get('a').properties,
+      relationship: r.get('relationship') || ''
+    }));
+    res.json({ results });
+  } catch (err) {
+    console.error('Failed to search loved ones by province:', err);
+    res.status(500).json({ error: 'Failed to search loved ones by province', details: err.message });
+  } finally {
+    await session.close();
+  }
+});
+
+// Search Applicants by province (admin and case_worker)
+// Supports province code (e.g., 'AB', 'BC', 'ON', 'MB', 'SK') or full name (e.g., 'Alberta', 'British Columbia')
+app.get('/api/applicants/by-province', authMiddleware, async (req, res) => {
+  const { province } = req.query;
+  if (!province || !province.trim()) {
+    return res.status(400).json({ error: 'province is required (e.g., "AB", "Alberta", "BC", "British Columbia")' });
+  }
+  const roles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
+  const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
+  if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
+  
+  // Map province names to codes for flexible querying
+  const provinceMap = {
+    'alberta': 'AB',
+    'british columbia': 'BC',
+    'manitoba': 'MB',
+    'new brunswick': 'NB',
+    'newfoundland and labrador': 'NL',
+    'northwest territories': 'NT',
+    'nova scotia': 'NS',
+    'nunavut': 'NU',
+    'ontario': 'ON',
+    'prince edward island': 'PE',
+    'quebec': 'QC',
+    'saskatchewan': 'SK',
+    'yukon': 'YT'
+  };
+  
+  const provinceLower = province.trim().toLowerCase();
+  const provinceCode = provinceMap[provinceLower] || province.trim().toUpperCase();
+  
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (a:Applicant)
+       WHERE a.province = $provinceCode
+       RETURN a
+       ORDER BY a.name`,
+      { provinceCode }
+    );
+    const applicants = result.records.map(r => r.get('a').properties);
+    res.json({ applicants });
+  } catch (err) {
+    console.error('Failed to search applicants by province:', err);
+    res.status(500).json({ error: 'Failed to search applicants by province', details: err.message });
+  } finally {
+    await session.close();
+  }
+});
+
 // Update an Applicant (Case) fields (admin or assigned case worker)
 app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
@@ -2787,7 +3401,10 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
     contactTime,
     notes,
     newsKeywords,
-    referringOrganization
+    referringOrganization,
+    smsOptIn,
+    emailOptIn,
+    status
   } = req.body || {};
   const rawRoles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
   const roles = (Array.isArray(rawRoles) ? rawRoles : [rawRoles])
@@ -2854,7 +3471,10 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
       language: language ?? null,
       community: community ?? null,
       contactTime: contactTime ?? null,
-      notes: notes ?? null
+      notes: notes ?? null,
+      smsOptIn: smsOptIn !== undefined ? (smsOptIn === true || smsOptIn === 'true') : null,
+      emailOptIn: emailOptIn !== undefined ? (emailOptIn === true || emailOptIn === 'true') : null,
+      status: status ?? null
     };
 
     // Update core applicant fields; only set provided fields
@@ -2868,7 +3488,10 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
            a.language = coalesce($language, a.language),
            a.community = coalesce($community, a.community),
            a.contactTime = coalesce($contactTime, a.contactTime),
-           a.notes = coalesce($notes, a.notes)`,
+           a.notes = coalesce($notes, a.notes),
+           a.smsOptIn = coalesce($smsOptIn, a.smsOptIn),
+           a.emailOptIn = coalesce($emailOptIn, a.emailOptIn),
+           a.status = coalesce($status, a.status)`,
       applicantParams
     );
     // Update newsKeywords only if provided (non-null) to avoid type issues
@@ -2959,6 +3582,7 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
     lastLocation,
     community,
     relationship,
+    status,
     lastLocationLat,
     lastLocationLon,
     policeInvestigationNumber,
@@ -3023,6 +3647,7 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
            l.dateOfIncident = coalesce($dateOfIncident, l.dateOfIncident),
            l.lastLocation = coalesce($lastLocation, l.lastLocation),
            l.community = coalesce($community, l.community),
+           l.status = coalesce($status, l.status),
            l.lastLocationLat = coalesce($lastLocationLat, l.lastLocationLat),
            l.lastLocationLon = coalesce($lastLocationLon, l.lastLocationLon),
            l.policeInvestigationNumber = coalesce($policeInvestigationNumber, l.policeInvestigationNumber),
@@ -3037,6 +3662,7 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
         dateOfIncident,
         lastLocation,
         community,
+        status,
         lastLocationLat: (lastLocationLat !== undefined && lastLocationLat !== '' ? parseFloat(lastLocationLat) : null),
         lastLocationLon: (lastLocationLon !== undefined && lastLocationLon !== '' ? parseFloat(lastLocationLon) : null),
         policeInvestigationNumber,
