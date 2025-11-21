@@ -2,7 +2,7 @@
 
 This document tracks API changes that need to be reflected in the MCP server's tool manifests.
 
-## Current API Endpoints (as of 2025-01-27)
+## Current API Endpoints (as of 2025-01-28)
 
 ### Province-Based Queries
 - **GET** `/api/loved-ones/by-province?province={province}`
@@ -53,28 +53,40 @@ This document tracks API changes that need to be reflected in the MCP server's t
 - **GET** `/api/loved-ones/:id/photos`
   - Returns all photos for a specific LovedOne (missing person)
   - Parameters: `id` (string, path parameter) - LovedOne ID
-  - Response: `{ photos: [{ filename, originalname, path, mimetype, size, type, uploadedBy, uploadedAt }] }`
-  - Permission: `missing.read` (any authenticated user)
+  - Response Format: `{ photos: [{ filename, originalname, path, mimetype, size, type, uploadedBy, uploadedAt }] }`
+  - Response Headers: Includes cache-control headers to prevent caching
+  - Query: Returns photos where `f.type = 'photo' OR f.mimetype STARTS WITH 'image/'`, ordered by `uploadedAt DESC`
+  - Permission Required: `missing.read` (any authenticated user)
   - MCP Tool: `missing.getLovedOnePhotos` ⏳
 
 - **POST** `/api/loved-ones/:id/photos`
   - Uploads a photo for a LovedOne
   - Parameters: 
     - `id` (string, path parameter) - LovedOne ID
-    - `photo` (file, multipart/form-data) - Image file (JPEG, PNG, GIF)
-  - Response: `{ success: true, photo: { filename, originalname, path, mimetype, size, type, uploadedBy, uploadedAt } }`
-  - Permission: `missing.write` (admin or case_worker)
+    - `photo` (file, multipart/form-data, field name: 'photo') - Image file (JPEG, PNG, GIF, max 10MB)
+  - Response Format: `{ success: true, photo: { filename, originalname, path, mimetype, size, type, uploadedBy, uploadedAt } }`
+  - Error Responses:
+    - `400`: No file uploaded, file validation failed, or invalid file type
+    - `403`: Forbidden - insufficient role (requires admin or case_worker)
+    - `404`: LovedOne not found
+    - `500`: Server error during upload
+  - Permission Required: `missing.write` (admin or case_worker roles only)
   - MCP Tool: `missing.uploadLovedOnePhoto` ⏳
-  - **Note**: File uploads may require special handling in MCP server (multipart/form-data)
+  - **Note**: File uploads require multipart/form-data. MCP server may need special handling for file uploads (consider base64 encoding or file path handling)
 
 - **DELETE** `/api/loved-ones/:id/photos/:filename`
-  - Deletes a photo for a LovedOne
+  - Deletes a photo for a LovedOne (also deletes the physical file from the uploads directory)
   - Parameters: 
     - `id` (string, path parameter) - LovedOne ID
     - `filename` (string, path parameter) - Photo filename
-  - Response: `{ success: true }`
-  - Permission: `missing.write` (admin or case_worker)
+  - Response Format: `{ success: true }`
+  - Error Responses:
+    - `403`: Forbidden - insufficient role (requires admin or case_worker)
+    - `404`: Photo not found
+    - `500`: Server error during deletion
+  - Permission Required: `missing.write` (admin or case_worker roles only)
   - MCP Tool: `missing.deleteLovedOnePhoto` ⏳
+  - **Note**: This endpoint deletes both the File node in Neo4j and the physical file from the filesystem
 
 ---
 
@@ -85,7 +97,7 @@ Use this section to list features that have been added to the Missing Persons ap
 ### Photo Management for Missing Persons
 
 - **API Endpoint**: `GET /api/loved-ones/:id/photos`
-- **Description**: Retrieve all photos associated with a specific missing person (LovedOne)
+- **Description**: Retrieve all photos associated with a specific missing person (LovedOne). Returns photos ordered by upload date (newest first). The query filters for files where `type = 'photo'` OR `mimetype` starts with `'image/'`.
 - **Parameters**: 
   - `id` (string, required, path): LovedOne ID
 - **Response Format**: 
@@ -105,7 +117,8 @@ Use this section to list features that have been added to the Missing Persons ap
     ]
   }
   ```
-- **Permission Required**: `missing.read`
+- **Response Headers**: Includes `Cache-Control: no-store, no-cache, must-revalidate, private` to prevent caching
+- **Permission Required**: `missing.read` (any authenticated user)
 - **MCP Tool Needed**:
   - Tool ID: `missing.getLovedOnePhotos`
   - Handler: `rest`
@@ -122,13 +135,13 @@ Use this section to list features that have been added to the Missing Persons ap
       }
     }
     ```
-  - Output Schema: Array of photo objects with metadata
+  - Output Schema: Object with `photos` array containing photo metadata objects (filename, originalname, path, mimetype, size, type, uploadedBy, uploadedAt)
 
 - **API Endpoint**: `POST /api/loved-ones/:id/photos`
-- **Description**: Upload a photo for a missing person (LovedOne). Accepts multipart/form-data with field name 'photo'.
+- **Description**: Upload a photo for a missing person (LovedOne). Accepts multipart/form-data with field name 'photo'. The file is validated to ensure it's an image type (JPEG, PNG, GIF) and stored in the uploads directory. A File node is created in Neo4j with a HAS_PHOTO relationship to the LovedOne.
 - **Parameters**: 
   - `id` (string, required, path): LovedOne ID
-  - `photo` (file, required, form-data): Image file (JPEG, PNG, GIF, max 10MB)
+  - `photo` (file, required, form-data, field name: 'photo'): Image file (JPEG, PNG, GIF, max 10MB)
 - **Response Format**: 
   ```json
   {
@@ -145,7 +158,12 @@ Use this section to list features that have been added to the Missing Persons ap
     }
   }
   ```
-- **Permission Required**: `missing.write` (admin or case_worker)
+- **Error Responses**:
+  - `400 Bad Request`: No file uploaded, file validation failed, or invalid file type (not an image)
+  - `403 Forbidden`: User does not have admin or case_worker role
+  - `404 Not Found`: LovedOne with the specified ID does not exist
+  - `500 Internal Server Error`: Server error during file processing or database operation
+- **Permission Required**: `missing.write` (admin or case_worker roles only)
 - **MCP Tool Needed**:
   - Tool ID: `missing.uploadLovedOnePhoto`
   - Handler: `rest` (may require special handling for multipart/form-data file uploads)
@@ -161,25 +179,33 @@ Use this section to list features that have been added to the Missing Persons ap
         },
         "photo": {
           "type": "string",
-          "description": "Base64-encoded image data or file path (implementation depends on MCP server capabilities)"
+          "description": "Base64-encoded image data or file path (implementation depends on MCP server capabilities). The MCP server will need to convert this to multipart/form-data format for the API request."
         }
       }
     }
     ```
-  - **Note**: File uploads in MCP may require special handling. Consider if the MCP server can handle multipart/form-data or if base64 encoding is needed.
+  - **Note**: File uploads in MCP may require special handling. The MCP server will need to:
+    1. Accept base64-encoded image data or a file path
+    2. Convert it to multipart/form-data format with field name 'photo'
+    3. Set appropriate Content-Type header for multipart/form-data
+    4. Handle file size limits (max 10MB)
 
 - **API Endpoint**: `DELETE /api/loved-ones/:id/photos/:filename`
-- **Description**: Delete a photo for a missing person (LovedOne)
+- **Description**: Delete a photo for a missing person (LovedOne). This deletes both the File node in Neo4j (and its HAS_PHOTO relationship) and the physical file from the uploads directory.
 - **Parameters**: 
   - `id` (string, required, path): LovedOne ID
-  - `filename` (string, required, path): Photo filename
+  - `filename` (string, required, path): Photo filename (as stored in the database, e.g., "1234567890-photo.jpg")
 - **Response Format**: 
   ```json
   {
     "success": true
   }
   ```
-- **Permission Required**: `missing.write` (admin or case_worker)
+- **Error Responses**:
+  - `403 Forbidden`: User does not have admin or case_worker role
+  - `404 Not Found`: Photo with the specified filename not found for this LovedOne
+  - `500 Internal Server Error`: Server error during deletion
+- **Permission Required**: `missing.write` (admin or case_worker roles only)
 - **MCP Tool Needed**:
   - Tool ID: `missing.deleteLovedOnePhoto`
   - Handler: `rest`
@@ -195,7 +221,7 @@ Use this section to list features that have been added to the Missing Persons ap
         },
         "filename": {
           "type": "string",
-          "description": "The filename of the photo to delete"
+          "description": "The filename of the photo to delete (as returned by GET /api/loved-ones/:id/photos, e.g., '1234567890-photo.jpg')"
         }
       }
     }
