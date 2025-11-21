@@ -397,6 +397,12 @@ const auditLogger = new AuditLogger({
   retentionDays: Number.isFinite(AUDIT_LOG_RETENTION_DAYS) ? AUDIT_LOG_RETENTION_DAYS : 730
 });
 
+// Import route modules
+const setupPhotoRoutes = require('./routes/photos');
+const setupPdfRoutes = require('./routes/pdfs');
+const setupOrganizationRoutes = require('./routes/organizations');
+const setupCommunityRoutes = require('./routes/communities');
+
 (async function initialiseAuditLogging() {
   try {
     await auditLogModel.ensureIndexes();
@@ -727,6 +733,8 @@ function requireRole(role) {
 
 
 // Get all communities
+// Community routes are now in routes/communities.js
+/* REMOVED - Now in routes/communities.js
 app.get('/api/communities', async (req, res) => {
   const session = driver.session();
   try {
@@ -930,9 +938,12 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
     if (session) await session.close();
   }
 });
+*/
 
   // --- Organization Management Endpoints ---
   // Create a new organization
+  // Organization routes are now in routes/organizations.js
+  /* REMOVED - Now in routes/organizations.js
   app.post('/api/organizations', authMiddleware, requireRole('admin'), async (req, res) => {
   const { name, contact, phone, id } = req.body;
     console.log('POST /api/organizations called with:', req.body);
@@ -1034,192 +1045,9 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       res.status(500).json({ error: 'Failed to create organization', details: err.message });
     }
   });
+  */
 
-  // List all organizations
-  app.get('/api/organizations', authMiddleware, async (req, res) => {
-    console.log('GET /api/organizations called');
-    const session = driver.session();
-    try {
-  const result = await session.run('MATCH (o:Organization) WHERE o.active IS NULL OR o.active = true RETURN o ORDER BY o.name');
-  const organizations = result.records.map(r => r.get('o').properties);
-      console.log('Organizations returned:', organizations.length);
-      await session.close();
-      res.json({ organizations });
-    } catch (err) {
-      console.error('Error fetching organizations:', err);
-      await session.close();
-      res.status(500).json({ error: 'Failed to fetch organizations', details: err.message });
-    }
-  });
-
-// --- Organization Contact Management Endpoints ---
-// Get all contacts for an organization
-app.get('/api/organizations/:orgId/contacts', authMiddleware, async (req, res) => {
-  const { orgId } = req.params;
-  const session = driver.session();
-  try {
-    const result = await session.run(
-      'MATCH (o:Organization {id: $orgId})-[:HAS_CONTACT]->(c:Contact) RETURN c ORDER BY c.name',
-      { orgId }
-    );
-    const contacts = result.records.map(r => r.get('c').properties);
-    await session.close();
-    res.json({ contacts });
-  } catch (err) {
-    console.error('Error fetching contacts:', err);
-    await session.close();
-    res.status(500).json({ error: 'Failed to fetch contacts', details: err.message });
-  }
-});
-
-// Create or update a contact for an organization
-app.post('/api/organizations/:orgId/contacts', authMiddleware, requireRole('admin'), async (req, res) => {
-  const { orgId } = req.params;
-  const { name, phone, email, id } = req.body;
-  console.log('POST /api/organizations/:orgId/contacts called with:', { orgId, name, phone, email, id });
-  
-  if (!name) {
-    await auditLogger.log(req, {
-      action: 'organization.contact.create',
-      resourceType: 'contact',
-      resourceId: null,
-      success: false,
-      message: 'Contact name is required'
-    });
-    return res.status(400).json({ error: 'Contact name is required' });
-  }
-  
-  const session = driver.session();
-  try {
-    // Verify organization exists
-    const orgCheck = await session.run('MATCH (o:Organization {id: $orgId}) RETURN o', { orgId });
-    if (orgCheck.records.length === 0) {
-      await session.close();
-      await auditLogger.log(req, {
-        action: 'organization.contact.create',
-        resourceType: 'contact',
-        resourceId: null,
-        success: false,
-        message: 'Organization not found'
-      });
-      return res.status(404).json({ error: 'Organization not found' });
-    }
-    
-    // If id is provided, update existing contact
-    if (id) {
-      const result = await session.run(
-        `MATCH (o:Organization {id: $orgId})-[:HAS_CONTACT]->(c:Contact {id: $id})
-         SET c.name = $name, c.phone = $phone, c.email = $email
-         RETURN c`,
-        { orgId, id, name, phone: phone || null, email: email || null }
-      );
-      
-      if (result.records.length === 0) {
-        await session.close();
-        await auditLogger.log(req, {
-          action: 'organization.contact.update',
-          resourceType: 'contact',
-          resourceId: id,
-          success: false,
-          message: 'Contact not found'
-        });
-        return res.status(404).json({ error: 'Contact not found' });
-      }
-      
-      await auditLogger.log(req, {
-        action: 'organization.contact.update',
-        resourceType: 'contact',
-        resourceId: id,
-        success: true,
-        details: { name, organizationId: orgId }
-      });
-      await session.close();
-      return res.json({ success: true, contact: result.records[0].get('c').properties });
-    }
-    
-    // Create new contact
-    const contactId = `CONTACT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const result = await session.run(
-      `MATCH (o:Organization {id: $orgId})
-       CREATE (c:Contact {id: $contactId, name: $name, phone: $phone, email: $email})
-       CREATE (o)-[:HAS_CONTACT]->(c)
-       RETURN c`,
-      { orgId, contactId, name, phone: phone || null, email: email || null }
-    );
-    
-    await auditLogger.log(req, {
-      action: 'organization.contact.create',
-      resourceType: 'contact',
-      resourceId: contactId,
-      success: true,
-      details: { name, organizationId: orgId }
-    });
-    await session.close();
-    res.json({ success: true, contact: result.records[0].get('c').properties });
-  } catch (err) {
-    console.error('Error creating/updating contact:', err);
-    await session.close();
-    await auditLogger.log(req, {
-      action: 'organization.contact.create',
-      resourceType: 'contact',
-      resourceId: null,
-      success: false,
-      message: 'Failed to create/update contact',
-      details: { error: err.message }
-    });
-    res.status(500).json({ error: 'Failed to create/update contact', details: err.message });
-  }
-});
-
-// Delete a contact
-app.delete('/api/organizations/:orgId/contacts/:contactId', authMiddleware, requireRole('admin'), async (req, res) => {
-  const { orgId, contactId } = req.params;
-  console.log('DELETE /api/organizations/:orgId/contacts/:contactId called with:', { orgId, contactId });
-  
-  const session = driver.session();
-  try {
-    const result = await session.run(
-      `MATCH (o:Organization {id: $orgId})-[:HAS_CONTACT]->(c:Contact {id: $contactId})
-       DELETE c
-       RETURN c`,
-      { orgId, contactId }
-    );
-    
-    if (result.records.length === 0) {
-      await session.close();
-      await auditLogger.log(req, {
-        action: 'organization.contact.delete',
-        resourceType: 'contact',
-        resourceId: contactId,
-        success: false,
-        message: 'Contact not found'
-      });
-      return res.status(404).json({ error: 'Contact not found' });
-    }
-    
-    await auditLogger.log(req, {
-      action: 'organization.contact.delete',
-      resourceType: 'contact',
-      resourceId: contactId,
-      success: true,
-      details: { organizationId: orgId }
-    });
-    await session.close();
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error deleting contact:', err);
-    await session.close();
-    await auditLogger.log(req, {
-      action: 'organization.contact.delete',
-      resourceType: 'contact',
-      resourceId: contactId,
-      success: false,
-      message: 'Failed to delete contact',
-      details: { error: err.message }
-    });
-    res.status(500).json({ error: 'Failed to delete contact', details: err.message });
-  }
-});
+  // Organization routes are now in routes/organizations.js
 
 // Soft delete organization
   // --- Client Status Management Endpoints ---
@@ -1458,61 +1286,7 @@ app.delete('/api/organizations/:orgId/contacts/:contactId', authMiddleware, requ
     }
   });
 
-app.delete('/api/organizations', authMiddleware, requireRole('admin'), async (req, res) => {
-  const { name } = req.body;
-  console.log('DELETE /api/organizations called with:', req.body);
-  if (!name) {
-    await auditLogger.log(req, {
-      action: 'organization.deactivate',
-      resourceType: 'organization',
-      resourceId: null,
-      success: false,
-      message: 'Name is required'
-    });
-    return res.status(400).json({ error: 'Name is required' });
-  }
-  const session = driver.session();
-  try {
-    // Log all org names for debugging
-    const allOrgs = await session.run('MATCH (o:Organization) RETURN o.name');
-    console.log('Existing organizations:', allOrgs.records.map(r => r.get('o.name')));
-    // Set active to false instead of deleting
-    const result = await session.run('MATCH (o:Organization {name: $name}) SET o.active = false RETURN o', { name });
-    if (result.summary.counters.updates().propertiesSet > 0) {
-      console.log('Organization soft-deleted:', name);
-      await auditLogger.log(req, {
-        action: 'organization.deactivate',
-        resourceType: 'organization',
-        resourceId: name,
-        success: true
-      });
-      res.json({ success: true });
-    } else {
-      console.log('Organization not found for delete:', name);
-      await auditLogger.log(req, {
-        action: 'organization.deactivate',
-        resourceType: 'organization',
-        resourceId: name,
-        success: false,
-        message: 'Organization not found'
-      });
-      res.status(404).json({ error: 'Organization not found' });
-    }
-  } catch (err) {
-    console.error('Error in DELETE /api/organizations:', err);
-    await auditLogger.log(req, {
-      action: 'organization.deactivate',
-      resourceType: 'organization',
-      resourceId: name,
-      success: false,
-      message: 'Failed to deactivate organization',
-      details: { error: err.message }
-    });
-    res.status(500).json({ error: 'Failed to delete organization' });
-  } finally {
-    await session.close();
-  }
-});
+// Organization routes are now in routes/organizations.js
 // Public test route
 app.get('/api/health', (req, res) => {
   res.json({ status: 'API is running', date: new Date() });
@@ -3279,332 +3053,7 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
   }
 });
 
-// Export case details to PDF
-app.get('/api/applicants/:id/export-pdf', authMiddleware, async (req, res) => {
-  const { id } = req.params;
-  try {
-    const session = driver.session();
-    // Get applicant, referring org, and related LovedOne(s) - same query as the GET endpoint
-    const result = await session.run(
-      `MATCH (a:Applicant {id: $id})
-       OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
-       OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-       RETURN a, o, collect({lovedOne: l, relationship: rel.relationship}) AS lovedOnes`,
-      { id }
-    );
-    await session.close();
-    
-    if (!result.records.length) {
-      return res.status(404).json({ error: 'Case not found' });
-    }
-    
-    const applicant = result.records[0].get('a').properties;
-    const orgNode = result.records[0].get('o');
-    const referringOrg = orgNode ? orgNode.properties : null;
-    const lovedOnesRaw = result.records[0].get('lovedOnes');
-    const lovedOnes = lovedOnesRaw
-      .filter(lo => lo.lovedOne)
-      .map(lo => ({
-        ...lo.lovedOne.properties,
-        relationship: lo.relationship || ''
-      }));
-    
-    // Generate PDF
-    const doc = new PDFDocument({ margin: 50 });
-    
-    // Set response headers
-    res.setHeader('Content-Type', 'application/pdf');
-    const fileName = `Case_Details_${applicant.id || id}_${new Date().toISOString().split('T')[0]}.pdf`;
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    
-    // Pipe PDF to response
-    doc.pipe(res);
-    
-    // Title
-    doc.fontSize(20).text('Case Details', { align: 'center' });
-    doc.moveDown(1);
-    doc.fontSize(10).fillColor('#666666').text(`Case ID: ${applicant.id || id}`, { align: 'center' });
-    doc.fontSize(10).text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
-    doc.moveDown(2);
-    
-    // Helper function to add a field
-    const addField = (label, value) => {
-      if (value === null || value === undefined || value === '') return;
-      doc.fontSize(11)
-         .fillColor('#000000')
-         .text(label + ': ', { continued: true })
-         .fillColor('#333333')
-         .text(String(value));
-      doc.moveDown(0.4);
-    };
-    
-    // Client Information Section
-    doc.fontSize(14).fillColor('#000000').text('Client Information', { underline: true });
-    doc.moveDown(0.5);
-    if (applicant.status) {
-      doc.fontSize(11).fillColor('#000000').text('Status: ', { continued: true })
-         .fillColor('#006600').text(applicant.status);
-      doc.moveDown(0.4);
-    }
-    addField('Name', applicant.name);
-    addField('Kinship Role', applicant.kinshipRole);
-    addField('Contact Number', applicant.contact);
-    addField('Email Address', applicant.email);
-    addField('Mailing Address', applicant.address);
-    addField('First Nation', applicant.community);
-    addField('Preferred Language(s)', applicant.language);
-    addField('Best Way and Time to Contact', applicant.contactTime);
-    if (referringOrg && referringOrg.name) {
-      addField('Referring Organization', referringOrg.name);
-    }
-    if (applicant.notes) {
-      doc.moveDown(0.3);
-      doc.fontSize(11).fillColor('#000000').text('Notes: ', { continued: true });
-      doc.fontSize(10).fillColor('#333333').text(applicant.notes);
-      doc.moveDown(0.5);
-    }
-    // Communication Preferences
-    doc.moveDown(0.3);
-    doc.fontSize(11).fillColor('#000000').text('Communication Preferences:', { continued: false });
-    doc.moveDown(0.3);
-    const smsOptIn = applicant.smsOptIn === true ? '✓ Opted In' : applicant.smsOptIn === false ? '✗ Opted Out' : '○ Not Set';
-    const emailOptIn = applicant.emailOptIn === true ? '✓ Opted In' : applicant.emailOptIn === false ? '✗ Opted Out' : '○ Not Set';
-    doc.fontSize(10).fillColor('#333333').text(`SMS: ${smsOptIn}`, { continued: false });
-    doc.fontSize(10).text(`Email: ${emailOptIn}`, { continued: false });
-    doc.moveDown(1);
-    
-    // Missing Person(s) Section
-    if (lovedOnes && lovedOnes.length > 0) {
-      lovedOnes.forEach((lo, index) => {
-        if (index > 0) {
-          doc.addPage();
-        }
-        doc.fontSize(14).fillColor('#000000').text(`Missing Person ${lovedOnes.length > 1 ? `#${index + 1}` : ''}`, { underline: true });
-        doc.moveDown(0.5);
-        
-        if (lo.status) {
-          doc.fontSize(11).fillColor('#000000').text('Status: ', { continued: true })
-             .fillColor('#006600').text(lo.status);
-          doc.moveDown(0.4);
-        }
-        addField('Name', lo.name);
-        addField('Relationship to Client', lo.relationship);
-        addField('Community', lo.community);
-        addField('Date of Incident', lo.dateOfIncident);
-        addField('Last Known Location', lo.lastLocation);
-        if (lo.lastLocationLat != null && lo.lastLocationLon != null) {
-          addField('Latitude/Longitude', `${lo.lastLocationLat}, ${lo.lastLocationLon}`);
-        } else if (lo.lastLocationLat != null) {
-          addField('Latitude', lo.lastLocationLat);
-        } else if (lo.lastLocationLon != null) {
-          addField('Longitude', lo.lastLocationLon);
-        }
-        addField('Police Investigation Number', lo.policeInvestigationNumber);
-        addField('Legal Action Case Number', lo.legalActionCaseNumber);
-        addField('Community Search Effort Description', lo.communitySearchEffortDescription);
-        
-        // Investigation Status
-        if (lo.investigation && Array.isArray(lo.investigation) && lo.investigation.length > 0) {
-          doc.moveDown(0.3);
-          doc.fontSize(11).fillColor('#000000').text('Investigation Status:', { continued: false });
-          doc.moveDown(0.3);
-          lo.investigation.forEach(inv => {
-            doc.fontSize(10).fillColor('#333333').text(`• ${inv}`, { indent: 20 });
-          });
-          doc.moveDown(0.3);
-        }
-        if (lo.otherInvestigation) {
-          doc.fontSize(10).fillColor('#333333').text(`• Other: ${lo.otherInvestigation}`, { indent: 20 });
-          doc.moveDown(0.3);
-        }
-        
-        // Support Requests
-        if (lo.supportSelections && Array.isArray(lo.supportSelections) && lo.supportSelections.length > 0) {
-          doc.moveDown(0.3);
-          doc.fontSize(11).fillColor('#000000').text('Support, Advocacy, and Requests:', { continued: false });
-          doc.moveDown(0.3);
-          lo.supportSelections.forEach(support => {
-            doc.fontSize(10).fillColor('#333333').text(`• ${support}`, { indent: 20 });
-          });
-          doc.moveDown(0.3);
-        }
-        if (lo.otherSupport) {
-          doc.fontSize(10).fillColor('#333333').text(`• Other: ${lo.otherSupport}`, { indent: 20 });
-          doc.moveDown(0.3);
-        }
-        
-        // Additional Notes
-        if (lo.additionalNotes) {
-          doc.moveDown(0.3);
-          doc.fontSize(11).fillColor('#000000').text('Additional Notes: ', { continued: true });
-          doc.fontSize(10).fillColor('#333333').text(lo.additionalNotes);
-          doc.moveDown(0.5);
-        }
-      });
-    } else {
-      doc.moveDown(0.5);
-      doc.fontSize(11).fillColor('#666666').text('No missing person information recorded.', { indent: 20 });
-      doc.moveDown(1);
-    }
-    
-    // Finalize PDF
-    doc.end();
-    
-    // Log the export
-    auditLogger.log(req, {
-      action: 'case.export_pdf',
-      resourceType: 'applicant',
-      resourceId: id,
-      success: true
-    }).catch(err => console.error('Failed to log PDF export:', err));
-    
-  } catch (err) {
-    console.error('Error generating case PDF:', err);
-    auditLogger.log(req, {
-      action: 'case.export_pdf',
-      resourceType: 'applicant',
-      resourceId: id,
-      success: false,
-      message: err.message
-    }).catch(logErr => console.error('Failed to log PDF export error:', logErr));
-    res.status(500).json({ error: 'Failed to generate PDF' });
-  }
-});
-
-// Export blank intake form to PDF
-app.get('/api/intake/export-pdf', authMiddleware, (req, res) => {
-  try {
-    const doc = new PDFDocument({ margin: 50 });
-    
-    // Set response headers
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="Intake_Form_Blank.pdf"');
-    
-    // Pipe PDF to response
-    doc.pipe(res);
-    
-    // Title
-    doc.fontSize(20).text('Intake Form - Support Services for Families', { align: 'center' });
-    doc.moveDown(2);
-    
-    // Helper function to add a field
-    const addField = (label, value = '') => {
-      doc.fontSize(11)
-         .fillColor('#000000')
-         .text(label + ': ', { continued: true })
-         .fillColor('#666666')
-         .text(value || '___________________________');
-      doc.moveDown(0.5);
-    };
-    
-    // Client Information Section
-    doc.fontSize(14).fillColor('#000000').text('Client Information', { underline: true });
-    doc.moveDown(0.5);
-    addField('Name');
-    addField('Kinship Role');
-    addField('Status');
-    addField('Contact Number');
-    addField('Email Address');
-    addField('Mailing Address');
-    addField('First Nation');
-    addField('Preferred Language(s)');
-    addField('Best Way and Time to Contact You');
-    addField('Referring Organization');
-    doc.moveDown(1);
-    
-    // Missing Loved One Section
-    doc.fontSize(14).fillColor('#000000').text('Missing Loved One', { underline: true });
-    doc.moveDown(0.5);
-    addField('Name of Loved One');
-    addField("Client's Relationship to Loved One");
-    addField('Status');
-    addField('Date of Incident (if known)');
-    addField('Location of Incident or Last Known Location');
-    addField('Lat/Long (e.g., 49.887129, -97.153645)');
-    addField('Community of Loved One');
-    doc.moveDown(1);
-    
-    // Investigation Status Section
-    doc.fontSize(14).fillColor('#000000').text('Investigation Status', { underline: true });
-    doc.moveDown(0.5);
-    addField('Police/RCMP Investigation');
-    addField('Investigation Number');
-    addField('Community Search Efforts');
-    addField('Community Search Effort Description');
-    addField('Independent Advocacy');
-    addField('Inquest or Legal Action');
-    addField('Legal Action Case Number');
-    addField('Other Investigation');
-    doc.moveDown(1);
-    
-    // Support, Advocacy, and Requests Section
-    doc.fontSize(14).fillColor('#000000').text('Support, Advocacy, and Requests', { underline: true });
-    doc.moveDown(0.5);
-    addField('Emotional or Cultural Support');
-    addField('Grief Counseling or Mental Health Support');
-    addField('Legal Advocacy or Representation');
-    addField('Help Navigating Police or Justice System');
-    addField('Media or Public Awareness Support');
-    addField('Help Organizing Vigils or Community Events');
-    addField('Financial Assistance or Guidance');
-    addField('Transportation or Housing Support');
-    addField('Translation or Language Services');
-    addField('Youth or Family Support Services');
-    addField('Access to Religious or Spiritual Services');
-    addField('Access to Traditional Healing or Medicine');
-    addField('Ongoing Case Updates or Advocacy');
-    addField('Accommodation');
-    addField('Other Needs or Requests');
-    doc.moveDown(1);
-    
-    // Additional Notes Section
-    doc.fontSize(14).fillColor('#000000').text('Additional Notes or Story (optional)', { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(11).fillColor('#666666').text('_________________________________________________________________');
-    doc.moveDown(0.3);
-    doc.text('_________________________________________________________________');
-    doc.moveDown(0.3);
-    doc.text('_________________________________________________________________');
-    doc.moveDown(0.3);
-    doc.text('_________________________________________________________________');
-    doc.moveDown(1);
-    
-    // Communication Preferences Section
-    doc.fontSize(14).fillColor('#000000').text('Communication Preferences', { underline: true });
-    doc.moveDown(0.5);
-    addField('I consent to receive SMS text messages', '☐ Yes  ☐ No');
-    addField('I consent to receive email updates', '☐ Yes  ☐ No');
-    doc.moveDown(1);
-    
-    // Consent & Confidentiality Section
-    doc.fontSize(14).fillColor('#000000').text('Consent & Confidentiality', { underline: true });
-    doc.moveDown(0.5);
-    addField('I consent to the department storing my information securely', '☐ Yes  ☐ No');
-    addField('I understand that my information will not be shared without my permission', '☐ Yes  ☐ No');
-    addField('Signature');
-    addField('Date');
-    
-    // Finalize PDF
-    doc.end();
-    
-    // Log the export
-    auditLogger.log(req, {
-      action: 'intake.export_pdf',
-      resourceType: 'intake_form',
-      success: true
-    }).catch(err => console.error('Failed to log PDF export:', err));
-    
-  } catch (err) {
-    console.error('Error generating PDF:', err);
-    auditLogger.log(req, {
-      action: 'intake.export_pdf',
-      resourceType: 'intake_form',
-      success: false,
-      message: err.message
-    }).catch(logErr => console.error('Failed to log PDF export error:', logErr));
-    res.status(500).json({ error: 'Failed to generate PDF' });
-  }
-});
+// PDF routes are now in routes/pdfs.js
 
 // Start server
 // Initialize default client statuses on first startup
@@ -3710,6 +3159,60 @@ async function initializeLovedOneStatuses() {
     await session.close();
   }
 }
+
+// Register route modules
+const photoRouter = express.Router();
+setupPhotoRoutes(photoRouter, {
+  driver,
+  auditLogger,
+  upload,
+  authMiddleware
+});
+app.use('/api', photoRouter);
+
+const pdfRouter = express.Router();
+setupPdfRoutes(pdfRouter, {
+  driver,
+  auditLogger,
+  authMiddleware
+});
+app.use('/api', pdfRouter);
+
+const organizationRouter = express.Router();
+setupOrganizationRoutes(organizationRouter, {
+  driver,
+  auditLogger,
+  authMiddleware,
+  requireRole
+});
+app.use('/api', organizationRouter);
+
+const communityRouter = express.Router();
+setupCommunityRoutes(communityRouter, {
+  driver,
+  auditLogger,
+  authMiddleware,
+  requireRole,
+  database: NEO4J_DATABASE
+});
+app.use('/api', communityRouter);
+
+// Error handler for multer errors (file size, etc.)
+app.use((err, req, res, next) => {
+  if (err instanceof require('multer').MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ 
+        error: 'File too large', 
+        details: 'Maximum file size is 10MB' 
+      });
+    }
+    return res.status(400).json({ 
+      error: 'File upload error', 
+      details: err.message 
+    });
+  }
+  next(err);
+});
 
 app.listen(PORT, async () => {
   // Set Windows CMD window title
@@ -4473,288 +3976,6 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
 // --- Photo Management for LovedOnes (Missing Persons) ---
 
 // Get all photos for a LovedOne
-app.get('/api/loved-ones/:id/photos', authMiddleware, async (req, res) => {
-  const { id } = req.params;
-  const session = driver.session();
-  try {
-    // First, let's check all files linked to this LovedOne
-    const debugResult = await session.run(
-      `MATCH (l:LovedOne {id: $id})-[r:HAS_PHOTO]->(f:File)
-       RETURN f, r, l.id as lovedOneId`,
-      { id }
-    );
-    console.log(`[GET /api/loved-ones/${id}/photos] DEBUG: Found ${debugResult.records.length} HAS_PHOTO relationships`);
-    debugResult.records.forEach((record, idx) => {
-      const file = record.get('f').properties;
-      console.log(`  [${idx + 1}] File: ${file.filename}, type: ${file.type}, mimetype: ${file.mimetype}`);
-    });
-    
-    const result = await session.run(
-      `MATCH (l:LovedOne {id: $id})-[:HAS_PHOTO]->(f:File)
-       WHERE f.type = 'photo' OR f.mimetype STARTS WITH 'image/'
-       RETURN f ORDER BY f.uploadedAt DESC`,
-      { id }
-    );
-    const photos = result.records.map(r => r.get('f').properties);
-    console.log(`[GET /api/loved-ones/${id}/photos] Query returned ${photos.length} photos after filtering`);
-    // Prevent caching to ensure fresh data
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.json({ photos });
-  } catch (err) {
-    console.error('Failed to fetch photos:', err);
-    res.status(500).json({ error: 'Failed to fetch photos' });
-  } finally {
-    await session.close();
-  }
-});
-
-// Upload a photo for a LovedOne
-app.post('/api/loved-ones/:id/photos',
-  authMiddleware,
-  async (req, res, next) => {
-    console.log(`[POST /api/loved-ones/${req.params?.id}/photos] Upload request received`);
-    // Only allow 'admin' or 'case_worker' roles
-    const roles = req.user && (req.user.roles || req.user.groups || []);
-    if (Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'))) {
-      return next();
-    }
-    await auditLogger.log(req, {
-      action: 'loved_one.photo_upload',
-      resourceType: 'loved_one',
-      resourceId: req.params?.id || null,
-      success: false,
-      message: 'Forbidden: insufficient role'
-    });
-    return res.status(403).json({ error: 'Forbidden: insufficient role' });
-  },
-  upload.single('photo'),
-  async (req, res) => {
-    const { id } = req.params;
-    console.log(`[POST /api/loved-ones/${id}/photos] Processing upload, file:`, req.file ? req.file.originalname : 'NO FILE');
-    
-    // Handle multer errors (file size, etc.)
-    if (req.fileValidationError) {
-      console.log(`[POST /api/loved-ones/${id}/photos] File validation error:`, req.fileValidationError);
-      await auditLogger.log(req, {
-        action: 'loved_one.photo_upload',
-        resourceType: 'loved_one',
-        resourceId: id,
-        success: false,
-        message: req.fileValidationError
-      });
-      return res.status(400).json({ error: req.fileValidationError, details: 'File validation failed' });
-    }
-    
-    if (!req.file) {
-      console.log(`[POST /api/loved-ones/${id}/photos] ERROR: No file in request`);
-      await auditLogger.log(req, {
-        action: 'loved_one.photo_upload',
-        resourceType: 'loved_one',
-        resourceId: id,
-        success: false,
-        message: 'No file uploaded'
-      });
-      return res.status(400).json({ error: 'No file uploaded', details: 'Please select a file to upload' });
-    }
-
-    // Verify it's an image file
-    if (!req.file.mimetype.startsWith('image/')) {
-      await auditLogger.log(req, {
-        action: 'loved_one.photo_upload',
-        resourceType: 'loved_one',
-        resourceId: id,
-        success: false,
-        message: 'File must be an image'
-      });
-      return res.status(400).json({ error: 'File must be an image' });
-    }
-
-    const session = driver.session();
-    try {
-      // Verify LovedOne exists
-      const checkResult = await session.run(
-        'MATCH (l:LovedOne {id: $id}) RETURN l',
-        { id }
-      );
-      if (checkResult.records.length === 0) {
-        await session.close();
-        await auditLogger.log(req, {
-          action: 'loved_one.photo_upload',
-          resourceType: 'loved_one',
-          resourceId: id,
-          success: false,
-          message: 'LovedOne not found'
-        });
-        return res.status(404).json({ error: 'LovedOne not found' });
-      }
-
-      // Save file metadata and link to LovedOne
-      const fileMeta = {
-        filename: req.file.filename,
-        originalname: req.file.originalname,
-        path: req.file.path,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        type: 'photo',
-        uploadedBy: req.user.email || req.user.name,
-        uploadedAt: new Date().toISOString()
-      };
-
-      // Create File node and link to LovedOne with HAS_PHOTO relationship
-      const createResult = await session.run(
-        `MATCH (l:LovedOne {id: $id})
-        CREATE (f:File {
-          filename: $filename, 
-          originalname: $originalname, 
-          path: $path, 
-          mimetype: $mimetype, 
-          size: $size, 
-          type: $type,
-          uploadedBy: $uploadedBy, 
-          uploadedAt: $uploadedAt
-        })
-        CREATE (l)-[:HAS_PHOTO]->(f)
-        RETURN f, l.id as lovedOneId`,
-        { id, ...fileMeta }
-      );
-      
-      if (createResult.records.length === 0) {
-        throw new Error('Failed to create photo node');
-      }
-      
-      const createdFile = createResult.records[0].get('f').properties;
-      console.log(`[POST /api/loved-ones/${id}/photos] Created photo file: ${fileMeta.filename}`);
-      console.log(`[POST /api/loved-ones/${id}/photos] Created file node with properties:`, createdFile);
-      
-      // Verify the relationship was created
-      const verifyResult = await session.run(
-        `MATCH (l:LovedOne {id: $id})-[r:HAS_PHOTO]->(f:File)
-         RETURN count(r) as photoCount`,
-        { id }
-      );
-      const photoCount = verifyResult.records[0]?.get('photoCount')?.toNumber() || 0;
-      console.log(`[POST /api/loved-ones/${id}/photos] Total photos for this LovedOne after upload: ${photoCount}`);
-
-      await auditLogger.log(req, {
-        action: 'loved_one.photo_upload',
-        resourceType: 'loved_one',
-        resourceId: id,
-        success: true,
-        details: {
-          filename: fileMeta.filename,
-          originalname: fileMeta.originalname,
-          size: fileMeta.size
-        }
-      });
-      res.json({ success: true, photo: fileMeta });
-    } catch (err) {
-      console.error('Failed to save photo metadata:', err);
-      await auditLogger.log(req, {
-        action: 'loved_one.photo_upload',
-        resourceType: 'loved_one',
-        resourceId: id,
-        success: false,
-        message: 'Failed to save photo metadata',
-        details: { error: err.message }
-      });
-      res.status(500).json({ 
-        error: 'Failed to save photo metadata', 
-        details: err.message || 'Database error occurred while saving photo'
-      });
-    } finally {
-      await session.close();
-    }
-  }
-);
-
-// Error handler for multer errors (file size, etc.)
-app.use((err, req, res, next) => {
-  if (err instanceof require('multer').MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ 
-        error: 'File too large', 
-        details: 'Maximum file size is 10MB' 
-      });
-    }
-    return res.status(400).json({ 
-      error: 'File upload error', 
-      details: err.message 
-    });
-  }
-  next(err);
-});
-
-// Delete a photo for a LovedOne
-app.delete('/api/loved-ones/:id/photos/:filename', authMiddleware, async (req, res) => {
-  const { id, filename } = req.params;
-  const session = driver.session();
-  try {
-    // Verify permission: admin or case_worker
-    const roles = req.user && (req.user.roles || req.user.groups || []);
-    const hasPermission = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
-    if (!hasPermission) {
-      await session.close();
-      await auditLogger.log(req, {
-        action: 'loved_one.photo_delete',
-        resourceType: 'loved_one',
-        resourceId: id,
-        success: false,
-        message: 'Forbidden: insufficient role'
-      });
-      return res.status(403).json({ error: 'Forbidden: insufficient role' });
-    }
-
-    // Find and delete File node and relationship
-    const result = await session.run(
-      `MATCH (l:LovedOne {id: $id})-[r:HAS_PHOTO]->(f:File {filename: $filename})
-       DELETE r, f
-       RETURN f`,
-      { id, filename }
-    );
-
-    if (result.records.length === 0) {
-      await session.close();
-      await auditLogger.log(req, {
-        action: 'loved_one.photo_delete',
-        resourceType: 'loved_one',
-        resourceId: id,
-        success: false,
-        message: 'Photo not found'
-      });
-      return res.status(404).json({ error: 'Photo not found' });
-    }
-
-    // Delete physical file
-    const filePath = require('path').join(__dirname, 'uploads', filename);
-    const fs = require('fs');
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-
-    await auditLogger.log(req, {
-      action: 'loved_one.photo_delete',
-      resourceType: 'loved_one',
-      resourceId: id,
-      success: true,
-      details: { filename }
-    });
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Failed to delete photo:', err);
-    await auditLogger.log(req, {
-      action: 'loved_one.photo_delete',
-      resourceType: 'loved_one',
-      resourceId: id,
-      success: false,
-      message: 'Failed to delete photo',
-      details: { filename, error: err.message }
-    });
-    res.status(500).json({ error: 'Failed to delete photo' });
-  } finally {
-    await session.close();
-  }
-});
+// Photo routes are now in routes/photos.js
 
 module.exports = app;

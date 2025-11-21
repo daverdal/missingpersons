@@ -688,13 +688,26 @@
 
     // Fetch and display communities (First Nations)
     function loadCommunities() {
+        console.log('[loadCommunities] Fetching communities...');
         fetch('/api/communities', {
             headers: { 'Authorization': 'Bearer ' + getToken() }
         })
-            .then(r => r.json())
+            .then(r => {
+                console.log('[loadCommunities] Response status:', r.status);
+                if (!r.ok) {
+                    throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+                }
+                return r.json();
+            })
             .then(data => {
+                console.log('[loadCommunities] Received data:', data);
                 const list = data.communities || [];
+                console.log('[loadCommunities] Communities list length:', list.length);
                 const container = document.getElementById('communityList');
+                if (!container) {
+                    console.error('[loadCommunities] Container element not found!');
+                    return;
+                }
                 container.innerHTML = '';
                 if (list.length === 0) {
                     container.textContent = 'No First Nations found. Add one to get started.';
@@ -821,6 +834,123 @@
                                     loadCommunities();
                                 } else {
                                     alert((result && result.error) || 'Failed to delete community');
+                                }
+                            })
+                            .catch(err => alert('Error: ' + err));
+                        });
+                        btnContainer.appendChild(delBtn);
+                        
+                        row.appendChild(btnContainer);
+                    }
+                    container.appendChild(row);
+                });
+                console.log('[loadCommunities] Displayed', list.length, 'communities');
+            })
+            .catch(err => {
+                console.error('[loadCommunities] Error:', err);
+                const container = document.getElementById('communityList');
+                if (container) {
+                    container.innerHTML = '<div style="color: #ff7f7f;">Error loading communities: ' + err.message + '</div>';
+                }
+            });
+    }
+
+    // Fetch and display organizations (agencies)
+    function loadOrganizations() {
+        fetch('/api/organizations', {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+            .then(r => r.json())
+            .then(data => {
+                const list = data.organizations || [];
+                const container = document.getElementById('organizationList');
+                container.innerHTML = '';
+                if (list.length === 0) {
+                    container.textContent = 'No organizations found.';
+                    return;
+                }
+                list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                const showAdmin = isAdmin();
+                console.log('[loadOrganizations] Loading organizations, count:', list.length);
+                list.forEach(org => {
+                    console.log('[loadOrganizations] Processing org:', org.name, 'id:', org.id);
+                    const orgContainer = document.createElement('div');
+                    orgContainer.className = 'list-item';
+                    orgContainer.style.marginBottom = '1rem';
+                    
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.alignItems = 'center';
+                    row.style.justifyContent = 'space-between';
+                    row.style.gap = '0.5rem';
+                    row.style.marginBottom = '0.5rem';
+
+                    const infoLine = document.createElement('div');
+                    infoLine.style.display = 'flex';
+                    infoLine.style.alignItems = 'center';
+                    infoLine.style.flexWrap = 'wrap';
+                    infoLine.style.flex = '1';
+                    const nameSpan = document.createElement('strong');
+                    nameSpan.textContent = org.name || '';
+                    infoLine.appendChild(nameSpan);
+                    if (org.phone && (org.phone + '').trim()) {
+                        const phoneSpan = document.createElement('span');
+                        phoneSpan.textContent = ' — Phone: ' + org.phone;
+                        phoneSpan.style.marginLeft = '0.25rem';
+                        phoneSpan.style.color = '#ccc';
+                        infoLine.appendChild(phoneSpan);
+                    }
+                    row.appendChild(infoLine);
+
+                    if (showAdmin && (org.id || org.name)) {
+                        const btnContainer = document.createElement('div');
+                        btnContainer.style.display = 'flex';
+                        btnContainer.style.gap = '0.5rem';
+                        
+                        const editBtn = document.createElement('button');
+                        editBtn.textContent = 'Edit';
+                        editBtn.style.background = '#23272b';
+                        editBtn.style.color = '#6fcf6f';
+                        editBtn.style.border = '1px solid #3a3f47';
+                        editBtn.style.padding = '4px 10px';
+                        editBtn.style.borderRadius = '4px';
+                        editBtn.style.cursor = 'pointer';
+                        editBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            document.getElementById('orgId').value = org.id || '';
+                            document.getElementById('orgName').value = org.name || '';
+                            document.getElementById('orgContact').value = org.contact || '';
+                            document.getElementById('orgPhone').value = org.phone || '';
+                            document.getElementById('addOrgForm').style.display = 'block';
+                            document.getElementById('orgName').focus();
+                        });
+                        btnContainer.appendChild(editBtn);
+                        
+                        const delBtn = document.createElement('button');
+                        delBtn.textContent = 'Delete';
+                        delBtn.style.background = '#c00';
+                        delBtn.style.color = '#fff';
+                        delBtn.style.border = 'none';
+                        delBtn.style.padding = '4px 10px';
+                        delBtn.style.borderRadius = '4px';
+                        delBtn.style.cursor = 'pointer';
+                        delBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            if (!confirm('Delete this organization?')) return;
+                            fetch('/api/organizations', {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': 'Bearer ' + getToken()
+                                },
+                                body: JSON.stringify({ name: org.name })
+                            })
+                            .then(r => r.json())
+                            .then(result => {
+                                if (result && result.success) {
+                                    loadOrganizations();
+                                } else {
+                                    alert((result && result.error) || 'Failed to delete organization');
                                 }
                             })
                             .catch(err => alert('Error: ' + err));
