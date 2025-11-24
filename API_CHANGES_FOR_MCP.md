@@ -4,6 +4,35 @@ This document tracks API changes that need to be reflected in the MCP server's t
 
 ## Current API Endpoints (as of 2025-01-28)
 
+### Public-Facing Endpoints (No Authentication Required)
+
+These endpoints are used by the public-facing website and do not require authentication:
+
+- **GET** `/api/public/loved-ones`
+  - Returns a public-safe list of missing loved ones (LovedOnes) that are still considered missing
+  - Filters out resolved statuses by default (Found Safe, Found Deceased, Case Closed, Voluntary Return)
+  - Parameters: 
+    - `community` (string, optional): Filter by community name (partial match)
+    - `province` (string, optional): Filter by province code (e.g., "MB", "AB")
+    - `status` (string, optional): Filter by specific status (if provided, overrides default filtering)
+    - `search` (string, optional): Search in name, lastLocation, or community (partial match)
+    - `limit` (number, optional): Maximum results (default: 50, max: 200)
+  - Response Format: `{ results: [{ id, name, community, province, lastLocation, dateOfIncident, status, relationship, coordinates, summary, photoUrl, familyContactInitials }] }`
+  - Note: This endpoint is used by the public website at `http://192.168.2.27:4000`
+
+- **POST** `/api/public/contact`
+  - Accepts contact form submissions from the public website
+  - Creates a `PublicInquiry` node in Neo4j
+  - Parameters (body):
+    - `fullName` (string, required): Submitter's full name
+    - `email` (string, required): Valid email address
+    - `phone` (string, optional): Phone number
+    - `community` (string, optional): Community or location
+    - `preferredContactMethod` (string, optional): "phone", "email", "text", or empty
+    - `message` (string, required): Inquiry message (max 2000 characters)
+  - Response Format: `{ success: true, message: "Inquiry received. A case worker will reach out shortly." }`
+  - Note: Submissions can be viewed by admins/case_workers via `GET /api/public/inquiries`
+
 ### Applicant Search by Name
 - **GET** `/api/applicants/search?name={name}`
   - Returns applicants matching the provided name (case-insensitive, partial match)
@@ -235,6 +264,122 @@ Use this section to list features that have been added to the Missing Persons ap
       }
     }
     ```
+
+### Public Contact Inquiries Management
+
+- **API Endpoint**: `GET /api/public/inquiries`
+- **Description**: Retrieve all public contact form submissions from the public-facing website. These are inquiries submitted by potential applicants through the public contact form. Returns inquiries ordered by creation date (newest first).
+- **Parameters**: 
+  - `status` (string, optional, query): Filter inquiries by status. Valid values: "new", "contacted", "in_progress", "resolved", "closed". If not provided, returns all inquiries.
+  - `limit` (number, optional, query): Maximum number of results to return (default: 100, max: 500)
+- **Response Format**: 
+  ```json
+  {
+    "results": [
+      {
+        "id": "uuid",
+        "fullName": "John Doe",
+        "email": "john@example.com",
+        "phone": "204-555-0100",
+        "community": "Sagkeeng First Nation",
+        "preferredContactMethod": "email",
+        "message": "I need help finding my missing loved one...",
+        "source": "public_form",
+        "status": "new",
+        "createdAt": "2025-01-28T12:00:00.000Z",
+        "ipAddress": "192.168.1.1"
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - `403 Forbidden`: User does not have admin or case_worker role
+  - `500 Internal Server Error`: Server error during database query
+- **Permission Required**: `missing.read` (admin or case_worker roles only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getPublicInquiries`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["new", "contacted", "in_progress", "resolved", "closed"],
+          "description": "Optional filter by inquiry status"
+        },
+        "limit": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Maximum number of results (default: 100)"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `results` array containing inquiry objects (id, fullName, email, phone, community, preferredContactMethod, message, source, status, createdAt, ipAddress)
+
+- **API Endpoint**: `PUT /api/public/inquiries/:id/status`
+- **Description**: Update the status of a public contact inquiry. This allows case workers to track the progress of inquiries (e.g., mark as "contacted" after reaching out, "resolved" when completed).
+- **Parameters**: 
+  - `id` (string, required, path): Public inquiry ID (UUID)
+  - `status` (string, required, body): New status value. Valid values: "new", "contacted", "in_progress", "resolved", "closed"
+- **Request Body Format**: 
+  ```json
+  {
+    "status": "contacted"
+  }
+  ```
+- **Response Format**: 
+  ```json
+  {
+    "success": true,
+    "inquiry": {
+      "id": "uuid",
+      "fullName": "John Doe",
+      "email": "john@example.com",
+      "phone": "204-555-0100",
+      "community": "Sagkeeng First Nation",
+      "preferredContactMethod": "email",
+      "message": "I need help finding my missing loved one...",
+      "source": "public_form",
+      "status": "contacted",
+      "createdAt": "2025-01-28T12:00:00.000Z",
+      "ipAddress": "192.168.1.1"
+    }
+  }
+  ```
+- **Error Responses**:
+  - `400 Bad Request`: Status parameter is missing or invalid
+  - `403 Forbidden`: User does not have admin or case_worker role
+  - `404 Not Found`: Public inquiry with the specified ID does not exist
+  - `500 Internal Server Error`: Server error during database update
+- **Permission Required**: `missing.write` (admin or case_worker roles only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.updatePublicInquiryStatus`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["id", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The public inquiry ID (UUID)"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["new", "contacted", "in_progress", "resolved", "closed"],
+          "description": "The new status for the inquiry"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `success` boolean and `inquiry` object containing the updated inquiry data
+
+**Note**: Public inquiries are created when users submit the contact form on the public-facing website (`http://192.168.2.27:4000`). They are stored as `PublicInquiry` nodes in Neo4j with properties: id, fullName, email, phone, community, preferredContactMethod, message, source, status, createdAt, ipAddress.
 
 ### Template for New Features
 

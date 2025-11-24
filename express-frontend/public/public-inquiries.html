@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public Inquiries - Missing Persons App</title>
+    <link rel="stylesheet" href="retro.css">
+    <script src="auth-check.js"></script>
+    <script src="navbar.js"></script>
+    <script src="navbar-auth.js"></script>
+</head>
+<body>
+    <header>
+        <h1 style="text-align:center;">Public Contact Inquiries</h1>
+    </header>
+    <main>
+    <script>
+// Helper to get JWT token from cookie
+function getToken() {
+    const match = document.cookie.match(/(^| )token=([^;]+)/);
+    if (match) return match[2];
+    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+}
+
+// Redirect to login if not authenticated
+if (!getToken()) {
+    window.location.href = 'login.html';
+}
+    </script>
+        <div id="message"></div>
+        <div style="margin: 1rem 0;">
+            <label>
+                Filter by status:
+                <select id="statusFilter">
+                    <option value="">All</option>
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                </select>
+            </label>
+            <button onclick="fetchInquiries()" style="margin-left: 1rem;">Refresh</button>
+        </div>
+        <table id="inquiriesTable" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #1a3c6e; color: white;">
+                    <th style="padding: 0.5rem; border: 1px solid #ddd;">Date</th>
+                    <th style="padding: 0.5rem; border: 1px solid #ddd;">Name</th>
+                    <th style="padding: 0.5rem; border: 1px solid #ddd;">Email</th>
+                    <th style="padding: 0.5rem; border: 1px solid #ddd;">Phone</th>
+                    <th style="padding: 0.5rem; border: 1px solid #ddd;">Community</th>
+                    <th style="padding: 0.5rem; border: 1px solid #ddd;">Message</th>
+                    <th style="padding: 0.5rem; border: 1px solid #ddd;">Status</th>
+                    <th style="padding: 0.5rem; border: 1px solid #ddd;">Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </main>
+    <script>
+        async function fetchInquiries() {
+            const token = getToken();
+            if (!token) {
+                document.getElementById('message').textContent = 'You must be logged in to view inquiries.';
+                return;
+            }
+
+            const statusFilter = document.getElementById('statusFilter').value;
+            let url = '/api/public/inquiries';
+            if (statusFilter) {
+                url += '?status=' + encodeURIComponent(statusFilter);
+            }
+
+            try {
+                const res = await fetch(url, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+
+                if (res.status === 401) {
+                    document.getElementById('message').textContent = 'Session expired. Please log in again.';
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                if (res.status === 403) {
+                    document.getElementById('message').textContent = 'Access denied. Admin or case worker role required.';
+                    return;
+                }
+
+                if (!res.ok) {
+                    const error = await res.json().catch(() => ({}));
+                    const errorMsg = error.error || 'Unknown error';
+                    const errorDetails = error.details ? ' (' + error.details + ')' : '';
+                    document.getElementById('message').textContent = 'Failed to load inquiries: ' + errorMsg + errorDetails;
+                    console.error('Error response:', error);
+                    return;
+                }
+
+                const data = await res.json();
+                const tbody = document.querySelector('#inquiriesTable tbody');
+                tbody.innerHTML = '';
+
+                if (!data.results || data.results.length === 0) {
+                    document.getElementById('message').textContent = 'No inquiries found.';
+                    return;
+                }
+
+                document.getElementById('message').textContent = `Found ${data.results.length} inquiry(ies)`;
+                
+                data.results.forEach(inquiry => {
+                    const tr = document.createElement('tr');
+                    const date = inquiry.createdAt ? new Date(inquiry.createdAt).toLocaleString() : 'Unknown';
+                    const messagePreview = inquiry.message ? (inquiry.message.length > 100 ? inquiry.message.substring(0, 100) + '...' : inquiry.message) : '';
+                    
+                    tr.innerHTML = `
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${escapeHtml(date)}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${escapeHtml(inquiry.fullName || '')}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">
+                            <a href="mailto:${escapeHtml(inquiry.email || '')}">${escapeHtml(inquiry.email || '')}</a>
+                        </td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">
+                            ${inquiry.phone ? `<a href="tel:${escapeHtml(inquiry.phone)}">${escapeHtml(inquiry.phone)}</a>` : '-'}
+                        </td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${escapeHtml(inquiry.community || '-')}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;" title="${escapeHtml(inquiry.message || '')}">${escapeHtml(messagePreview)}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">
+                            <select onchange="updateStatus('${escapeHtml(inquiry.id)}', this.value)" style="width: 100%;">
+                                <option value="new" ${inquiry.status === 'new' ? 'selected' : ''}>New</option>
+                                <option value="contacted" ${inquiry.status === 'contacted' ? 'selected' : ''}>Contacted</option>
+                                <option value="in_progress" ${inquiry.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                                <option value="resolved" ${inquiry.status === 'resolved' ? 'selected' : ''}>Resolved</option>
+                                <option value="closed" ${inquiry.status === 'closed' ? 'selected' : ''}>Closed</option>
+                            </select>
+                        </td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">
+                            <button onclick="showFullMessage('${escapeHtml(inquiry.id)}', ${JSON.stringify(inquiry.message).replace(/"/g, '&quot;')})">View Full</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                console.error('Error fetching inquiries:', err);
+                document.getElementById('message').textContent = 'Error loading inquiries: ' + err.message;
+            }
+        }
+
+        async function updateStatus(inquiryId, newStatus) {
+            const token = getToken();
+            if (!token) return;
+
+            try {
+                const res = await fetch(`/api/public/inquiries/${inquiryId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                if (!res.ok) {
+                    const error = await res.json().catch(() => ({}));
+                    alert('Failed to update status: ' + (error.error || 'Unknown error'));
+                    fetchInquiries(); // Refresh to revert change
+                    return;
+                }
+
+                document.getElementById('message').textContent = 'Status updated successfully.';
+                setTimeout(() => {
+                    document.getElementById('message').textContent = '';
+                }, 3000);
+            } catch (err) {
+                console.error('Error updating status:', err);
+                alert('Error updating status: ' + err.message);
+                fetchInquiries(); // Refresh to revert change
+            }
+        }
+
+        function showFullMessage(inquiryId, message) {
+            alert('Full Message:\n\n' + message);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load inquiries on page load
+        fetchInquiries();
+    </script>
+</body>
+</html>
+

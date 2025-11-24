@@ -6,33 +6,220 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>Assembly of Manitoba Chiefs - Landing Page</title>
+  <title>Missing Loved Ones | Assembly of Manitoba Chiefs</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <img src="https://www.manitobachiefs.com/wp-content/uploads/2019/07/AMC-Logo-Colour.png" alt="AMC Logo" class="logo">
-      <h1>Assembly of Manitoba Chiefs</h1>
-      <h2>Application Portal</h2>
-    </header>
-    <main>
-      <p class="description">Select an application to get started:</p>
-      <div class="links">
-        <a href="http://192.168.2.27:5000" class="app-link">
-          <span class="app-name">Missing Persons</span>
-          <span class="app-desc">Case management and tracking system</span>
-        </a>
-        <a href="http://192.168.2.27:3001" class="app-link">
-          <span class="app-name">MCP Server</span>
-          <span class="app-desc">AI-powered query interface</span>
-        </a>
+  <div class="gradient-bg" aria-hidden="true"></div>
+
+  <header class="hero">
+    <div class="hero__content">
+      <div class="hero__brand">
+        <img src="https://www.manitobachiefs.com/wp-content/uploads/2019/07/AMC-Logo-Colour.png" alt="Assembly of Manitoba Chiefs logo">
+        <div>
+          <p class="eyebrow">Missing and Murdered Indigenous Loved Ones</p>
+          <h1>Support for families searching for answers</h1>
+          <p class="lede">
+            We partner with families and First Nations communities to gather information,
+            coordinate supports, and keep loved ones’ stories visible.
+          </p>
+          <div class="hero__actions">
+            <a class="btn primary" href="#contact">Request Support</a>
+            <button class="btn ghost" id="scrollToLovedOnes" type="button">
+              View missing loved ones
+            </button>
+          </div>
+        </div>
       </div>
-    </main>
-    <footer>
-      <p>&copy; 2025 Assembly of Manitoba Chiefs</p>
-      <p style="font-size: 0.8em; color: #999;">Server IP: 192.168.2.27 | Updated: 2025-01-27</p>
-    </footer>
-  </div>
+      <div class="hero__stats">
+        <article>
+          <small>Currently Missing</small>
+          <strong id="lovedOnesCount">--</strong>
+          <span>loved ones</span>
+        </article>
+        <article>
+          <small>Last updated</small>
+          <strong id="lastUpdatedLabel">--</strong>
+        </article>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="section intro">
+      <div class="section__content">
+        <div>
+          <h2>How we can help</h2>
+          <p>
+            Our Missing Persons team assists potential applicants throughout Manitoba by
+            collecting case information, sharing resources, and connecting families to
+            dedicated case workers. If you are looking for someone you love, please reach
+            out — a coordinator will follow up within one business day.
+          </p>
+          <ul class="pill-list">
+            <li>Application intake &amp; safety planning</li>
+            <li>Coordination with First Nations leadership</li>
+            <li>Links to counselling and land-based supports</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Need immediate assistance?</h3>
+          <p class="panel__lede">
+            Call AMC Missing Persons at <a href="tel:1-204-555-0100">204-555-0100</a>
+            or email <a href="mailto:missing@manitobachiefs.com">missing@manitobachiefs.com</a>.
+          </p>
+          <p class="panel__note">
+            For emergencies, please contact your local police service or 911.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="lovedOnesSection">
+      <div class="section__header">
+        <div>
+          <h2>Missing loved ones</h2>
+          <p>Families have asked us to keep these stories visible. Please share any information you may have.</p>
+        </div>
+        <div class="section__actions">
+          <button class="btn ghost" id="refreshLovedOnes" type="button">
+            Refresh list
+          </button>
+        </div>
+      </div>
+
+      <form id="lovedOnesFilters" class="filters">
+        <label>
+          <span>Search name or location</span>
+          <input type="text" name="search" placeholder="e.g. Winnipeg or Emily" autocomplete="off">
+        </label>
+        <label>
+          <span>Community</span>
+          <input type="text" name="community" placeholder="Any community" autocomplete="off">
+        </label>
+        <label>
+          <span>Province</span>
+          <select name="province">
+            <option value="">All provinces</option>
+            <option value="MB">Manitoba</option>
+            <option value="SK">Saskatchewan</option>
+            <option value="AB">Alberta</option>
+            <option value="BC">British Columbia</option>
+            <option value="ON">Ontario</option>
+          </select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select name="status">
+            <option value="">Missing</option>
+            <option value="Active">Active</option>
+            <option value="Under Investigation">Under Investigation</option>
+            <option value="Search in Progress">Search in Progress</option>
+            <option value="Awaiting Information">Awaiting Information</option>
+            <option value="Cold Case">Cold Case</option>
+          </select>
+        </label>
+      </form>
+
+      <div id="lovedOnesList" class="cards" data-state="loading">
+        <article class="card skeleton">
+          <div class="skeleton__avatar"></div>
+          <div class="skeleton__line"></div>
+          <div class="skeleton__line short"></div>
+        </article>
+        <article class="card skeleton">
+          <div class="skeleton__avatar"></div>
+          <div class="skeleton__line"></div>
+          <div class="skeleton__line short"></div>
+        </article>
+        <article class="card skeleton">
+          <div class="skeleton__avatar"></div>
+          <div class="skeleton__line"></div>
+          <div class="skeleton__line short"></div>
+        </article>
+      </div>
+      <p id="lovedOnesError" class="error hidden" role="alert"></p>
+    </section>
+
+    <section class="section contact" id="contact">
+      <div class="section__header">
+        <div>
+          <h2>Request contact from our team</h2>
+          <p>Share your information securely. We only use this to coordinate follow-up with a case worker.</p>
+        </div>
+      </div>
+      <div class="contact__grid">
+        <form id="contactForm" novalidate>
+          <label>
+            <span>Full name *</span>
+            <input type="text" name="fullName" required maxlength="180" autocomplete="name" placeholder="Your name">
+          </label>
+          <label>
+            <span>Email *</span>
+            <input type="email" name="email" required maxlength="254" autocomplete="email" placeholder="you@example.com">
+          </label>
+          <label>
+            <span>Phone (optional)</span>
+            <input type="tel" name="phone" maxlength="50" autocomplete="tel" placeholder="(204) 555-0123">
+          </label>
+          <label>
+            <span>Community or location</span>
+            <input type="text" name="community" maxlength="120" placeholder="Community name">
+          </label>
+          <label>
+            <span>Preferred contact method</span>
+            <select name="preferredContactMethod">
+              <option value="">No preference</option>
+              <option value="phone">Phone</option>
+              <option value="email">Email</option>
+              <option value="text">Text message</option>
+            </select>
+          </label>
+          <label>
+            <span>Your story *</span>
+            <textarea name="message" rows="5" maxlength="2000" required placeholder="Tell us about your situation..."></textarea>
+          </label>
+          <button type="submit" class="btn primary" id="contactSubmit">
+            Submit inquiry
+          </button>
+          <p class="form-note">You will receive a confirmation on this page once your message is sent.</p>
+        </form>
+
+        <div class="contact__info">
+          <article>
+            <h3>What happens next?</h3>
+            <p>
+              An intake coordinator reviews your message and assigns a case worker.
+              We typically respond within one business day.
+            </p>
+          </article>
+          <article>
+            <h3>Need to talk to someone?</h3>
+            <ul>
+              <li><strong>24/7 counselling</strong>: 1-844-413-6649</li>
+              <li><strong>Manitoba Crisis Line</strong>: 1-888-322-3019</li>
+              <li><strong>Hope for Wellness</strong>: 1-855-242-3310</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div>
+      <p>&copy; <span id="yearLabel"></span> Assembly of Manitoba Chiefs</p>
+      <p class="muted">This site shares publicly releasable information only.</p>
+    </div>
+    <div class="footer__links">
+      <a href="mailto:missing@manitobachiefs.com">missing@manitobachiefs.com</a>
+      <a href="tel:1-204-555-0100">204-555-0100</a>
+    </div>
+  </footer>
+
+  <div class="toast" role="status" aria-live="polite" data-role="toast"></div>
+
+  <script src="config.js"></script>
+  <script src="main.js" defer></script>
 </body>
 </html>

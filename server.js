@@ -425,6 +425,7 @@ const setupCommunicationRoutes = require('./routes/communications');
 const setupLovedOnesRoutes = require('./routes/lovedOnes');
 const setupStatusRoutes = require('./routes/statuses');
 const setupUtilityRoutes = require('./routes/utility');
+const setupPublicRoutes = require('./routes/public');
 
 (async function initialiseAuditLogging() {
   try {
@@ -2916,6 +2917,14 @@ setupUtilityRoutes(utilityRouter, {
   requireRole
 });
 app.use('/api', utilityRouter);
+
+const publicRouter = express.Router();
+setupPublicRoutes(publicRouter, {
+  driver,
+  auditLogger,
+  authMiddleware
+});
+app.use('/api', publicRouter);
 
 // Error handler for multer errors (file size, etc.)
 app.use((err, req, res, next) => {
