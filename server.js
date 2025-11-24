@@ -1380,37 +1380,258 @@ app.get('/api/applicants/with-email-addresses', authMiddleware, requireRole('adm
 
 // Get applicant info by ID (for case notes page)
 // Enhanced: Also return referring organization (even if soft deleted)
+// Search applicants by name (supports partial matching, case-insensitive)
+app.get('/api/applicants/search', authMiddleware, async (req, res) => {
+  const { name } = req.query;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'name query parameter is required' });
+  }
+  
+  const session = driver.session();
+  try {
+    // Search for applicants by name (case-insensitive, partial match)
+    const result = await session.run(
+      `MATCH (a:Applicant)
+       WHERE toLower(a.name) CONTAINS toLower($name)
+       OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
+       OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
+       RETURN a, o, collect({lovedOne: l, relationship: rel.relationship}) AS lovedOnes
+       ORDER BY a.name
+       LIMIT 50`,
+      { name: name.trim() }
+    );
+    
+    const applicants = result.records.map(r => {
+      const applicant = r.get('a').properties;
+      const orgNode = r.get('o');
+      const referringOrg = orgNode ? orgNode.properties : null;
+      const lovedOnesRaw = r.get('lovedOnes');
+      const lovedOnes = lovedOnesRaw
+        .filter(lo => lo.lovedOne)
+        .map(lo => ({
+          ...lo.lovedOne.properties,
+          relationship: lo.relationship || ''
+        }));
+      return { applicant, referringOrg, lovedOnes };
+    });
+    
+    await session.close();
+    res.json({ applicants, count: applicants.length });
+  } catch (err) {
+    await session.close();
+    console.error('Error searching applicants:', err);
+    res.status(500).json({ error: 'Failed to search applicants', details: err.message });
+  }
+});
+
 app.get('/api/applicants/:id', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const includeAll = req.query.includeAll === 'true' || req.query.includeAll === '1';
+  
+  try {
+    const session = driver.session();
+    
+    if (includeAll) {
+      // Get applicant with ALL related data: org, lovedOnes, notes, files, events, community, assigned users
+      const result = await session.run(
+        `MATCH (a:Applicant {id: $id})
+         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
+         OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
+         OPTIONAL MATCH (a)-[:HAS_NOTE]->(n:Note)
+         OPTIONAL MATCH (a)-[:HAS_FILE]->(f:File)
+         OPTIONAL MATCH (a)-[:HAS_EVENT]->(e:CaseEvent)
+         OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
+         OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
+         RETURN a, o, 
+                collect(DISTINCT {lovedOne: l, relationship: rel.relationship}) AS lovedOnes,
+                collect(DISTINCT n) AS notes,
+                collect(DISTINCT f) AS files,
+                collect(DISTINCT e) AS events,
+                comm,
+                collect(DISTINCT u) AS assignedUsers`,
+        { id }
+      );
+      await session.close();
+      
+      if (!result.records.length) return res.status(404).json({ error: 'Not found' });
+      
+      const record = result.records[0];
+      const applicant = record.get('a').properties;
+      const orgNode = record.get('o');
+      const referringOrg = orgNode ? orgNode.properties : null;
+      
+      // Process lovedOnes
+      const lovedOnesRaw = record.get('lovedOnes');
+      const lovedOnes = lovedOnesRaw
+        .filter(lo => lo && lo.lovedOne)
+        .map(lo => ({
+          ...lo.lovedOne.properties,
+          relationship: lo.relationship || ''
+        }));
+      
+      // Process notes
+      const notesRaw = record.get('notes');
+      const notes = notesRaw
+        .filter(n => n !== null)
+        .map(n => n.properties);
+      
+      // Process files
+      const filesRaw = record.get('files');
+      const files = filesRaw
+        .filter(f => f !== null)
+        .map(f => f.properties);
+      
+      // Process events
+      const eventsRaw = record.get('events');
+      const events = eventsRaw
+        .filter(e => e !== null)
+        .map(e => e.properties);
+      
+      // Process community
+      const commNode = record.get('comm');
+      const community = commNode ? commNode.properties : null;
+      
+      // Process assigned users
+      const usersRaw = record.get('assignedUsers');
+      const assignedUsers = usersRaw
+        .filter(u => u !== null)
+        .map(u => ({
+          id: u.properties.id,
+          name: u.properties.name,
+          email: u.properties.email,
+          roles: u.properties.roles
+        }));
+      
+      res.json({
+        applicant,
+        referringOrg,
+        lovedOnes,
+        notes,
+        files,
+        events,
+        community,
+        assignedUsers
+      });
+    } else {
+      // Original behavior: Get applicant, referring org, and related LovedOne(s)
+      const result = await session.run(
+        `MATCH (a:Applicant {id: $id})
+         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
+         OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
+         RETURN a, o, collect({lovedOne: l, relationship: rel.relationship}) AS lovedOnes`,
+        { id }
+      );
+      await session.close();
+      if (!result.records.length) return res.status(404).json({ error: 'Not found' });
+      const applicant = result.records[0].get('a').properties;
+      const orgNode = result.records[0].get('o');
+      const referringOrg = orgNode ? orgNode.properties : null;
+      // lovedOnes is an array of {lovedOne, relationship}
+      const lovedOnesRaw = result.records[0].get('lovedOnes');
+      const lovedOnes = lovedOnesRaw
+        .filter(lo => lo.lovedOne)
+        .map(lo => ({
+          ...lo.lovedOne.properties,
+          relationship: lo.relationship || ''
+        }));
+      res.json({ applicant, referringOrg, lovedOnes });
+    }
+  } catch (err) {
+    console.error('Error fetching applicant:', err);
+    res.status(500).json({ error: 'Failed to fetch applicant', details: err.message });
+  }
+});
+
+// Get applicant/case with ALL related data (comprehensive endpoint)
+app.get('/api/applicants/:id/complete', authMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
     const session = driver.session();
-    // Get applicant, referring org, and related LovedOne(s)
+    // Get applicant with ALL related data: org, lovedOnes, notes, files, events, community, assigned users
     const result = await session.run(
       `MATCH (a:Applicant {id: $id})
        OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
        OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-       RETURN a, o, collect({lovedOne: l, relationship: rel.relationship}) AS lovedOnes`,
+       OPTIONAL MATCH (a)-[:HAS_NOTE]->(n:Note)
+       OPTIONAL MATCH (a)-[:HAS_FILE]->(f:File)
+       OPTIONAL MATCH (a)-[:HAS_EVENT]->(e:CaseEvent)
+       OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
+       OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
+       RETURN a, o, 
+              collect(DISTINCT {lovedOne: l, relationship: rel.relationship}) AS lovedOnes,
+              collect(DISTINCT n) AS notes,
+              collect(DISTINCT f) AS files,
+              collect(DISTINCT e) AS events,
+              comm,
+              collect(DISTINCT u) AS assignedUsers`,
       { id }
     );
     await session.close();
+    
     if (!result.records.length) return res.status(404).json({ error: 'Not found' });
-    const applicant = result.records[0].get('a').properties;
-    const orgNode = result.records[0].get('o');
+    
+    const record = result.records[0];
+    const applicant = record.get('a').properties;
+    const orgNode = record.get('o');
     const referringOrg = orgNode ? orgNode.properties : null;
-    // lovedOnes is an array of {lovedOne, relationship}
-    const lovedOnesRaw = result.records[0].get('lovedOnes');
+    
+    // Process lovedOnes
+    const lovedOnesRaw = record.get('lovedOnes');
     const lovedOnes = lovedOnesRaw
-      .filter(lo => lo.lovedOne)
+      .filter(lo => lo && lo.lovedOne)
       .map(lo => ({
         ...lo.lovedOne.properties,
         relationship: lo.relationship || ''
       }));
-    res.json({ applicant, referringOrg, lovedOnes });
+    
+    // Process notes
+    const notesRaw = record.get('notes');
+    const notes = notesRaw
+      .filter(n => n !== null)
+      .map(n => n.properties);
+    
+    // Process files
+    const filesRaw = record.get('files');
+    const files = filesRaw
+      .filter(f => f !== null)
+      .map(f => f.properties);
+    
+    // Process events
+    const eventsRaw = record.get('events');
+    const events = eventsRaw
+      .filter(e => e !== null)
+      .map(e => e.properties);
+    
+    // Process community
+    const commNode = record.get('comm');
+    const community = commNode ? commNode.properties : null;
+    
+    // Process assigned users
+    const usersRaw = record.get('assignedUsers');
+    const assignedUsers = usersRaw
+      .filter(u => u !== null)
+      .map(u => ({
+        id: u.properties.id,
+        name: u.properties.name,
+        email: u.properties.email,
+        roles: u.properties.roles
+      }));
+    
+    res.json({
+      applicant,
+      referringOrg,
+      lovedOnes,
+      notes,
+      files,
+      events,
+      community,
+      assignedUsers
+    });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch applicant' });
+    console.error('Error fetching applicant with all details:', err);
+    res.status(500).json({ error: 'Failed to fetch applicant', details: err.message });
   }
 });
-
 
 // authMiddleware is now always JWT-based
 
@@ -3214,20 +3435,6 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-app.listen(PORT, async () => {
-  // Set Windows CMD window title
-  process.stdout.write(`\x1b]2;Missing Persons App - Port ${PORT}\x07`);
-  console.log('========================================');
-  console.log('   Missing Persons App Server Started');
-  console.log(`   Listening on port: ${PORT}`);
-  console.log('========================================');
-  
-  // Initialize default statuses
-  await initializeClientStatuses();
-  await initializeLovedOneStatuses();
-});
-
-// Export for testing
 // --- CASE NOTES ENDPOINTS ---
 // Get notes for a case (as Note nodes)
 app.get('/api/cases/:caseId/notes', authMiddleware, async (req, res) => {
@@ -3977,5 +4184,27 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
 
 // Get all photos for a LovedOne
 // Photo routes are now in routes/photos.js
+
+// 404 handler for API routes (must be after all route definitions)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'Route not found' });
+  }
+  next();
+});
+
+// Start the server AFTER all routes are defined
+app.listen(PORT, async () => {
+  // Set Windows CMD window title
+  process.stdout.write(`\x1b]2;Missing Persons App - Port ${PORT}\x07`);
+  console.log('========================================');
+  console.log('   Missing Persons App Server Started');
+  console.log(`   Listening on port: ${PORT}`);
+  console.log('========================================');
+  
+  // Initialize default statuses
+  await initializeClientStatuses();
+  await initializeLovedOneStatuses();
+});
 
 module.exports = app;

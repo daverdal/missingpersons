@@ -4,6 +4,15 @@ This document tracks API changes that need to be reflected in the MCP server's t
 
 ## Current API Endpoints (as of 2025-01-28)
 
+### Applicant Search by Name
+- **GET** `/api/applicants/search?name={name}`
+  - Returns applicants matching the provided name (case-insensitive, partial match)
+  - Parameters: `name` (string, required) - applicant name to search for (partial matches supported)
+  - Response Format: `{ applicants: [{ applicant: {...}, referringOrg: {...}, lovedOnes: [...] }], count: N }`
+  - Includes full applicant details with related lovedOnes and referringOrg
+  - Limited to 50 results, ordered by name
+  - MCP Tool: `missing.searchApplicantsByName` ⏳
+
 ### Province-Based Queries
 - **GET** `/api/loved-ones/by-province?province={province}`
   - Returns missing persons (LovedOnes) for a specific province
