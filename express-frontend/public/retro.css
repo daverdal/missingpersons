@@ -123,11 +123,39 @@
   opacity: 0.9 !important;
 }
 /* Light mode delete buttons */
-.light-mode .deleteFileBtn, .light-mode .delete-btn, .light-mode button.delete {
+.light-mode .deleteFileBtn, .light-mode .delete-btn, .light-mode button.delete, .light-mode .deleteContactBtn {
   color: rgb(38, 38, 38) !important;
 }
-.light-mode .deleteFileBtn:hover, .light-mode .delete-btn:hover, .light-mode button.delete:hover {
-  color: #dc2626 !important;
+.light-mode .deleteFileBtn:hover, .light-mode .delete-btn:hover, .light-mode button.delete:hover, .light-mode .deleteContactBtn:hover {
+  color: #4a9e4a !important;
+}
+/* Settings page tabs - match SMS menu style */
+.settings-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.settings-tab-btn {
+  background: #23272b !important;
+  color: #6fcf6f !important;
+  border: 1px solid #3a3f47 !important;
+  border-radius: 999px !important;
+  padding: 0.4rem 1rem !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  font-size: 0.95rem !important;
+  text-decoration: none !important;
+  transition: background 0.2s, border-color 0.2s, color 0.2s !important;
+}
+.settings-tab-btn:hover {
+  background: #2a2f35 !important;
+  border-color: #6fcf6f !important;
+  color: #aaffaa !important;
+}
+.settings-tab-btn.active {
+  background: #23272b !important;
+  color: #6fcf6f !important;
+  border-color: #6fcf6f !important;
 }
 /* Light mode settings tabs */
 .light-mode .settings-tab-btn {
@@ -135,14 +163,116 @@
   color: rgb(38, 38, 38) !important;
   border: 1px solid #e5e5e5 !important;
 }
+.light-mode .settings-tab-btn:hover {
+  background: #f9f9f9 !important;
+  border-color: rgb(38, 38, 38) !important;
+  color: rgb(38, 38, 38) !important;
+}
 .light-mode .settings-tab-btn.active {
   background: rgb(38, 38, 38) !important;
   color: #fff !important;
+  border-color: rgb(38, 38, 38) !important;
+}
+/* Light mode SMS Blast buttons */
+.light-mode .sms-blast-btn {
+  background: #ffffff !important;
+  color: rgb(38, 38, 38) !important;
+  border: 1px solid #e5e5e5 !important;
+}
+.light-mode .sms-blast-btn:hover {
+  background: #f9f9f9 !important;
+  border-color: rgb(38, 38, 38) !important;
+  color: rgb(38, 38, 38) !important;
+}
+/* Light mode offender-news-menu (SMS menu) */
+.light-mode .offender-news-menu {
+  border-bottom-color: #e5e5e5 !important;
+}
+.light-mode .offender-news-menu a {
+  background: #ffffff !important;
+  color: rgb(38, 38, 38) !important;
+  border-color: #e5e5e5 !important;
+}
+.light-mode .offender-news-menu a:hover {
+  background: #f9f9f9 !important;
+  border-color: rgb(38, 38, 38) !important;
+  color: rgb(38, 38, 38) !important;
+}
+.light-mode .offender-news-menu a.active {
+  background: rgb(38, 38, 38) !important;
+  color: #fff !important;
+  border-color: rgb(38, 38, 38) !important;
+}
+/* SMS Blast page styles */
+#statusMessage {
+  margin-top: 1rem;
+  padding: 0.8rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+#statusMessage.error {
+  color: #ff8080;
+  background: rgba(255, 128, 128, 0.1);
+  border: 1px solid #ff8080;
+}
+#statusMessage.success {
+  color: #6fcf6f;
+  background: rgba(111, 207, 111, 0.1);
+  border: 1px solid #6fcf6f;
+}
+#statusMessage.info {
+  color: #6fcf6f;
+}
+.client-count {
+  margin: 1rem 0;
+  padding: 0.8rem;
+  background: #23272b;
+  border: 1px solid #333;
+  border-radius: 4px;
+}
+.preview-section {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #23272b;
+  border: 1px solid #333;
+  border-radius: 4px;
+}
+/* Light mode SMS Blast styles */
+.light-mode #statusMessage.error {
+  background: rgba(255, 128, 128, 0.1) !important;
+  border-color: #ff8080 !important;
+  color: #ff8080 !important;
+}
+.light-mode #statusMessage.success {
+  background: rgba(111, 207, 111, 0.1) !important;
+  border-color: #6fcf6f !important;
+  color: #6fcf6f !important;
+}
+.light-mode .client-count,
+.light-mode .preview-section {
+  background: #ffffff !important;
+  border-color: #e5e5e5 !important;
+  color: rgb(38, 38, 38) !important;
+}
+/* SMS Blast textarea styles */
+#messageText {
+  width: 100%;
+  min-height: 150px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 /* Light mode note meta */
 .light-mode .note-meta {
   color: rgb(38, 38, 38) !important;
   opacity: 0.7 !important;
+}
+/* Navbar link styles - ensure consistent sizing across all pages */
+.nav-link {
+  font-family: 'Fira Mono', 'Consolas', 'Roboto Mono', 'Courier New', monospace !important;
+  font-size: 1em !important;
+  line-height: 1.5 !important;
+  padding: 0.25em 0 !important;
+  display: inline-block !important;
 }
 /* Nav highlighting styles */
 .nav-link.active, .nav-link[aria-current="page"] {
@@ -259,18 +389,23 @@ a:hover, a:active {
 .offender-news-menu a {
   padding: 0.45rem 1.1rem;
   border-radius: 999px;
-  border: 1px solid transparent;
+  border: 1px solid #3a3f47;
   font-weight: 600;
   font-size: 0.95rem;
+  background: #23272b;
+  color: #6fcf6f;
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 .offender-news-menu a:hover {
-  background: #2f3339;
-  border-color: #3a3f47;
+  background: #2a2f35;
+  border-color: #6fcf6f;
+  color: #aaffaa;
 }
 .offender-news-menu a.active {
-  background: #f7c873;
-  color: #23272b;
-  border-color: #f7c873;
+  background: #23272b;
+  color: #6fcf6f;
+  border-color: #6fcf6f;
 }
 /* Ensure Graph Visualization link is always the same color, even if visited */
 /* Style file input (Browse button) to match retro theme */
@@ -311,9 +446,9 @@ input[type="file"]:focus::file-selector-button {
   background: #333;
   color: #aaffaa;
 }
-/* Muted retro red for delete buttons */
-.deleteFileBtn, .delete-btn, button.delete {
-  color: #a86a6a !important;
+/* Delete buttons - green theme */
+.deleteFileBtn, .delete-btn, button.delete, .deleteContactBtn {
+  color: #6fcf6f !important;
   background: none !important;
   border: none !important;
   cursor: pointer;
@@ -321,8 +456,8 @@ input[type="file"]:focus::file-selector-button {
   opacity: 0.85;
   transition: color 0.2s, opacity 0.2s;
 }
-.deleteFileBtn:hover, .delete-btn:hover, button.delete:hover {
-  color: #e6b0b0 !important;
+.deleteFileBtn:hover, .delete-btn:hover, button.delete:hover, .deleteContactBtn:hover {
+  color: #aaffaa !important;
   opacity: 1;
 }
 /* Make case notes use full width and improve spacing */
@@ -469,6 +604,49 @@ main, header, nav, section, table, form, input, select, textarea, button, label,
   border: none;
   box-shadow: none;
 }
+/* Navbar width matching main content */
+header {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 1rem;
+  box-sizing: border-box;
+  min-height: 100px; /* Reserve space for h1 + navbar to prevent layout shift */
+  position: relative;
+}
+header h1 {
+  margin: 0.5em 0;
+  font-size: 1.8em; /* Fixed font size to prevent layout shift */
+  font-family: 'Fira Mono', 'Consolas', 'Roboto Mono', 'Courier New', monospace !important; /* Force consistent font */
+  line-height: 1.3; /* Consistent line height */
+  height: auto;
+  min-height: 2.34em; /* Reserve space: 1.8em * 1.3 = 2.34em */
+  max-height: 2.34em;
+  overflow: hidden;
+}
+#main-navbar {
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0.5em 0;
+  min-height: 50px; /* Ensure navbar has minimum height */
+  display: block; /* Prevent collapse */
+}
+#main-navbar > div {
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 50px; /* Prevent collapse during load */
+  display: flex; /* Maintain flex layout */
+}
+#main-navbar > div > div {
+  max-width: 100%;
+  width: 100%;
+  overflow-x: auto;
+  box-sizing: border-box;
+  flex: 1;
+}
+
 main {
   max-width: 1200px;
   margin: 2.5rem auto;
@@ -529,6 +707,14 @@ button {
 button:hover, button:focus {
   background: #23272b;
   color: #aaffaa;
+}
+button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+button[disabled]:hover {
+  background: #000;
+  color: #6fcf6f;
 }
 main {
   background: #111;
@@ -595,4 +781,84 @@ tr:nth-child(odd) {
 }
 ::-webkit-scrollbar-thumb {
   background: #6fcf6f;
+}
+/* Email Blast and Communications page buttons - match settings tab button style */
+#emailBlastForm #sendButton,
+#emailBlastForm #previewButton,
+body #emailBlastForm #sendButton,
+body #emailBlastForm #previewButton,
+main #emailBlastForm #sendButton,
+main #emailBlastForm #previewButton {
+  background: #23272b !important;
+  color: #6fcf6f !important;
+  border: 1px solid #3a3f47 !important;
+  border-radius: 999px !important;
+  padding: 0.4rem 1rem !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  font-size: 1em !important;
+  transition: background 0.2s, border-color 0.2s, color 0.2s !important;
+  box-shadow: none !important;
+  margin-top: 0 !important;
+}
+#emailBlastForm #sendButton:hover,
+#emailBlastForm #previewButton:hover,
+body #emailBlastForm #sendButton:hover,
+body #emailBlastForm #previewButton:hover,
+main #emailBlastForm #sendButton:hover,
+main #emailBlastForm #previewButton:hover {
+  background: #2a2f35 !important;
+  border-color: #6fcf6f !important;
+  color: #aaffaa !important;
+}
+#emailBlastForm #sendButton:disabled,
+#emailBlastForm #previewButton:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+#emailBlastForm #sendButton:disabled:hover,
+#emailBlastForm #previewButton:disabled:hover {
+  background: #23272b !important;
+  border-color: #3a3f47 !important;
+  color: #6fcf6f !important;
+}
+/* Offender News page buttons - match settings tab button style */
+#refreshButton,
+.toolbar button,
+body #refreshButton,
+body .toolbar button,
+main #refreshButton,
+main .toolbar button {
+  background: #23272b !important;
+  color: #6fcf6f !important;
+  border: 1px solid #3a3f47 !important;
+  border-radius: 999px !important;
+  padding: 0.4rem 1rem !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  font-size: 1em !important;
+  transition: background 0.2s, border-color 0.2s, color 0.2s !important;
+  box-shadow: none !important;
+  margin-top: 0 !important;
+}
+#refreshButton:hover,
+.toolbar button:hover,
+body #refreshButton:hover,
+body .toolbar button:hover,
+main #refreshButton:hover,
+main .toolbar button:hover {
+  background: #2a2f35 !important;
+  border-color: #6fcf6f !important;
+  color: #aaffaa !important;
+}
+#refreshButton:disabled,
+.toolbar button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+#refreshButton:disabled:hover,
+.toolbar button:disabled:hover {
+  background: #23272b !important;
+  border-color: #3a3f47 !important;
+  color: #6fcf6f !important;
 }

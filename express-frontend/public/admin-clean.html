@@ -123,7 +123,7 @@
         }
         var token = getToken();
         if (!token) {
-            window.location.href = 'login.html';
+            window.location.replace('login.html');
             return;
         }
         try {
@@ -131,10 +131,10 @@
             var roles = payload.roles || payload.groups || payload.roles_claim || [];
             if (!Array.isArray(roles)) roles = [roles];
             if (!roles.includes('admin')) {
-                window.location.href = 'index.html';
+                window.location.replace('index.html');
             }
         } catch (e) {
-            window.location.href = 'login.html';
+            window.location.replace('login.html');
         }
     })();
 
@@ -235,25 +235,23 @@
         if (logoutBtn) {
             logoutBtn.addEventListener('click', function(e) {
                 e.preventDefault();
+                // Clear cookie
+                document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
                 localStorage.removeItem('token');
                 sessionStorage.removeItem('token');
-                window.location.href = 'login.html';
+                // Use replace to prevent back button access
+                window.location.replace('login.html');
             });
         }
 
         // --- Advocate Logins Management ---
         function loadUsers() {
             const token = getToken();
-            console.log('[DEBUG] loadUsers called, token:', token);
             fetch('/api/users', {
                 headers: { 'Authorization': 'Bearer ' + getToken() }
             })
-            .then(r => {
-                console.log('[DEBUG] /api/users response status:', r.status);
-                return r.json();
-            })
+            .then(r => r.json())
             .then(data => {
-                console.log('[DEBUG] /api/users response data:', data);
                 const users = data.users || [];
                 const tbody = document.querySelector('#usersTable tbody');
                 tbody.innerHTML = '';
@@ -512,9 +510,9 @@
                     const delBtn = document.createElement('button');
                     delBtn.textContent = 'Delete';
                     delBtn.className = 'delete-btn';
-                    delBtn.style.background = '#c00';
-                    delBtn.style.color = '#fff';
-                    delBtn.style.border = 'none';
+                    delBtn.style.background = '#23272b';
+                    delBtn.style.color = '#6fcf6f';
+                    delBtn.style.border = '1px solid #3a3f47';
                     delBtn.style.padding = '5px 10px';
                     delBtn.style.borderRadius = '3px';
                     delBtn.style.cursor = 'pointer';

@@ -159,9 +159,12 @@
         
         document.getElementById('logoutBtn').addEventListener('click', function(e) {
             e.preventDefault();
+            // Clear cookie
+            document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
             localStorage.removeItem('token');
             sessionStorage.removeItem('token');
-            window.location.href = 'login.html';
+            // Use replace to prevent back button access
+            window.location.replace('login.html');
         });
 
         // --- Organization Management ---

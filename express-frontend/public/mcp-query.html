@@ -301,23 +301,78 @@
         document.getElementById('queryForm').addEventListener('submit', executeQuery);
         document.getElementById('clearBtn').addEventListener('click', clearResult);
 
-        // Theme toggle (if exists in navbar.js)
+        // Theme toggle - syncs with user preferences
         document.addEventListener('DOMContentLoaded', function() {
             var themeBtn = document.getElementById('themeToggleBtn');
+            var body = document.body;
+            
+            function setTheme(mode) {
+                if (mode === 'light') {
+                    body.classList.add('light-mode');
+                    if (themeBtn) themeBtn.textContent = '☀️';
+                } else {
+                    body.classList.remove('light-mode');
+                    if (themeBtn) themeBtn.textContent = '🌙';
+                }
+            }
+            
+            // Load theme from database (user preferences) or fallback to localStorage
+            function loadTheme() {
+                var token = (function() {
+                    const match = document.cookie.match(/(^| )token=([^;]+)/);
+                    if (match) return match[2];
+                    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+                })();
+                
+                if (token) {
+                    fetch('/api/user/preferences', {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        var theme = (data.preferences && data.preferences.themeMode) || localStorage.getItem('themeMode') || 'dark';
+                        setTheme(theme);
+                        localStorage.setItem('themeMode', theme);
+                    })
+                    .catch(err => {
+                        console.warn('Failed to load theme from preferences, using localStorage:', err);
+                        var savedTheme = localStorage.getItem('themeMode') || localStorage.getItem('theme');
+                        setTheme(savedTheme === 'light' ? 'light' : 'dark');
+                    });
+                } else {
+                    var savedTheme = localStorage.getItem('themeMode') || localStorage.getItem('theme');
+                    setTheme(savedTheme === 'light' ? 'light' : 'dark');
+                }
+            }
+            
+            loadTheme();
+            
             if (themeBtn) {
                 themeBtn.addEventListener('click', function() {
-                    document.body.classList.toggle('light-mode');
-                    var isLight = document.body.classList.contains('light-mode');
-                    themeBtn.textContent = isLight ? '☀️' : '🌙';
-                    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+                    var current = body.classList.contains('light-mode') ? 'light' : 'dark';
+                    var next = current === 'light' ? 'dark' : 'light';
+                    setTheme(next);
+                    localStorage.setItem('themeMode', next);
+                    
+                    // Save to database (user preferences)
+                    var token = (function() {
+                        const match = document.cookie.match(/(^| )token=([^;]+)/);
+                        if (match) return match[2];
+                        return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+                    })();
+                    
+                    if (token) {
+                        fetch('/api/user/preferences', {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Bearer ' + token
+                            },
+                            body: JSON.stringify({ preferences: { themeMode: next } })
+                        })
+                        .catch(err => console.warn('Failed to save theme preference:', err));
+                    }
                 });
-                
-                // Load saved theme
-                var savedTheme = localStorage.getItem('theme');
-                if (savedTheme === 'light') {
-                    document.body.classList.add('light-mode');
-                    themeBtn.textContent = '☀️';
-                }
             }
         });
     </script>

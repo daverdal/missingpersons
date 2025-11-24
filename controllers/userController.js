@@ -235,6 +235,57 @@ async function deleteUser(req, res, driver, auditLogger) {
   }
 }
 
+/**
+ * Get user preferences
+ */
+async function getUserPreferences(req, res, userModel, auditLogger) {
+  const email = req.user.preferred_username || req.user.email;
+  try {
+    const preferences = await userModel.getUserPreferences(email);
+    res.json({ preferences: preferences || {} });
+  } catch (err) {
+    console.error('Error fetching user preferences:', err);
+    res.status(500).json({ error: 'Failed to fetch preferences' });
+  }
+}
+
+/**
+ * Update user preferences
+ * Merges new preferences with existing ones (doesn't overwrite other preferences)
+ */
+async function updateUserPreferences(req, res, userModel, auditLogger) {
+  const email = req.user.preferred_username || req.user.email;
+  const { preferences } = req.body;
+  if (!preferences || typeof preferences !== 'object') {
+    return res.status(400).json({ error: 'Invalid preferences object' });
+  }
+  try {
+    // Get existing preferences and merge with new ones
+    const existing = await userModel.getUserPreferences(email) || {};
+    const merged = { ...existing, ...preferences };
+    await userModel.updateUserPreferences(email, merged);
+    await auditLogger.log(req, {
+      action: 'user.update_preferences',
+      resourceType: 'user',
+      resourceId: email,
+      success: true,
+      targetUserId: email
+    });
+    res.json({ success: true, preferences: merged });
+  } catch (err) {
+    console.error('Error updating user preferences:', err);
+    await auditLogger.log(req, {
+      action: 'user.update_preferences',
+      resourceType: 'user',
+      resourceId: email,
+      success: false,
+      message: 'Failed to update preferences',
+      details: { error: err.message }
+    });
+    res.status(500).json({ error: 'Failed to update preferences' });
+  }
+}
+
 module.exports = {
   getCurrentUser,
   getAllUsers,
@@ -242,6 +293,8 @@ module.exports = {
   updateUserRoles,
   promoteUser,
   demoteUser,
-  deleteUser
+  deleteUser,
+  getUserPreferences,
+  updateUserPreferences
 };
 

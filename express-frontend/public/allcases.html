@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Cases - Missing Persons App</title>
     <link rel="stylesheet" href="retro.css">
+    <script src="auth-check.js"></script>
     <script src="navbar.js"></script>
     <script src="navbar-auth.js"></script>
 </head>
@@ -135,9 +136,12 @@ if (!getToken()) {
         // Logout handler
         document.getElementById('logoutLink').addEventListener('click', function(e) {
             e.preventDefault();
+            // Clear cookie
+            document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
             localStorage.removeItem('token');
             sessionStorage.removeItem('token');
-            window.location.href = 'login.html';
+            // Use replace to prevent back button access
+            window.location.replace('login.html');
         });
     </script>
     </body>

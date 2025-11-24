@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Cases - Missing Persons App</title>
     <link rel="stylesheet" href="retro.css">
+    <script src="auth-check.js"></script>
     <script src="navbar.js"></script>
     <script src="navbar-auth.js"></script>
 </head>
@@ -24,27 +25,25 @@ function getToken() {
 // Expose getToken globally for debugging
 window.getToken = getToken;
 // --- Auth check and logout logic ---
-console.log('[DEBUG] mycases.html script loaded');
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('[DEBUG] DOMContentLoaded fired');
     const token = getToken();
-    console.log('[DEBUG] Token detected:', token);
     if (!token) {
         document.getElementById('message').textContent = 'No token detected. Redirecting to login.';
-        console.log('[DEBUG] No token found, redirecting to login.html');
         setTimeout(() => window.location.href = 'login.html', 1000);
         return;
     } else {
-        console.log('[DEBUG] Token found, continuing');
         fetchMyCases();
     }
     var logoutLink = document.querySelector('a[href="#"]');
     if (logoutLink) {
         logoutLink.addEventListener('click', function(e) {
             e.preventDefault();
+            // Clear cookie
+            document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
             localStorage.removeItem('token');
             sessionStorage.removeItem('token');
-            window.location.href = 'login.html';
+            // Use replace to prevent back button access
+            window.location.replace('login.html');
         });
     }
 });
@@ -100,9 +99,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (logoutLinkEl) {
         logoutLinkEl.addEventListener('click', function(e) {
             e.preventDefault();
+            // Clear cookie
+            document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
             localStorage.removeItem('token');
             sessionStorage.removeItem('token');
-            window.location.href = 'login.html';
+            // Use replace to prevent back button access
+            window.location.replace('login.html');
         });
     } else {
         console.log('[DEBUG] No #logoutLink element found on page');
@@ -110,18 +112,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Fetch and display cases ---
     async function fetchMyCases() {
         const token = getToken();
-        console.log('[DEBUG] fetchMyCases called');
         if (!token) {
             document.getElementById('message').textContent = 'You must be logged in to view your cases.';
-            console.log('[DEBUG] No token in fetchMyCases');
             return;
         }
         try {
-            console.log('[DEBUG] Fetching /api/my-cases with token:', token.substring(0, 10) + '...');
             const res = await fetch('/api/my-cases', {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
-            console.log('[DEBUG] fetch /api/my-cases response status:', res.status);
             if (res.status === 401) {
                 document.getElementById('message').textContent = 'Session expired. Please log in again.';
                 window.location.href = 'login.html';
@@ -129,16 +127,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             if (!res.ok) {
                 document.getElementById('message').textContent = 'Failed to load cases.';
-                console.log('[DEBUG] fetch /api/my-cases failed');
                 return;
             }
             const data = await res.json();
-            console.log('[DEBUG] /api/my-cases data:', data);
             const tbody = document.querySelector('#casesTable tbody');
             tbody.innerHTML = '';
             if (!data.cases || data.cases.length === 0) {
                 document.getElementById('message').textContent = 'No cases assigned to you.';
-                console.log('[DEBUG] No cases assigned to user');
                 return;
             }
             document.getElementById('message').textContent = '';

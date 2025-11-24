@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Case Notes - Missing Persons App</title>
     <link rel="stylesheet" href="retro.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Roboto:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <script src="auth-check.js"></script>
     <script src="navbar.js"></script>
     <script src="navbar-auth.js"></script>
     <style>
@@ -108,12 +110,7 @@
                         </form>
                     </div>
                     <div id="notesList" style="width: 100%; max-width: 900px; margin-top: 1.5em;"></div>
-                    <div id="notesList" style="width: 100%; max-width: 900px; margin-top: 1.5em;"></div>
         </main>
-        <section style="margin:2em 0;">
-            <h2 style="font-size:1.1em;color:#999;">Debug Info (temporary)</h2>
-            <pre id="debugInfo" style="background:#111;border:1px solid #333;padding:1em;border-radius:6px;overflow:auto;max-height:280px;font-size:0.85em;"></pre>
-        </section>
         <style>
         /* Make file links in the upload area green by default, blue and underlined on hover */
         #filesList a.upload-list-link {
@@ -421,18 +418,6 @@
             return;
         }
         const data = await res.json();
-        try {
-            const debugBlock = document.getElementById('debugInfo');
-            if (debugBlock) {
-                debugBlock.textContent = JSON.stringify({
-                    applicant: data.applicant,
-                    lovedOnes: data.lovedOnes,
-                    referringOrg: data.referringOrg
-                }, null, 2);
-            }
-        } catch (e) {
-            console.warn('[DEBUG] Failed to render debug info', e);
-        }
         if (!data.files || data.files.length === 0) {
             filesDiv.innerHTML = '<i>No files uploaded yet.</i>';
             return;
@@ -1029,7 +1014,6 @@
                 // Normalize empty referringOrganization to null (means remove)
                 if (payload.referringOrganization === '') payload.referringOrganization = null;
                 try {
-                    console.debug('[DEBUG] Case update payload', payload);
                     const resU = await fetch('/api/applicants/' + encodeURIComponent(getCaseId()), {
                         method: 'PUT',
                         headers: {
@@ -1148,7 +1132,6 @@
                 payload.supportSelections = selectedSupportsAdd;
                 payload.otherSupport = (fd.get('otherSupport') || '').trim();
                 payload.additionalNotes = (fd.get('additionalNotes') || '').trim();
-                console.debug('[DEBUG] Add loved one payload', payload);
                 const pLL = parseLatLon(fd.get('latlon'));
                 if (pLL.lat != null) payload.lastLocationLat = pLL.lat;
                 if (pLL.lon != null) payload.lastLocationLon = pLL.lon;
@@ -1162,7 +1145,6 @@
                         body: JSON.stringify(payload)
                     });
                     const out = await res2.json().catch(() => ({}));
-                    console.debug('[DEBUG] Add loved one response', out);
                     if (!res2.ok || !out.success) {
                         msgEl.textContent = out.error || 'Failed to add Loved One';
                         return;
@@ -1267,7 +1249,6 @@
                 payload.additionalNotes = additionalNotesVal || null;
                 const communitySearchVal = (fd.get('communitySearchEffortDescription') || '').trim();
                 payload.communitySearchEffortDescription = communitySearchVal || null;
-                console.debug('[DEBUG] Update loved one payload', payload);
                 const pLL = (function(){
                     const s = (fd.get('latlon') || '').trim();
                     if (!s) return {lat:null, lon:null};
@@ -1293,7 +1274,6 @@
                         body: JSON.stringify(payload)
                     });
                     const out = await res3.json().catch(() => ({}));
-                    console.debug('[DEBUG] Update loved one response', out);
                     if (!res3.ok || !out.success) {
                         if (msg) msg.textContent = out.error || 'Failed to update Loved One';
                         return;

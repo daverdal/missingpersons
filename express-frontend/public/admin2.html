@@ -17,7 +17,7 @@ function getToken() {
         (function() {
             var token = localStorage.getItem('token') || sessionStorage.getItem('token');
             if (!token) {
-                window.location.href = 'login.html';
+                window.location.replace('login.html');
                 return;
             }
             try {
@@ -28,10 +28,11 @@ function getToken() {
                     window.location.href = 'index.html';
                 }
             } catch (e) {
-                window.location.href = 'login.html';
+                window.location.replace('login.html');
             }
         })();
         </script>
+        <script src="auth-check.js"></script>
         <script src="navbar.js"></script>
         <script src="navbar-auth.js"></script>
 </head>
@@ -60,7 +61,7 @@ function getToken() {
                 e.preventDefault();
                 localStorage.removeItem('token');
                 sessionStorage.removeItem('token');
-                window.location.href = 'login.html';
+                window.location.replace('login.html');
             });
         }
     <script>
@@ -114,7 +115,7 @@ function getToken() {
                 e.preventDefault();
                 localStorage.removeItem('token');
                 sessionStorage.removeItem('token');
-                window.location.href = 'login.html';
+                window.location.replace('login.html');
             });
         }
     });
@@ -325,9 +326,12 @@ function getToken() {
 
         document.getElementById('logoutBtn').addEventListener('click', function(e) {
             e.preventDefault();
+            // Clear cookie
+            document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
             localStorage.removeItem('token');
             sessionStorage.removeItem('token');
-            window.location.href = 'login.html';
+            // Use replace to prevent back button access
+            window.location.replace('login.html');
         });
 
         // --- Organization Management ---

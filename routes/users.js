@@ -44,6 +44,16 @@ function setupUserRoutes(router, dependencies) {
   router.delete('/users/:email', authMiddleware, requireRole('admin'), (req, res) => {
     userController.deleteUser(req, res, driver, auditLogger);
   });
+
+  // GET /api/user/preferences - Get current user's preferences
+  router.get('/user/preferences', authMiddleware, (req, res) => {
+    userController.getUserPreferences(req, res, userModel, auditLogger);
+  });
+
+  // PUT /api/user/preferences - Update current user's preferences
+  router.put('/user/preferences', authMiddleware, (req, res) => {
+    userController.updateUserPreferences(req, res, userModel, auditLogger);
+  });
 }
 
 module.exports = setupUserRoutes;

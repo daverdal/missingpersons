@@ -57,6 +57,11 @@ app.get('/', (req, res) => {
 
 // Secure all other HTML pages
 app.get('/*.html', (req, res) => {
+  // Prevent caching of authenticated pages
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  
   const cookieToken = req.cookies && req.cookies.token;
   const headerToken = req.headers['authorization'];
   console.log('DEBUG: cookie token:', cookieToken);

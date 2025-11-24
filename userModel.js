@@ -70,6 +70,45 @@ class UserModel {
       await session.close();
     }
   }
+
+  /**
+   * Get user preferences
+   */
+  async getUserPreferences(email) {
+    const session = this.driver.session();
+    try {
+      const result = await session.run(
+        'MATCH (u:User {email: $email}) RETURN u.preferences AS preferences',
+        { email }
+      );
+      if (result.records.length === 0) return null;
+      const prefsStr = result.records[0].get('preferences');
+      if (!prefsStr) return {};
+      try {
+        return JSON.parse(prefsStr);
+      } catch {
+        return {};
+      }
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Update user preferences
+   */
+  async updateUserPreferences(email, preferences) {
+    const session = this.driver.session();
+    try {
+      await session.run(
+        'MATCH (u:User {email: $email}) SET u.preferences = $preferences RETURN u',
+        { email, preferences: JSON.stringify(preferences || {}) }
+      );
+      return true;
+    } finally {
+      await session.close();
+    }
+  }
 }
 
 module.exports = UserModel;

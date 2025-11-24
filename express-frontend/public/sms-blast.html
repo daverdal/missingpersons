@@ -8,51 +8,6 @@
     <script src="navbar.js"></script>
     <script src="navbar-auth.js"></script>
     <script src="sms-menu.js"></script>
-    <style>
-        #statusMessage {
-            margin-top: 1rem;
-            padding: 0.8rem;
-            border-radius: 4px;
-            font-weight: 600;
-        }
-        #statusMessage.error {
-            color: #ff8080;
-            background: rgba(255, 128, 128, 0.1);
-            border: 1px solid #ff8080;
-        }
-        #statusMessage.success {
-            color: #6fcf6f;
-            background: rgba(111, 207, 111, 0.1);
-            border: 1px solid #6fcf6f;
-        }
-        #statusMessage.info {
-            color: #6fcf6f;
-        }
-        .client-count {
-            margin: 1rem 0;
-            padding: 0.8rem;
-            background: #23272b;
-            border: 1px solid #333;
-            border-radius: 4px;
-        }
-        textarea {
-            width: 100%;
-            min-height: 150px;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-        .preview-section {
-            margin-top: 1.5rem;
-            padding: 1rem;
-            background: #23272b;
-            border: 1px solid #333;
-            border-radius: 4px;
-        }
-        button[disabled] {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-    </style>
 </head>
 <body>
     <header style="position:relative;">
@@ -104,8 +59,8 @@
             </div>
 
             <div class="form-row">
-                <button type="submit" id="sendButton">Send SMS to All Clients</button>
-                <button type="button" id="previewButton">Preview</button>
+                <button type="submit" id="sendButton" class="sms-blast-btn">Send SMS to All Clients</button>
+                <button type="button" id="previewButton" class="sms-blast-btn">Preview</button>
             </div>
         </form>
 

@@ -5,26 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - Admin</title>
     <link rel="stylesheet" href="retro.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Roboto:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <script src="auth-check.js"></script>
     <script src="navbar.js"></script>
     <script src="navbar-auth.js"></script>
     <style>
-        .settings-tabs {
-            display: flex;
-            gap: 1rem;
+        .form-group {
             margin-bottom: 1.5rem;
         }
-        .settings-tab-btn {
+        .help-text {
+            font-size: 0.9em;
+            color: #aaa;
+            margin-top: 0.25rem;
+        }
+        .current-settings {
             background: #23272b;
-            color: #6fcf6f;
-            border: 1px solid #3a3f47;
-            border-radius: 999px;
-            padding: 0.4rem 1rem;
-            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        .current-settings h3 {
+            margin-top: 0;
+        }
+        .current-settings p {
+            margin: 0.5rem 0;
+        }
+        #statusMessage {
+            margin-top: 1rem;
+            padding: 0.8rem;
+            border-radius: 4px;
             font-weight: 600;
         }
-        .settings-tab-btn.active {
-            background: #6fcf6f;
-            color: #000;
+        #statusMessage.success {
+            color: #6fcf6f;
+            background: rgba(111, 207, 111, 0.1);
+            border: 1px solid #6fcf6f;
+        }
+        #statusMessage.error {
+            color: #ff8080;
+            background: rgba(255, 128, 128, 0.1);
+            border: 1px solid #ff8080;
         }
     </style>
 </head>
@@ -36,14 +57,33 @@
     <main>
     <h1>Settings</h1>
         <div class="settings-tabs">
+            <button type="button" class="settings-tab-btn" data-target="settings-preferences">User Preferences</button>
             <button type="button" class="settings-tab-btn active" data-target="settings-org">Organizations</button>
             <button type="button" class="settings-tab-btn" data-target="settings-fn">First Nations</button>
             <button type="button" class="settings-tab-btn" data-target="settings-status">Loved One Statuses</button>
             <button type="button" class="settings-tab-btn" data-target="settings-client-status">Client Statuses</button>
             <button type="button" class="settings-tab-btn" data-target="settings-news">News Feed Settings</button>
             <button type="button" class="settings-tab-btn" data-target="settings-token">JWT Token</button>
-            <a href="email-settings.html" class="settings-tab-btn" style="text-decoration: none; display: inline-block;">Email Settings</a>
+            <button type="button" class="settings-tab-btn" data-target="settings-email">Email Settings</button>
         </div>
+        <section id="settings-preferences" style="display:none;">
+            <h2>User Preferences</h2>
+            <p>Customize your experience with these personal settings. Changes are saved automatically.</p>
+            <div style="max-width:600px;margin-top:1.5rem;">
+                <div style="margin-bottom:1.5rem;">
+                    <label style="display:block;margin-bottom:0.5rem;font-weight:bold;">Preferred Font:</label>
+                    <select id="fontFamilySelect" style="width:100%;padding:0.5rem;font-size:1em;background:#23272b;color:#6fcf6f;border:1px solid #3a3f47;border-radius:4px;">
+                        <option value="Fira Mono">Fira Mono (Monospace - Default)</option>
+                        <option value="Poppins">Poppins (Sans-serif)</option>
+                        <option value="Roboto">Roboto (Sans-serif)</option>
+                        <option value="Inter">Inter (Sans-serif)</option>
+                        <option value="Georgia">Georgia (Serif)</option>
+                    </select>
+                    <p style="margin-top:0.5rem;font-size:0.9em;color:#888;">Choose your preferred font family. Changes apply immediately and are saved automatically.</p>
+                </div>
+                <span id="preferencesStatus" style="color:#6fcf6f;"></span>
+            </div>
+        </section>
         <section id="settings-org">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
                 <h2 style="margin:0;">Organizations (Agencies)</h2>
@@ -166,6 +206,87 @@
                 </div>
             </div>
         </section>
+        <section id="settings-email" style="display:none;">
+            <h2>Email Configuration</h2>
+            <p>Configure SMTP settings for sending emails (used by Email Blast feature).</p>
+            <p><strong>Note:</strong> These settings are stored in the database. You can also set them in your <code>.env</code> file, but database settings take precedence.</p>
+            
+            <div class="current-settings" id="currentSettings">
+                <h3>Current Settings</h3>
+                <p>Loading...</p>
+            </div>
+
+            <form id="emailSettingsForm">
+                <div class="form-group">
+                    <label for="smtpHost">SMTP Host</label>
+                    <input type="text" id="smtpHost" placeholder="smtp.gmail.com" style="width: 100%; max-width: 500px; padding: 0.5rem; box-sizing: border-box;">
+                    <div class="help-text">The SMTP server hostname (e.g., smtp.gmail.com for Gmail). Leave empty to keep current value.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="smtpPort">SMTP Port</label>
+                    <input type="number" id="smtpPort" placeholder="587" style="width: 100%; max-width: 500px; padding: 0.5rem; box-sizing: border-box;">
+                    <div class="help-text">SMTP port (587 for TLS, 465 for SSL). Leave empty to keep current value.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="smtpSecure">Use SSL/TLS</label>
+                    <select id="smtpSecure" style="padding: 0.5rem; max-width: 500px; width: 100%;">
+                        <option value="">-- Keep current value --</option>
+                        <option value="false">TLS (port 587)</option>
+                        <option value="true">SSL (port 465)</option>
+                    </select>
+                    <div class="help-text">Use SSL for secure connection (typically for port 465). Select "-- Keep current value --" to leave unchanged.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="smtpUser">SMTP Username (Email Address)</label>
+                    <input type="email" id="smtpUser" placeholder="your-email@gmail.com" autocomplete="username" style="width: 100%; max-width: 500px; padding: 0.5rem; box-sizing: border-box;">
+                    <div class="help-text">Your email address used for SMTP authentication. Leave empty to keep current value.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="smtpPass">SMTP Password</label>
+                    <input type="password" id="smtpPass" placeholder="Enter new password (leave empty to keep current)" autocomplete="new-password" style="width: 100%; max-width: 500px; padding: 0.5rem; box-sizing: border-box;">
+                    <div class="help-text">Your email password or app-specific password (for Gmail, use an App Password). Leave empty to keep current password.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="emailFrom">From Email Address</label>
+                    <input type="email" id="emailFrom" name="from-addr" placeholder="noreply@yourdomain.com" autocomplete="off" data-lpignore="true" data-form-type="other" style="width: 100%; max-width: 500px; padding: 0.5rem; box-sizing: border-box;">
+                    <div class="help-text">The "from" address that recipients will see (e.g., noreply@yourdomain.com). <strong>Note:</strong> When using Gmail, the authenticated Gmail account address will always be shown, regardless of this setting. Leave empty to keep current value.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="emailFromName">From Display Name (Optional)</label>
+                    <input type="text" id="emailFromName" name="from-name" placeholder="Missing Persons System" autocomplete="off" data-lpignore="true" data-form-type="other" style="width: 100%; max-width: 500px; padding: 0.5rem; box-sizing: border-box;">
+                    <div class="help-text">Optional: Display name that appears before the email address. If set, emails will show as "Display Name &lt;email@address.com&gt;". <strong>Note:</strong> With Gmail, the email address will always be your authenticated Gmail account, but you can customize the display name.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="emailReplyTo">Reply-To Address (Optional)</label>
+                    <input type="email" id="emailReplyTo" name="reply-to-addr" placeholder="noreply+blast@yourdomain.com" autocomplete="off" data-lpignore="true" data-form-type="other" style="width: 100%; max-width: 500px; padding: 0.5rem; box-sizing: border-box;">
+                    <div class="help-text">Optional: Separate address for replies (when recipients click "Reply"). Note: Bounce-back emails go to the "From Address" above, not this field. To redirect bounces, use a separate email account as the "From Address".</div>
+                </div>
+                
+                <div style="background: #2a2f35; border: 1px solid #444; border-radius: 4px; padding: 1rem; margin-top: 1.5rem;">
+                    <h3 style="margin-top: 0;">About Email Sending with Gmail</h3>
+                    <p><strong>Gmail Limitation:</strong> When using Gmail SMTP, Gmail will always show the authenticated Gmail account's email address in the "From" field, regardless of what you set in "From Email Address" above. This is a Gmail security feature to prevent email spoofing.</p>
+                    <p><strong>What you can customize:</strong> You can set a "From Display Name" to show a friendly name (e.g., "Missing Persons System"), but the email address will still be your Gmail account.</p>
+                    <p><strong>To hide the Gmail address:</strong> You would need to either:
+                        <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                            <li>Set up Gmail's "Send mail as" feature for the address you want to use (requires verification in Gmail settings)</li>
+                            <li>Use a different email service that allows sending from any address</li>
+                            <li>Use a dedicated Gmail account for email blasts (e.g., <code>missingpersons-blasts@gmail.com</code>)</li>
+                        </ul>
+                    </p>
+                    <p><strong>About Bounce-Back Emails:</strong> Bounce-back emails go to the authenticated Gmail account, not the Reply-To address. The system automatically filters out bounce-back emails from the Offender News inbox, so they won't trigger SMS alerts.</p>
+                </div>
+
+                <button type="submit" style="padding: 0.6rem 1.2rem; font-size: 1em;">Save Email Settings</button>
+                <span id="statusMessage"></span>
+            </form>
+        </section>
     </main>
     <script>
     function getToken() {
@@ -257,9 +378,9 @@
                         
                         const delBtn = document.createElement('button');
                         delBtn.textContent = 'Delete';
-                        delBtn.style.background = '#c00';
-                        delBtn.style.color = '#fff';
-                        delBtn.style.border = 'none';
+                        delBtn.style.background = '#23272b';
+                        delBtn.style.color = '#6fcf6f';
+                        delBtn.style.border = '1px solid #3a3f47';
                         delBtn.style.padding = '4px 10px';
                         delBtn.style.borderRadius = '4px';
                         delBtn.style.cursor = 'pointer';
@@ -359,7 +480,7 @@
                     if (showAdmin && contact.id) {
                         html += `<div style="display: flex; gap: 0.3rem;">
                             <button class="editContactBtn" data-org-id="${orgId}" data-contact-id="${contact.id}" style="padding: 2px 6px; font-size: 0.75em; background: #23272b; color: #6fcf6f; border: 1px solid #3a3f47; border-radius: 3px; cursor: pointer;">Edit</button>
-                            <button class="deleteContactBtn" data-org-id="${orgId}" data-contact-id="${contact.id}" style="padding: 2px 6px; font-size: 0.75em; background: #c00; color: #fff; border: none; border-radius: 3px; cursor: pointer;">Delete</button>
+                            <button class="deleteContactBtn" data-org-id="${orgId}" data-contact-id="${contact.id}" style="padding: 2px 6px; font-size: 0.75em; background: #23272b; color: #6fcf6f; border: 1px solid #3a3f47; border-radius: 3px; cursor: pointer;">Delete</button>
                         </div>`;
                     }
                     html += `</div>`;
@@ -599,9 +720,9 @@
                     if (showAdmin && (status.name || '').trim()) {
                         const delBtn = document.createElement('button');
                         delBtn.textContent = 'Delete';
-                        delBtn.style.background = '#c00';
-                        delBtn.style.color = '#fff';
-                        delBtn.style.border = 'none';
+                        delBtn.style.background = '#23272b';
+                        delBtn.style.color = '#6fcf6f';
+                        delBtn.style.border = '1px solid #3a3f47';
                         delBtn.style.padding = '4px 10px';
                         delBtn.style.borderRadius = '4px';
                         delBtn.style.cursor = 'pointer';
@@ -658,9 +779,9 @@
                     if (showAdmin && (status.name || '').trim()) {
                         const delBtn = document.createElement('button');
                         delBtn.textContent = 'Delete';
-                        delBtn.style.background = '#c00';
-                        delBtn.style.color = '#fff';
-                        delBtn.style.border = 'none';
+                        delBtn.style.background = '#23272b';
+                        delBtn.style.color = '#6fcf6f';
+                        delBtn.style.border = '1px solid #3a3f47';
                         delBtn.style.padding = '4px 10px';
                         delBtn.style.borderRadius = '4px';
                         delBtn.style.cursor = 'pointer';
@@ -811,9 +932,9 @@
                         
                         const delBtn = document.createElement('button');
                         delBtn.textContent = 'Delete';
-                        delBtn.style.background = '#c00';
-                        delBtn.style.color = '#fff';
-                        delBtn.style.border = 'none';
+                        delBtn.style.background = '#23272b';
+                        delBtn.style.color = '#6fcf6f';
+                        delBtn.style.border = '1px solid #3a3f47';
                         delBtn.style.padding = '4px 10px';
                         delBtn.style.borderRadius = '4px';
                         delBtn.style.cursor = 'pointer';
@@ -928,9 +1049,9 @@
                         
                         const delBtn = document.createElement('button');
                         delBtn.textContent = 'Delete';
-                        delBtn.style.background = '#c00';
-                        delBtn.style.color = '#fff';
-                        delBtn.style.border = 'none';
+                        delBtn.style.background = '#23272b';
+                        delBtn.style.color = '#6fcf6f';
+                        delBtn.style.border = '1px solid #3a3f47';
                         delBtn.style.padding = '4px 10px';
                         delBtn.style.borderRadius = '4px';
                         delBtn.style.cursor = 'pointer';
@@ -1037,7 +1158,7 @@
                     if (showAdmin && contact.id) {
                         html += `<div style="display: flex; gap: 0.3rem;">
                             <button class="editContactBtn" data-org-id="${orgId}" data-contact-id="${contact.id}" style="padding: 2px 6px; font-size: 0.75em; background: #23272b; color: #6fcf6f; border: 1px solid #3a3f47; border-radius: 3px; cursor: pointer;">Edit</button>
-                            <button class="deleteContactBtn" data-org-id="${orgId}" data-contact-id="${contact.id}" style="padding: 2px 6px; font-size: 0.75em; background: #c00; color: #fff; border: none; border-radius: 3px; cursor: pointer;">Delete</button>
+                            <button class="deleteContactBtn" data-org-id="${orgId}" data-contact-id="${contact.id}" style="padding: 2px 6px; font-size: 0.75em; background: #23272b; color: #6fcf6f; border: 1px solid #3a3f47; border-radius: 3px; cursor: pointer;">Delete</button>
                         </div>`;
                     }
                     html += `</div>`;
@@ -1452,26 +1573,301 @@
             }, 2000);
         });
 
+        // Load user preferences
+        function loadUserPreferences() {
+            fetch('/api/user/preferences', {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const prefs = data.preferences || {};
+                const select = document.getElementById('fontFamilySelect');
+                if (select) {
+                    // Default to Inter if no preference is set
+                    select.value = prefs.fontFamily || 'Inter';
+                }
+            })
+            .catch(err => {
+                console.warn('Failed to load user preferences:', err);
+                // Set default to Inter on error
+                const select = document.getElementById('fontFamilySelect');
+                if (select) select.value = 'Inter';
+            });
+        }
+
+        // Save font preference when changed
+        const fontSelect = document.getElementById('fontFamilySelect');
+        if (fontSelect) {
+            fontSelect.addEventListener('change', function() {
+                const fontFamily = this.value;
+                const statusSpan = document.getElementById('preferencesStatus');
+                
+                // Apply font immediately
+                applyFontPreference(fontFamily);
+                
+                // Save to database
+                fetch('/api/user/preferences', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    },
+                    body: JSON.stringify({ preferences: { fontFamily: fontFamily } })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        statusSpan.textContent = '✓ Font preference saved!';
+                        statusSpan.style.color = '#6fcf6f';
+                        setTimeout(() => { statusSpan.textContent = ''; }, 3000);
+                    } else {
+                        statusSpan.textContent = 'Failed to save preference';
+                        statusSpan.style.color = '#ff7f7f';
+                    }
+                })
+                .catch(err => {
+                    console.error('Error saving font preference:', err);
+                    statusSpan.textContent = 'Error saving preference';
+                    statusSpan.style.color = '#ff7f7f';
+                });
+            });
+        }
+
+        // Email Settings functions
+        let emailFromOriginal = '';
+        let emailFromNameOriginal = '';
+        let emailReplyToOriginal = '';
+
+        function setEmailStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            if (statusEl) {
+                statusEl.textContent = message || '';
+                statusEl.className = type || '';
+            }
+        }
+
+        function loadEmailSettings() {
+            fetch('/api/email-settings', {
+                headers: {
+                    'Authorization': 'Bearer ' + getToken()
+                }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const settings = data.settings || {};
+                const effective = data.effective || {};
+                const source = data.source || 'unknown';
+                const currentDiv = document.getElementById('currentSettings');
+                
+                if (!currentDiv) return;
+                
+                // Show effective settings (what's actually being used)
+                const displaySettings = effective && Object.keys(effective).length > 0 ? effective : settings;
+                const sourceText = source === 'database' ? 'Database' : 
+                                  source === 'offender_news_config' ? 'Offender News Config (Gmail)' : 
+                                  'Environment Variables';
+                
+                if (Object.keys(displaySettings).length === 0) {
+                    currentDiv.innerHTML = '<h3>Current Settings</h3><p>No email settings configured. Email blast will not work until settings are configured.</p>';
+                } else {
+                    currentDiv.innerHTML = `
+                        <h3>Current Settings (Effective)</h3>
+                        <p style="font-size: 0.9em; color: #aaa; margin-bottom: 1rem;"><em>Source: ${sourceText}</em></p>
+                        <p><strong>SMTP Host:</strong> ${displaySettings.smtpHost || '(not set)'}</p>
+                        <p><strong>SMTP Port:</strong> ${displaySettings.smtpPort || '(not set)'}</p>
+                        <p><strong>Use SSL:</strong> ${displaySettings.smtpSecure === true ? 'Yes' : 'No'}</p>
+                        <p><strong>SMTP Username:</strong> ${displaySettings.smtpUser || '(not set)'}</p>
+                        <p><strong>From Address:</strong> ${displaySettings.emailFrom || '(not set)'}</p>
+                        <p><strong>From Display Name:</strong> ${displaySettings.emailFromName || '(not set)'}</p>
+                        <p><strong>Reply-To:</strong> ${displaySettings.emailReplyTo || '(not set)'}</p>
+                        ${source !== 'database' && Object.keys(settings).length > 0 ? 
+                          '<p style="margin-top: 1rem; font-size: 0.9em; color: #aaa;"><em>Note: Some settings are stored in the database and will be merged with the above.</em></p>' : ''}
+                    `;
+                }
+
+                // Populate form with stored settings (from database) - these are what can be edited
+                // Use effective settings as fallback if stored settings are empty
+                const formSettings = Object.keys(settings).length > 0 ? settings : effective;
+                
+                const smtpHostEl = document.getElementById('smtpHost');
+                const smtpPortEl = document.getElementById('smtpPort');
+                const smtpSecureEl = document.getElementById('smtpSecure');
+                const smtpUserEl = document.getElementById('smtpUser');
+                const emailFromEl = document.getElementById('emailFrom');
+                const emailFromNameEl = document.getElementById('emailFromName');
+                const emailReplyToEl = document.getElementById('emailReplyTo');
+                
+                if (smtpHostEl && formSettings.smtpHost) smtpHostEl.value = formSettings.smtpHost;
+                if (smtpPortEl && formSettings.smtpPort) smtpPortEl.value = formSettings.smtpPort;
+                if (smtpSecureEl && formSettings.smtpSecure !== undefined) smtpSecureEl.value = String(formSettings.smtpSecure);
+                if (smtpUserEl && formSettings.smtpUser) smtpUserEl.value = formSettings.smtpUser;
+                if (emailFromEl && formSettings.emailFrom) {
+                    emailFromEl.value = formSettings.emailFrom;
+                    emailFromEl._originalValue = formSettings.emailFrom;
+                    emailFromOriginal = formSettings.emailFrom;
+                }
+                if (emailFromNameEl && formSettings.emailFromName) {
+                    emailFromNameEl.value = formSettings.emailFromName;
+                    emailFromNameEl._originalValue = formSettings.emailFromName;
+                    emailFromNameOriginal = formSettings.emailFromName;
+                }
+                if (emailReplyToEl && formSettings.emailReplyTo) {
+                    emailReplyToEl.value = formSettings.emailReplyTo;
+                    emailReplyToEl._originalValue = formSettings.emailReplyTo;
+                    emailReplyToOriginal = formSettings.emailReplyTo;
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load email settings:', err);
+                setEmailStatus('Failed to load current settings.', 'error');
+            });
+        }
+
+        // Setup email settings form autofill prevention
+        function setupEmailSettingsAutofill() {
+            const emailFromField = document.getElementById('emailFrom');
+            const emailFromNameField = document.getElementById('emailFromName');
+            const emailReplyToField = document.getElementById('emailReplyTo');
+            
+            if (!emailFromField || !emailFromNameField || !emailReplyToField) return;
+
+            function storeOriginalValues() {
+                emailFromOriginal = emailFromField.value;
+                emailFromNameOriginal = emailFromNameField.value;
+                emailReplyToOriginal = emailReplyToField.value;
+            }
+
+            storeOriginalValues();
+
+            [emailFromField, emailFromNameField, emailReplyToField].forEach(field => {
+                field.addEventListener('input', function(e) {
+                    const activeField = document.activeElement;
+                    if (activeField === field) {
+                        if (field === emailFromField) {
+                            emailFromOriginal = field.value;
+                        } else if (field === emailFromNameField) {
+                            emailFromNameOriginal = field.value;
+                        } else if (field === emailReplyToField) {
+                            emailReplyToOriginal = field.value;
+                        }
+                    } else {
+                        if (field === emailFromField && field.value !== emailFromOriginal) {
+                            setTimeout(() => {
+                                if (document.activeElement !== emailFromField) {
+                                    field.value = emailFromOriginal;
+                                }
+                            }, 10);
+                        } else if (field === emailFromNameField && field.value !== emailFromNameOriginal) {
+                            setTimeout(() => {
+                                if (document.activeElement !== emailFromNameField) {
+                                    field.value = emailFromNameOriginal;
+                                }
+                            }, 10);
+                        } else if (field === emailReplyToField && field.value !== emailReplyToOriginal) {
+                            setTimeout(() => {
+                                if (document.activeElement !== emailReplyToField) {
+                                    field.value = emailReplyToOriginal;
+                                }
+                            }, 10);
+                        }
+                    }
+                });
+                field.addEventListener('blur', storeOriginalValues);
+                field.addEventListener('focus', storeOriginalValues);
+            });
+
+            const form = document.getElementById('emailSettingsForm');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    setEmailStatus('', '');
+
+                    const settings = {};
+                    const smtpHostVal = (document.getElementById('smtpHost')?.value || '').trim();
+                    const smtpPortVal = (document.getElementById('smtpPort')?.value || '').trim();
+                    const smtpSecureVal = document.getElementById('smtpSecure')?.value;
+                    const smtpUserVal = (document.getElementById('smtpUser')?.value || '').trim();
+                    const smtpPassVal = (document.getElementById('smtpPass')?.value || '').trim();
+                    const emailFromVal = (document.getElementById('emailFrom')?.value || '').trim();
+                    const emailFromNameVal = (document.getElementById('emailFromName')?.value || '').trim();
+                    const emailReplyToVal = (document.getElementById('emailReplyTo')?.value || '').trim();
+
+                    if (smtpHostVal) settings.smtpHost = smtpHostVal;
+                    if (smtpPortVal) {
+                        const portNum = parseInt(smtpPortVal, 10);
+                        if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+                            setEmailStatus('SMTP Port must be a valid port number (1-65535).', 'error');
+                            return;
+                        }
+                        settings.smtpPort = portNum;
+                    }
+                    if (smtpSecureVal !== '') settings.smtpSecure = smtpSecureVal;
+                    if (smtpUserVal) settings.smtpUser = smtpUserVal;
+                    if (smtpPassVal) settings.smtpPass = smtpPassVal;
+                    if (emailFromVal) settings.emailFrom = emailFromVal;
+                    if (emailFromNameVal) settings.emailFromName = emailFromNameVal;
+                    if (emailReplyToVal) settings.emailReplyTo = emailReplyToVal;
+                    else if (emailReplyToVal === '') settings.emailReplyTo = null;
+
+                    if (Object.keys(settings).length === 0) {
+                        setEmailStatus('Please fill in at least one field to update.', 'error');
+                        return;
+                    }
+
+                    fetch('/api/email-settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getToken()
+                        },
+                        body: JSON.stringify(settings)
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            setEmailStatus('Email settings saved successfully!', 'success');
+                            const smtpPassEl = document.getElementById('smtpPass');
+                            if (smtpPassEl) smtpPassEl.value = '';
+                            loadEmailSettings();
+                        } else {
+                            setEmailStatus('Failed to save settings: ' + (data.error || 'Unknown error'), 'error');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Failed to save email settings:', err);
+                        setEmailStatus('Failed to save settings: ' + err.message, 'error');
+                    });
+                });
+            }
+        }
+
         // Settings tab toggling
         const tabButtons = document.querySelectorAll('.settings-tab-btn');
         function showSettingsSection(id) {
+            document.getElementById('settings-preferences').style.display = (id === 'settings-preferences') ? 'block' : 'none';
             document.getElementById('settings-org').style.display = (id === 'settings-org') ? 'block' : 'none';
             document.getElementById('settings-fn').style.display = (id === 'settings-fn') ? 'block' : 'none';
             document.getElementById('settings-status').style.display = (id === 'settings-status') ? 'block' : 'none';
             document.getElementById('settings-client-status').style.display = (id === 'settings-client-status') ? 'block' : 'none';
             document.getElementById('settings-news').style.display = (id === 'settings-news') ? 'block' : 'none';
             document.getElementById('settings-token').style.display = (id === 'settings-token') ? 'block' : 'none';
+            document.getElementById('settings-email').style.display = (id === 'settings-email') ? 'block' : 'none';
             tabButtons.forEach(btn => {
                 if (btn.getAttribute('data-target')) {
                     btn.classList.toggle('active', btn.getAttribute('data-target') === id);
                 }
             });
+            if (id === 'settings-preferences') loadUserPreferences();
             if (id === 'settings-org') loadOrganizations();
             if (id === 'settings-fn') loadCommunities();
             if (id === 'settings-status') loadStatuses();
             if (id === 'settings-client-status') loadClientStatuses();
             if (id === 'settings-news') loadNewsFeedSettings();
             if (id === 'settings-token') loadJWTToken();
+            if (id === 'settings-email') {
+                loadEmailSettings();
+                setupEmailSettingsAutofill();
+            }
         }
         tabButtons.forEach(btn => {
             btn.addEventListener('click', function() {
@@ -1695,8 +2091,59 @@
             }
         }
 
+        // Function to apply font preference
+        function applyFontPreference(fontFamily) {
+            // Default to Inter if no font specified
+            const defaultFont = 'Inter';
+            if (!fontFamily) {
+                fontFamily = defaultFont;
+            }
+            // Create or update a style element to override font
+            let styleEl = document.getElementById('userFontPreference');
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = 'userFontPreference';
+                document.head.appendChild(styleEl);
+            }
+            
+            // Map font names to full font stacks
+            const fontStacks = {
+                'Fira Mono': "'Fira Mono', 'Consolas', 'Roboto Mono', 'Courier New', monospace",
+                'Poppins': "Poppins, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+                'Roboto': "Roboto, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
+                'Inter': "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                'Georgia': "Georgia, 'Times New Roman', Times, serif"
+            };
+            
+            const fontStack = fontStacks[fontFamily] || fontStacks[defaultFont];
+            styleEl.textContent = `body, body * { font-family: ${fontStack} !important; }`;
+        }
+
+        // Load and apply font preference on page load
+        function loadAndApplyFontPreference() {
+            fetch('/api/user/preferences', {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const prefs = data.preferences || {};
+                if (prefs.fontFamily) {
+                    applyFontPreference(prefs.fontFamily);
+                } else {
+                    // New user - apply default font (Inter)
+                    applyFontPreference('Inter');
+                }
+            })
+            .catch(err => {
+                console.warn('Failed to load font preference:', err);
+                // Apply default font on error
+                applyFontPreference('Inter');
+            });
+        }
+
         // Initial load: Organizations tab
         showSettingsSection('settings-org');
+        loadAndApplyFontPreference();
     });
     </script>
 </body>
