@@ -114,6 +114,8 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme_secret';
 
 // Create an admin user with password
+// REFACTORED: Moved to routes/utility.js
+/*
 app.post('/api/create-admin', async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) {
@@ -152,8 +154,11 @@ app.post('/api/create-admin', async (req, res) => {
   });
   res.json({ success: true, user: { name, email, roles: ['admin'] } });
 });
+*/
 
 // Login endpoint
+// REFACTORED: Moved to routes/utility.js
+/*
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -206,6 +211,7 @@ app.post('/api/login', async (req, res) => {
   });
   res.json({ success: true, token });
 });
+*/
 const PORT = process.env.PORT || 5000;
 
 app.get('/allcases', (req, res) => {
@@ -219,6 +225,8 @@ app.set('views', path.join(__dirname, 'express-frontend', 'views'));
 app.use('/uploads', express.static('uploads'));
 
 // Graph visualization Cypher proxy endpoint
+// REFACTORED: Moved to routes/utility.js
+/*
 app.post('/api/graph-cypher', async (req, res) => {
   console.log('[graph-cypher] Request received');
   const { cypher, params } = req.body || {};
@@ -296,8 +304,11 @@ app.post('/api/graph-cypher', async (req, res) => {
     }
   }
 });
+*/
 
 // List Loved Ones that have coordinates (admin and case_worker)
+// REFACTORED: Moved to routes/lovedOnes.js
+/*
 app.get('/api/loved-ones/with-coordinates', authMiddleware, async (req, res) => {
   const rawRoles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
   const roles = (Array.isArray(rawRoles) ? rawRoles : [rawRoles])
@@ -326,7 +337,7 @@ app.get('/api/loved-ones/with-coordinates', authMiddleware, async (req, res) => 
     await session.close();
   }
 });
-
+*/
 
 // No Azure AD, only local login
 
@@ -402,6 +413,13 @@ const setupPhotoRoutes = require('./routes/photos');
 const setupPdfRoutes = require('./routes/pdfs');
 const setupOrganizationRoutes = require('./routes/organizations');
 const setupCommunityRoutes = require('./routes/communities');
+const setupCaseRoutes = require('./routes/cases');
+const setupUserRoutes = require('./routes/users');
+const setupAuditRoutes = require('./routes/audit');
+const setupCommunicationRoutes = require('./routes/communications');
+const setupLovedOnesRoutes = require('./routes/lovedOnes');
+const setupStatusRoutes = require('./routes/statuses');
+const setupUtilityRoutes = require('./routes/utility');
 
 (async function initialiseAuditLogging() {
   try {
@@ -522,6 +540,8 @@ app.get(
 
 // Get email settings (admin only)
 // Returns both stored settings and effective settings (what's actually being used)
+// REFACTORED: Moved to routes/communications.js
+/*
 app.get('/api/email-settings', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const stored = await configModel.get('email_settings') || {};
@@ -619,8 +639,11 @@ app.get('/api/email-settings', authMiddleware, requireRole('admin'), async (req,
     res.status(500).json({ error: 'Failed to fetch email settings' });
   }
 });
+*/
 
 // Save email settings (admin only)
+// REFACTORED: Moved to routes/communications.js
+/*
 app.post('/api/email-settings', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const {
@@ -703,7 +726,7 @@ app.post('/api/email-settings', authMiddleware, requireRole('admin'), async (req
     res.status(500).json({ error: 'Failed to save email settings' });
   }
 });
-
+*/
 
 
 
@@ -1051,6 +1074,8 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
 
 // Soft delete organization
   // --- Client Status Management Endpoints ---
+  // REFACTORED: Moved to routes/statuses.js
+  /*
   // Get all Client statuses
   app.get('/api/client-statuses', authMiddleware, async (req, res) => {
     const session = driver.session();
@@ -1064,8 +1089,11 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       res.status(500).json({ error: 'Failed to fetch statuses' });
     }
   });
+  */
 
   // Create a new Client status
+  // REFACTORED: Moved to routes/statuses.js
+  /*
   app.post('/api/client-statuses', authMiddleware, requireRole('admin'), async (req, res) => {
     const { name } = req.body;
     if (!name || !name.trim()) {
@@ -1128,8 +1156,11 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       res.status(500).json({ error: 'Failed to create status' });
     }
   });
+  */
 
   // Delete a Client status (soft delete by setting active: false)
+  // REFACTORED: Moved to routes/statuses.js
+  /*
   app.delete('/api/client-statuses', authMiddleware, requireRole('admin'), async (req, res) => {
     const { name } = req.body;
     if (!name || !name.trim()) {
@@ -1167,8 +1198,11 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       res.status(500).json({ error: 'Failed to delete status' });
     }
   });
+  */
 
   // --- Loved One Status Management Endpoints ---
+  // REFACTORED: Moved to routes/statuses.js
+  /*
   // Get all Loved One statuses
   app.get('/api/loved-one-statuses', authMiddleware, async (req, res) => {
     const session = driver.session();
@@ -1182,8 +1216,11 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       res.status(500).json({ error: 'Failed to fetch statuses' });
     }
   });
+  */
 
   // Create a new Loved One status
+  // REFACTORED: Moved to routes/statuses.js
+  /*
   app.post('/api/loved-one-statuses', authMiddleware, requireRole('admin'), async (req, res) => {
     const { name } = req.body;
     if (!name || !name.trim()) {
@@ -1246,8 +1283,11 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       res.status(500).json({ error: 'Failed to create status' });
     }
   });
+  */
 
   // Delete a Loved One status (soft delete by setting active: false)
+  // REFACTORED: Moved to routes/statuses.js
+  /*
   app.delete('/api/loved-one-statuses', authMiddleware, requireRole('admin'), async (req, res) => {
     const { name } = req.body;
     if (!name || !name.trim()) {
@@ -1285,14 +1325,20 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       res.status(500).json({ error: 'Failed to delete status' });
     }
   });
+*/
 
 // Organization routes are now in routes/organizations.js
 // Public test route
+// REFACTORED: Moved to routes/utility.js
+/*
 app.get('/api/health', (req, res) => {
   res.json({ status: 'API is running', date: new Date() });
 });
+*/
 
 // Health check for Neo4j DB
+// REFACTORED: Moved to routes/utility.js
+/*
 app.get('/api/health/db', async (req, res) => {
   const session = driver.session();
   try {
@@ -1305,436 +1351,40 @@ app.get('/api/health/db', async (req, res) => {
     await session.close();
   }
 });
+*/
 
-// Get all applicants with phone numbers (admin only) - MUST be before /api/applicants/:id route
-app.get('/api/applicants/with-phone-numbers', authMiddleware, requireRole('admin'), async (req, res) => {
-  const session = driver.session();
-  try {
-    const result = await session.run(
-      `MATCH (a:Applicant)
-       WHERE a.contact IS NOT NULL AND a.contact <> '' AND a.smsOptIn = true
-       RETURN a.id AS id, a.name AS name, a.contact AS contact, a.email AS email, a.smsOptIn AS smsOptIn
-       ORDER BY a.name`
-    );
-    const applicants = result.records.map(r => {
-      const id = r.get('id');
-      const name = r.get('name');
-      const contact = r.get('contact');
-      const email = r.get('email');
-      return {
-        id: id ? String(id) : '',
-        name: name ? String(name) : '',
-        contact: contact ? String(contact) : '',
-        email: email ? String(email) : ''
-      };
-    });
-    res.json({ applicants });
-  } catch (err) {
-    console.error('Failed to fetch applicants with phone numbers:', err);
-    console.error('Error stack:', err.stack);
-    res.status(500).json({ 
-      error: 'Failed to fetch applicants', 
-      details: err.message,
-      code: err.code
-    });
-  } finally {
-    await session.close();
-  }
-});
+// Case/Applicant routes are now in routes/cases.js
+// Removed: /api/applicants/with-phone-numbers
+// Removed: /api/applicants/with-email-addresses
+// Removed: /api/applicants/search
+// Removed: /api/applicants/:id
+// Removed: /api/applicants/:id/complete
+// Removed: /api/my-cases
+// Removed: /api/case-worker/:email/cases
+// Removed: /api/applicants/by-province
+// Removed: /api/applicants/:id (PUT)
+// Removed: /api/intake
+// Removed: /api/cases (GET)
 
-// Get all applicants with email addresses (admin only) - MUST be before /api/applicants/:id route
-app.get('/api/applicants/with-email-addresses', authMiddleware, requireRole('admin'), async (req, res) => {
-  const session = driver.session();
-  try {
-    const result = await session.run(
-      `MATCH (a:Applicant)
-       WHERE a.email IS NOT NULL AND a.email <> '' AND a.emailOptIn = true
-       RETURN a.id AS id, a.name AS name, a.email AS email, a.contact AS contact, a.emailOptIn AS emailOptIn
-       ORDER BY a.name`
-    );
-    const applicants = result.records.map(r => {
-      const id = r.get('id');
-      const name = r.get('name');
-      const email = r.get('email');
-      const contact = r.get('contact');
-      return {
-        id: id ? String(id) : '',
-        name: name ? String(name) : '',
-        email: email ? String(email) : '',
-        contact: contact ? String(contact) : ''
-      };
-    });
-    res.json({ applicants });
-  } catch (err) {
-    console.error('Failed to fetch applicants with email addresses:', err);
-    console.error('Error stack:', err.stack);
-    res.status(500).json({ 
-      error: 'Failed to fetch applicants', 
-      details: err.message,
-      code: err.code
-    });
-  } finally {
-    await session.close();
-  }
-});
+/* REMOVED - Now in routes/cases.js
+// All case/applicant routes have been moved to routes/cases.js and controllers/caseController.js
+// Removed routes:
+// - GET /api/applicants/search
+// - GET /api/applicants/:id
+// - GET /api/applicants/:id/complete
+// - GET /api/my-cases
+// - GET /api/case-worker/:email/cases
+// - GET /api/applicants/with-phone-numbers
+// - GET /api/applicants/with-email-addresses
+// - GET /api/applicants/by-province
+// - PUT /api/applicants/:id
+// - POST /api/intake
+// - GET /api/cases
+*/
 
-// Get applicant info by ID (for case notes page)
-// Enhanced: Also return referring organization (even if soft deleted)
-// Search applicants by name (supports partial matching, case-insensitive)
-app.get('/api/applicants/search', authMiddleware, async (req, res) => {
-  const { name, expand } = req.query;
-  if (!name || !name.trim()) {
-    return res.status(400).json({ error: 'name query parameter is required' });
-  }
-  
-  const includeAll = expand === 'true' || expand === '1';
-  const session = driver.session();
-  try {
-    if (includeAll) {
-      // Search with all related data
-      const result = await session.run(
-        `MATCH (a:Applicant)
-         WHERE toLower(a.name) CONTAINS toLower($name)
-         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
-         OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-         OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
-         OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
-         RETURN a, o, 
-                collect(DISTINCT {lovedOne: l, relationship: rel.relationship}) AS lovedOnes,
-                comm,
-                collect(DISTINCT u.email) AS assignedTo
-         ORDER BY a.name
-         LIMIT 50`,
-        { name: name.trim() }
-      );
-      
-      const applicants = result.records.map(r => {
-        const applicant = r.get('a').properties;
-        const orgNode = r.get('o');
-        const referringOrg = orgNode ? orgNode.properties : null;
-        const lovedOnesRaw = r.get('lovedOnes');
-        const lovedOnes = lovedOnesRaw
-          .filter(lo => lo && lo.lovedOne)
-          .map(lo => ({
-            ...lo.lovedOne.properties,
-            relationship: lo.relationship || ''
-          }));
-        const commNode = r.get('comm');
-        return {
-          applicant,
-          referringOrg,
-          lovedOnes,
-          community: commNode ? commNode.properties : null,
-          assignedTo: r.get('assignedTo').filter(e => !!e)
-        };
-      });
-      
-      await session.close();
-      res.json({ applicants, count: applicants.length });
-    } else {
-      // Original behavior: Search for applicants by name (case-insensitive, partial match)
-      const result = await session.run(
-        `MATCH (a:Applicant)
-         WHERE toLower(a.name) CONTAINS toLower($name)
-         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
-         OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-         RETURN a, o, collect({lovedOne: l, relationship: rel.relationship}) AS lovedOnes
-         ORDER BY a.name
-         LIMIT 50`,
-        { name: name.trim() }
-      );
-      
-      const applicants = result.records.map(r => {
-        const applicant = r.get('a').properties;
-        const orgNode = r.get('o');
-        const referringOrg = orgNode ? orgNode.properties : null;
-        const lovedOnesRaw = r.get('lovedOnes');
-        const lovedOnes = lovedOnesRaw
-          .filter(lo => lo.lovedOne)
-          .map(lo => ({
-            ...lo.lovedOne.properties,
-            relationship: lo.relationship || ''
-          }));
-        return { applicant, referringOrg, lovedOnes };
-      });
-      
-      await session.close();
-      res.json({ applicants, count: applicants.length });
-    }
-  } catch (err) {
-    await session.close();
-    console.error('Error searching applicants:', err);
-    res.status(500).json({ error: 'Failed to search applicants', details: err.message });
-  }
-});
-
-app.get('/api/applicants/:id', authMiddleware, async (req, res) => {
-  const { id } = req.params;
-  const includeAll = req.query.includeAll === 'true' || req.query.includeAll === '1';
-  
-  try {
-    const session = driver.session();
-    
-    if (includeAll) {
-      // Get applicant with ALL related data: org, lovedOnes, notes, files, events, community, assigned users
-      const result = await session.run(
-        `MATCH (a:Applicant {id: $id})
-         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
-         OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-         OPTIONAL MATCH (a)-[:HAS_NOTE]->(n:Note)
-         OPTIONAL MATCH (a)-[:HAS_FILE]->(f:File)
-         OPTIONAL MATCH (a)-[:HAS_EVENT]->(e:CaseEvent)
-         OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
-         OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
-         RETURN a, o, 
-                collect(DISTINCT {lovedOne: l, relationship: rel.relationship}) AS lovedOnes,
-                collect(DISTINCT n) AS notes,
-                collect(DISTINCT f) AS files,
-                collect(DISTINCT e) AS events,
-                comm,
-                collect(DISTINCT u) AS assignedUsers`,
-        { id }
-      );
-      await session.close();
-      
-      if (!result.records.length) return res.status(404).json({ error: 'Not found' });
-      
-      const record = result.records[0];
-      const applicant = record.get('a').properties;
-      const orgNode = record.get('o');
-      const referringOrg = orgNode ? orgNode.properties : null;
-      
-      // Process lovedOnes
-      const lovedOnesRaw = record.get('lovedOnes');
-      const lovedOnes = lovedOnesRaw
-        .filter(lo => lo && lo.lovedOne)
-        .map(lo => ({
-          ...lo.lovedOne.properties,
-          relationship: lo.relationship || ''
-        }));
-      
-      // Process notes
-      const notesRaw = record.get('notes');
-      const notes = notesRaw
-        .filter(n => n !== null)
-        .map(n => n.properties);
-      
-      // Process files
-      const filesRaw = record.get('files');
-      const files = filesRaw
-        .filter(f => f !== null)
-        .map(f => f.properties);
-      
-      // Process events
-      const eventsRaw = record.get('events');
-      const events = eventsRaw
-        .filter(e => e !== null)
-        .map(e => e.properties);
-      
-      // Process community
-      const commNode = record.get('comm');
-      const community = commNode ? commNode.properties : null;
-      
-      // Process assigned users
-      const usersRaw = record.get('assignedUsers');
-      const assignedUsers = usersRaw
-        .filter(u => u !== null)
-        .map(u => ({
-          id: u.properties.id,
-          name: u.properties.name,
-          email: u.properties.email,
-          roles: u.properties.roles
-        }));
-      
-      res.json({
-        applicant,
-        referringOrg,
-        lovedOnes,
-        notes,
-        files,
-        events,
-        community,
-        assignedUsers
-      });
-    } else {
-      // Original behavior: Get applicant, referring org, and related LovedOne(s)
-      const result = await session.run(
-        `MATCH (a:Applicant {id: $id})
-         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
-         OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-         RETURN a, o, collect({lovedOne: l, relationship: rel.relationship}) AS lovedOnes`,
-        { id }
-      );
-      await session.close();
-      if (!result.records.length) return res.status(404).json({ error: 'Not found' });
-      const applicant = result.records[0].get('a').properties;
-      const orgNode = result.records[0].get('o');
-      const referringOrg = orgNode ? orgNode.properties : null;
-      // lovedOnes is an array of {lovedOne, relationship}
-      const lovedOnesRaw = result.records[0].get('lovedOnes');
-      const lovedOnes = lovedOnesRaw
-        .filter(lo => lo.lovedOne)
-        .map(lo => ({
-          ...lo.lovedOne.properties,
-          relationship: lo.relationship || ''
-        }));
-      res.json({ applicant, referringOrg, lovedOnes });
-    }
-  } catch (err) {
-    console.error('Error fetching applicant:', err);
-    res.status(500).json({ error: 'Failed to fetch applicant', details: err.message });
-  }
-});
-
-// Get applicant/case with ALL related data (comprehensive endpoint)
-app.get('/api/applicants/:id/complete', authMiddleware, async (req, res) => {
-  const { id } = req.params;
-  try {
-    const session = driver.session();
-    // Get applicant with ALL related data: org, lovedOnes, notes, files, events, community, assigned users
-    const result = await session.run(
-      `MATCH (a:Applicant {id: $id})
-       OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
-       OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-       OPTIONAL MATCH (a)-[:HAS_NOTE]->(n:Note)
-       OPTIONAL MATCH (a)-[:HAS_FILE]->(f:File)
-       OPTIONAL MATCH (a)-[:HAS_EVENT]->(e:CaseEvent)
-       OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
-       OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
-       RETURN a, o, 
-              collect(DISTINCT {lovedOne: l, relationship: rel.relationship}) AS lovedOnes,
-              collect(DISTINCT n) AS notes,
-              collect(DISTINCT f) AS files,
-              collect(DISTINCT e) AS events,
-              comm,
-              collect(DISTINCT u) AS assignedUsers`,
-      { id }
-    );
-    await session.close();
-    
-    if (!result.records.length) return res.status(404).json({ error: 'Not found' });
-    
-    const record = result.records[0];
-    const applicant = record.get('a').properties;
-    const orgNode = record.get('o');
-    const referringOrg = orgNode ? orgNode.properties : null;
-    
-    // Process lovedOnes
-    const lovedOnesRaw = record.get('lovedOnes');
-    const lovedOnes = lovedOnesRaw
-      .filter(lo => lo && lo.lovedOne)
-      .map(lo => ({
-        ...lo.lovedOne.properties,
-        relationship: lo.relationship || ''
-      }));
-    
-    // Process notes
-    const notesRaw = record.get('notes');
-    const notes = notesRaw
-      .filter(n => n !== null)
-      .map(n => n.properties);
-    
-    // Process files
-    const filesRaw = record.get('files');
-    const files = filesRaw
-      .filter(f => f !== null)
-      .map(f => f.properties);
-    
-    // Process events
-    const eventsRaw = record.get('events');
-    const events = eventsRaw
-      .filter(e => e !== null)
-      .map(e => e.properties);
-    
-    // Process community
-    const commNode = record.get('comm');
-    const community = commNode ? commNode.properties : null;
-    
-    // Process assigned users
-    const usersRaw = record.get('assignedUsers');
-    const assignedUsers = usersRaw
-      .filter(u => u !== null)
-      .map(u => ({
-        id: u.properties.id,
-        name: u.properties.name,
-        email: u.properties.email,
-        roles: u.properties.roles
-      }));
-    
-    res.json({
-      applicant,
-      referringOrg,
-      lovedOnes,
-      notes,
-      files,
-      events,
-      community,
-      assignedUsers
-    });
-  } catch (err) {
-    console.error('Error fetching applicant with all details:', err);
-    res.status(500).json({ error: 'Failed to fetch applicant', details: err.message });
-  }
-});
-
-// authMiddleware is now always JWT-based
-
-
-// Get cases assigned to the logged-in user (case worker or admin)
-app.get('/api/my-cases', authMiddleware, async (req, res) => {
-  const userEmail = req.user && (req.user.email || req.user.preferred_username);
-  if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
-  const expand = req.query.expand === 'true' || req.query.expand === '1';
-  const session = driver.session();
-  try {
-    if (expand) {
-      // Find applicants assigned to this user with all related data
-      const result = await session.run(
-        `MATCH (u:User {email: $email})-[:ASSIGNED_TO]->(a:Applicant)
-         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
-         OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-         OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
-         RETURN a, o, 
-                collect(DISTINCT {lovedOne: l, relationship: rel.relationship}) AS lovedOnes,
-                comm`,
-        { email: userEmail }
-      );
-      const cases = result.records.map(r => {
-        const a = r.get('a').properties;
-        const orgNode = r.get('o');
-        const lovedOnesRaw = r.get('lovedOnes');
-        const lovedOnes = lovedOnesRaw
-          .filter(lo => lo && lo.lovedOne)
-          .map(lo => ({
-            ...lo.lovedOne.properties,
-            relationship: lo.relationship || ''
-          }));
-        const commNode = r.get('comm');
-        return {
-          ...a,
-          referringOrg: orgNode ? orgNode.properties : null,
-          lovedOnes,
-          community: commNode ? commNode.properties : null
-        };
-      });
-      res.json({ cases });
-    } else {
-      // Original behavior: Find applicants assigned to this user
-      const result = await session.run(
-        'MATCH (u:User {email: $email})-[:ASSIGNED_TO]->(a:Applicant) RETURN a',
-        { email: userEmail }
-      );
-      const cases = result.records.map(r => r.get('a').properties);
-      res.json({ cases });
-    }
-  } catch (err) {
-    console.error('Failed to fetch my cases:', err);
-    res.status(500).json({ error: 'Failed to fetch cases' });
-  } finally {
-    await session.close();
-  }
-});
 // Admin-only route example
+// REFACTORED: Moved to routes/utility.js
+/*
 app.get('/api/admin',
   authMiddleware,
   requireRole('admin'),
@@ -1742,92 +1392,30 @@ app.get('/api/admin',
     res.json({ message: 'You are an admin!', user: req.user });
   }
 );
-
+*/
 
 // Get current user info (from token)
+// User management routes are now in routes/users.js
+/* REMOVED - Now in routes/users.js
 app.get('/api/me', authMiddleware, async (req, res) => {
-  // Try to find user in Neo4j, or create if not exists
-  const email = req.user.preferred_username || req.user.email;
-  let user = await userModel.getUserByEmail(email);
-  if (!user) {
-    user = {
-      id: req.user.oid || req.user.sub,
-      name: req.user.name,
-      email,
-      roles: req.user.roles || req.user.groups || []
-    };
-    await userModel.createUser(user);
-  }
-  res.json({ user });
+  // Moved to routes/users.js
 });
 
-
-// List all users (admin only)
 app.get('/api/users',
   authMiddleware,
   requireRole('admin'),
   async (req, res) => {
-    const users = await userModel.getAllUsers();
-    res.json({ users });
+    // Moved to routes/users.js
   }
 );
 
-
-// Create a new user (admin only)
 app.post('/api/users', authMiddleware, requireRole('admin'), async (req, res) => {
-  const { name, email, password, roles } = req.body;
-  console.log('Attempting to create user:', { name, email, roles });
-  if (!name || !email || !password || !roles) {
-    console.error('Missing required fields for user creation');
-    await auditLogger.log(req, {
-      action: 'user.create',
-      resourceType: 'user',
-      resourceId: email || null,
-      success: false,
-      message: 'Missing required fields',
-      details: { providedFields: Object.keys(req.body || {}) }
-    });
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-  let user = await userModel.getUserByEmail(email);
-  if (user) {
-    console.warn('User already exists:', email);
-    await auditLogger.log(req, {
-      action: 'user.create',
-      resourceType: 'user',
-      resourceId: email,
-      success: false,
-      message: 'User already exists'
-    });
-    return res.status(409).json({ error: 'User already exists' });
-  }
-  user = { id: email, name, email, password, roles };
-  try {
-    await userModel.createUser(user);
-    console.log('User created successfully:', user);
-    await auditLogger.log(req, {
-      action: 'user.create',
-      resourceType: 'user',
-      resourceId: email,
-      success: true,
-      targetUserId: email,
-      targetUserName: name,
-      details: { roles }
-    });
-    res.json({ success: true, user });
-  } catch (err) {
-    console.error('Error creating user:', err);
-    await auditLogger.log(req, {
-      action: 'user.create',
-      resourceType: 'user',
-      resourceId: email,
-      success: false,
-      message: 'Error creating user',
-      details: { error: err.message }
-    });
-    res.status(500).json({ error: 'Failed to create user' });
-  }
+  // Moved to routes/users.js
 });
+*/
+
+// Case-related routes are now in routes/cases.js
+/* REMOVED - Now in routes/cases.js
 // Assign a case (Applicant) to a case worker (admin only)
 app.post('/api/cases/:caseId/assign', authMiddleware, requireRole('admin'), async (req, res) => {
   const { caseId } = req.params;
@@ -1909,244 +1497,35 @@ app.post('/api/cases/:caseId/assign', authMiddleware, requireRole('admin'), asyn
 });
 
 // List cases assigned to a case worker
+/* REMOVED - Now in routes/cases.js
 app.get('/api/case-worker/:email/cases', authMiddleware, async (req, res) => {
-  const { email } = req.params;
-  const session = driver.session();
-  try {
-    const result = await session.run(
-      `MATCH (u:User {email: $email})-[:ASSIGNED_TO]->(a:Applicant) RETURN a`,
-      { email }
-    );
-    const cases = result.records.map(r => r.get('a').properties);
-    res.json({ cases });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to fetch assigned cases' });
-  } finally {
-    await session.close();
-  }
+  // Moved to routes/cases.js
 });
+*/
 
 
+/* REMOVED - Now in routes/users.js
 // Update user roles (admin only)
-app.put('/api/users/:email/roles',
-  authMiddleware,
-  requireRole('admin'),
-  async (req, res) => {
-    const { email } = req.params;
-    const { roles } = req.body;
-    try {
-      await userModel.updateUserRoles(email, roles);
-      await auditLogger.log(req, {
-        action: 'user.update_roles',
-        resourceType: 'user',
-        resourceId: email,
-        success: true,
-        targetUserId: email,
-        details: { roles }
-      });
-      res.json({ success: true });
-    } catch (err) {
-      await auditLogger.log(req, {
-        action: 'user.update_roles',
-        resourceType: 'user',
-        resourceId: email,
-        success: false,
-        message: 'Failed to update roles',
-        details: { error: err.message }
-      });
-      res.status(500).json({ error: 'Failed to update roles' });
-    }
-  }
-);
-
-
+app.put('/api/users/:email/roles', ...);
 // Promote user to admin
-app.post('/api/users/:email/promote',
-  authMiddleware,
-  requireRole('admin'),
-  async (req, res) => {
-    const { email } = req.params;
-    const user = await userModel.getUserByEmail(email);
-    if (!user) {
-      await auditLogger.log(req, {
-        action: 'user.promote',
-        resourceType: 'user',
-        resourceId: email,
-        success: false,
-        message: 'User not found'
-      });
-      return res.status(404).json({ error: 'User not found' });
-    }
-    const roles = Array.isArray(user.roles) ? user.roles : [];
-    if (!roles.includes('admin')) roles.push('admin');
-    try {
-      await userModel.updateUserRoles(email, roles);
-      await auditLogger.log(req, {
-        action: 'user.promote',
-        resourceType: 'user',
-        resourceId: email,
-        success: true,
-        targetUserId: email,
-        details: { roles }
-      });
-      res.json({ success: true, roles });
-    } catch (err) {
-      await auditLogger.log(req, {
-        action: 'user.promote',
-        resourceType: 'user',
-        resourceId: email,
-        success: false,
-        message: 'Failed to update roles',
-        details: { error: err.message }
-      });
-      res.status(500).json({ error: 'Failed to update roles' });
-    }
-  }
-);
-
-
-// Demote user to case_worker (removes admin role)
-app.post('/api/users/:email/demote',
-  authMiddleware,
-  requireRole('admin'),
-  async (req, res) => {
-    const { email } = req.params;
-    const user = await userModel.getUserByEmail(email);
-    if (!user) {
-      await auditLogger.log(req, {
-        action: 'user.demote',
-        resourceType: 'user',
-        resourceId: email,
-        success: false,
-        message: 'User not found'
-      });
-      return res.status(404).json({ error: 'User not found' });
-    }
-    let roles = Array.isArray(user.roles) ? user.roles : [];
-    roles = roles.filter(r => r !== 'admin');
-    if (!roles.includes('case_worker')) roles.push('case_worker');
-    try {
-      await userModel.updateUserRoles(email, roles);
-      await auditLogger.log(req, {
-        action: 'user.demote',
-        resourceType: 'user',
-        resourceId: email,
-        success: true,
-        targetUserId: email,
-        details: { roles }
-      });
-      res.json({ success: true, roles });
-    } catch (err) {
-      await auditLogger.log(req, {
-        action: 'user.demote',
-        resourceType: 'user',
-        resourceId: email,
-        success: false,
-        message: 'Failed to update roles',
-        details: { error: err.message }
-      });
-      res.status(500).json({ error: 'Failed to update roles' });
-    }
-  }
-);
-
-
+app.post('/api/users/:email/promote', ...);
+// Demote user to case_worker
+app.post('/api/users/:email/demote', ...);
 // Delete user (admin only)
-app.delete('/api/users/:email',
-  authMiddleware,
-  requireRole('admin'),
-  async (req, res) => {
-    const { email } = req.params;
-    // Remove user node from Neo4j
-    const session = driver.session();
-    try {
-      await session.run('MATCH (u:User {email: $email}) DETACH DELETE u', { email });
-      await auditLogger.log(req, {
-        action: 'user.delete',
-        resourceType: 'user',
-        resourceId: email,
-        success: true,
-        targetUserId: email
-      });
-      res.json({ success: true });
-    } catch (err) {
-      await auditLogger.log(req, {
-        action: 'user.delete',
-        resourceType: 'user',
-        resourceId: email,
-        success: false,
-        message: 'Failed to delete user',
-        details: { error: err.message }
-      });
-      res.status(500).json({ error: 'Failed to delete user' });
-    } finally {
-      await session.close();
-    }
-  }
-);
+app.delete('/api/users/:email', ...);
+*/
 
 
+// Audit log routes are now in routes/audit.js
+/* REMOVED - Now in routes/audit.js
 // View audit logs
-app.get(
-  '/api/audit-logs',
-  authMiddleware,
-  requireRole('admin'),
-  async (req, res) => {
-    const {
-      limit,
-      cursor,
-      cursorLogId,
-      action,
-      user,
-      resourceType,
-      resourceId,
-      success,
-      from,
-      to,
-      search
-    } = req.query || {};
-
-    const filters = {};
-    if (action) filters.action = action;
-    if (user) filters.user = user;
-    if (resourceType) filters.resourceType = resourceType;
-    if (resourceId) filters.resourceId = resourceId;
-    if (from) filters.from = from;
-    if (to) filters.to = to;
-    if (search) filters.search = search;
-    if (typeof success === 'string' && success.length > 0) {
-      if (success.toLowerCase() === 'true') filters.success = true;
-      else if (success.toLowerCase() === 'false') filters.success = false;
-    }
-
-    try {
-      const result = await auditLogModel.getLogs({
-        limit,
-        cursor,
-        cursorLogId,
-        filters
-      });
-      res.json(result);
-    } catch (err) {
-      console.error('Failed to fetch audit logs', err);
-      res.status(500).json({ error: 'Failed to fetch audit logs' });
-    }
-  }
-);
-
-// Real-time audit log stream (Server-Sent Events)
-app.get(
-  '/api/audit-logs/stream',
-  authMiddleware,
-  requireRole('admin'),
-  (req, res) => {
-    auditLogger.addStreamClient(req, res);
-    res.write('event: connected\ndata: {}\n\n');
-  }
-);
+app.get('/api/audit-logs', ...);
+// Real-time audit log stream
+app.get('/api/audit-logs/stream', ...);
+*/
 
 
+/* REMOVED - Now in routes/cases.js
 // Add event to a case (case worker or admin)
 app.post('/api/cases/:caseId/events',
   authMiddleware,
@@ -2199,7 +1578,9 @@ app.post('/api/cases/:caseId/events',
     }
   }
 );
+*/
 
+/* REMOVED - Now in routes/cases.js
 // Send an SMS update related to a case
 app.post('/api/cases/:caseId/sms', authMiddleware, async (req, res) => {
   if (!smsService.isConfigured()) {
@@ -2306,36 +1687,14 @@ app.post('/api/cases/:caseId/sms', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Failed to send SMS', details: err.message });
   }
 });
-
-// List all events for a case (any authenticated user)
-app.get('/api/cases/:caseId/events',
-  authMiddleware,
-  async (req, res) => {
-    const { caseId } = req.params;
-    const events = await caseEventModel.getEvents(caseId);
-    res.json({ events });
-  }
-);
+*/
 
 // Normalize phone number to E.164 format
-function normalizePhone(raw) {
-  if (!raw) return '';
-  const trimmed = String(raw).trim();
-  if (!trimmed) return '';
-  if (trimmed.startsWith('+')) {
-    return trimmed;
-  }
-  const digits = trimmed.replace(/\D/g, '');
-  if (digits.length === 10) {
-    return '+1' + digits;
-  }
-  if (digits.length > 0) {
-    return '+' + digits;
-  }
-  return '';
-}
+// REFACTORED: normalizePhone moved to controllers/communicationController.js
 
 // Send SMS blast to all clients with phone numbers (admin only)
+// REFACTORED: Moved to routes/communications.js
+/*
 app.post('/api/sms-blast', authMiddleware, requireRole('admin'), async (req, res) => {
   if (!smsService.isConfigured()) {
     await auditLogger.log(req, {
@@ -2541,6 +1900,8 @@ function checkSpamWords(text) {
 }
 
 // Get progress for an email blast job
+// REFACTORED: Moved to routes/communications.js
+/*
 app.get('/api/email-blast/progress/:jobId', authMiddleware, requireRole('admin'), (req, res) => {
   const { jobId } = req.params;
   const progress = emailBlastProgress.get(jobId);
@@ -2549,8 +1910,11 @@ app.get('/api/email-blast/progress/:jobId', authMiddleware, requireRole('admin')
   }
   res.json(progress);
 });
+*/
 
 // Send Email blast to all clients with email addresses (admin only)
+// REFACTORED: Moved to routes/communications.js
+/*
 app.post('/api/email-blast', authMiddleware, requireRole('admin'), async (req, res) => {
   const { subject, message } = req.body || {};
   const trimmedSubject = (subject || '').trim();
@@ -3035,6 +2399,7 @@ async function processEmailBlastAsync(jobId, applicants, trimmedSubject, trimmed
     }
   }
 }
+*/
 
 // File upload route (case worker or admin)
 // Upload a file to a specific case
@@ -3042,6 +2407,8 @@ async function processEmailBlastAsync(jobId, applicants, trimmedSubject, trimmed
 // List files for a specific case
 // Delete a file from a case
 const fs = require('fs');
+// REFACTORED: Moved to routes/cases.js
+/*
 app.delete('/api/cases/:caseId/files/:filename', authMiddleware, async (req, res) => {
   const { caseId, filename } = req.params;
   const session = driver.session();
@@ -3079,22 +2446,13 @@ app.delete('/api/cases/:caseId/files/:filename', authMiddleware, async (req, res
     await session.close();
   }
 });
+*/
+
+/* REMOVED - Now in routes/cases.js
+// REFACTORED: Moved to routes/cases.js
+/*
 app.get('/api/cases/:caseId/files', authMiddleware, async (req, res) => {
-  const { caseId } = req.params;
-  const session = driver.session();
-  try {
-    const result = await session.run(
-      `MATCH (a:Applicant {id: $caseId})-[:HAS_FILE]->(f:File)
-       RETURN f ORDER BY f.uploadedAt DESC`,
-      { caseId }
-    );
-    const files = result.records.map(r => r.get('f').properties);
-    res.json({ files });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch files' });
-  } finally {
-    await session.close();
-  }
+  // Moved to routes/cases.js
 });
 app.post('/api/cases/:caseId/upload',
   authMiddleware,
@@ -3199,6 +2557,8 @@ app.post('/api/cases/:caseId/upload',
     }
   }
 );
+// REFACTORED: Moved to routes/utility.js
+/*
 app.post('/api/upload',
   authMiddleware,
   (req, res, next) => {
@@ -3215,68 +2575,14 @@ app.post('/api/upload',
     res.json({ filename: req.file.filename, originalname: req.file.originalname, path: req.file.path });
   }
 );
-
+*/
 
 // List all cases (applicants) for all users
+/* REMOVED - Now in routes/cases.js
 app.get('/api/cases', authMiddleware, async (req, res) => {
-  const expand = req.query.expand === 'true' || req.query.expand === '1';
-  const session = driver.session();
-  try {
-    if (expand) {
-      // Get all applicants with all related data
-      const result = await session.run(`
-        MATCH (a:Applicant)
-        OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
-        OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-        OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
-        OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
-        RETURN a, o, 
-               collect(DISTINCT {lovedOne: l, relationship: rel.relationship}) AS lovedOnes,
-               collect(DISTINCT u.email) AS assignedTo,
-               comm
-      `);
-      const cases = result.records.map(r => {
-        const a = r.get('a').properties;
-        const orgNode = r.get('o');
-        const lovedOnesRaw = r.get('lovedOnes');
-        const lovedOnes = lovedOnesRaw
-          .filter(lo => lo && lo.lovedOne)
-          .map(lo => ({
-            ...lo.lovedOne.properties,
-            relationship: lo.relationship || ''
-          }));
-        const commNode = r.get('comm');
-        return {
-          ...a,
-          referringOrg: orgNode ? orgNode.properties : null,
-          lovedOnes,
-          assignedTo: r.get('assignedTo').filter(e => !!e),
-          community: commNode ? commNode.properties : null
-        };
-      });
-      res.json({ cases });
-    } else {
-      // Original behavior: Get all applicants and who they are assigned to
-      const result = await session.run(`
-        MATCH (a:Applicant)
-        OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
-        RETURN a, collect(u.email) AS assignedTo
-      `);
-      const cases = result.records.map(r => {
-        const a = r.get('a').properties;
-        a.assignedTo = r.get('assignedTo').filter(e => !!e);
-        return a;
-      });
-      res.json({ cases });
-    }
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch cases' });
-  } finally {
-    await session.close();
-  }
+  // Moved to routes/cases.js
 });
 
-// Intake form submission endpoint
 app.post('/api/intake', authMiddleware, async (req, res) => {
   try {
     const data = req.body;
@@ -3387,6 +2693,7 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Failed to save intake form.' });
   }
 });
+*/
 
 // PDF routes are now in routes/pdfs.js
 
@@ -3531,6 +2838,79 @@ setupCommunityRoutes(communityRouter, {
   database: NEO4J_DATABASE
 });
 app.use('/api', communityRouter);
+
+const caseRouter = express.Router();
+setupCaseRoutes(caseRouter, {
+  driver,
+  auditLogger,
+  authMiddleware,
+  requireRole,
+  caseEventModel,
+  smsService,
+  upload
+});
+app.use('/api', caseRouter);
+
+const userRouter = express.Router();
+setupUserRoutes(userRouter, {
+  driver,
+  auditLogger,
+  authMiddleware,
+  requireRole,
+  userModel
+});
+app.use('/api', userRouter);
+
+const auditRouter = express.Router();
+setupAuditRoutes(auditRouter, {
+  auditLogger,
+  authMiddleware,
+  requireRole,
+  auditLogModel
+});
+app.use('/api', auditRouter);
+
+const communicationRouter = express.Router();
+setupCommunicationRoutes(communicationRouter, {
+  driver,
+  configModel,
+  smsService,
+  caseEventModel,
+  auditLogger,
+  authMiddleware,
+  requireRole
+});
+app.use('/api', communicationRouter);
+
+const lovedOnesRouter = express.Router();
+setupLovedOnesRoutes(lovedOnesRouter, {
+  driver,
+  auditLogger,
+  authMiddleware
+});
+app.use('/api', lovedOnesRouter);
+
+const statusRouter = express.Router();
+setupStatusRoutes(statusRouter, {
+  driver,
+  auditLogger,
+  authMiddleware,
+  requireRole
+});
+app.use('/api', statusRouter);
+
+const utilityRouter = express.Router();
+setupUtilityRoutes(utilityRouter, {
+  driver,
+  userModel,
+  auditLogger,
+  jwtSecret: JWT_SECRET,
+  neo4jDatabase: NEO4J_DATABASE,
+  upload,
+  authMiddleware,
+  requireRole
+});
+app.use('/api', utilityRouter);
 
 // Error handler for multer errors (file size, etc.)
 app.use((err, req, res, next) => {
@@ -3701,7 +3081,7 @@ app.post('/api/cases/:caseId/unassign', authMiddleware, requireRole('admin'), as
   }
 });
 
-// Add an additional Loved One to an Applicant (case)
+/* REMOVED - Now in routes/cases.js
 app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { name, relationship, incidentDate, lastLocation, community, policeInvestigationNumber, investigation, otherInvestigation, supportSelections, support, otherSupport, additionalNotes, status } = req.body || {};
@@ -3808,8 +3188,11 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
     return res.status(500).json({ error: 'Failed to add Loved One' });
   }
 });
+*/
 
 // Search Loved Ones by community (admin and case_worker)
+// REFACTORED: Moved to routes/lovedOnes.js
+/*
 app.get('/api/loved-ones', authMiddleware, async (req, res) => {
   const { community, expand } = req.query;
   if (!community || !community.trim()) {
@@ -3861,8 +3244,11 @@ app.get('/api/loved-ones', authMiddleware, async (req, res) => {
     await session.close();
   }
 });
+*/
 
 // Search Loved Ones by date range (admin and case_worker)
+// REFACTORED: Moved to routes/lovedOnes.js
+/*
 app.get('/api/loved-ones/by-date', authMiddleware, async (req, res) => {
   const { start, end } = req.query;
   if (!start || !end) {
@@ -3893,9 +3279,12 @@ app.get('/api/loved-ones/by-date', authMiddleware, async (req, res) => {
     await session.close();
   }
 });
+*/
 
 // Search Loved Ones by province (admin and case_worker)
 // Supports province code (e.g., 'AB', 'BC', 'ON', 'MB', 'SK') or full name (e.g., 'Alberta', 'British Columbia')
+// REFACTORED: Moved to routes/lovedOnes.js
+/*
 app.get('/api/loved-ones/by-province', authMiddleware, async (req, res) => {
   const { province } = req.query;
   if (!province || !province.trim()) {
@@ -3950,55 +3339,11 @@ app.get('/api/loved-ones/by-province', authMiddleware, async (req, res) => {
 
 // Search Applicants by province (admin and case_worker)
 // Supports province code (e.g., 'AB', 'BC', 'ON', 'MB', 'SK') or full name (e.g., 'Alberta', 'British Columbia')
+/* REMOVED - Now in routes/cases.js
 app.get('/api/applicants/by-province', authMiddleware, async (req, res) => {
-  const { province } = req.query;
-  if (!province || !province.trim()) {
-    return res.status(400).json({ error: 'province is required (e.g., "AB", "Alberta", "BC", "British Columbia")' });
-  }
-  const roles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
-  const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
-  if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
-  
-  // Map province names to codes for flexible querying
-  const provinceMap = {
-    'alberta': 'AB',
-    'british columbia': 'BC',
-    'manitoba': 'MB',
-    'new brunswick': 'NB',
-    'newfoundland and labrador': 'NL',
-    'northwest territories': 'NT',
-    'nova scotia': 'NS',
-    'nunavut': 'NU',
-    'ontario': 'ON',
-    'prince edward island': 'PE',
-    'quebec': 'QC',
-    'saskatchewan': 'SK',
-    'yukon': 'YT'
-  };
-  
-  const provinceLower = province.trim().toLowerCase();
-  const provinceCode = provinceMap[provinceLower] || province.trim().toUpperCase();
-  
-  const session = driver.session();
-  try {
-    const result = await session.run(
-      `MATCH (a:Applicant)
-       WHERE a.province = $provinceCode
-       RETURN a
-       ORDER BY a.name`,
-      { provinceCode }
-    );
-    const applicants = result.records.map(r => r.get('a').properties);
-    res.json({ applicants });
-  } catch (err) {
-    console.error('Failed to search applicants by province:', err);
-    res.status(500).json({ error: 'Failed to search applicants by province', details: err.message });
-  } finally {
-    await session.close();
-  }
+  // Moved to routes/cases.js
 });
 
-// Update an Applicant (Case) fields (admin or assigned case worker)
 app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const {
@@ -4182,8 +3527,11 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
     return res.status(500).json({ error: 'Failed to update applicant', details: err.message });
   }
 });
+*/
 
 // Update a Loved One (and optionally relationship for a specific Applicant)
+// REFACTORED: Moved to routes/lovedOnes.js
+/*
 app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const {
@@ -4317,6 +3665,7 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
     return res.status(500).json({ error: 'Failed to update Loved One' });
   }
 });
+*/
 
 // --- Photo Management for LovedOnes (Missing Persons) ---
 
