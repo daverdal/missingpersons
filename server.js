@@ -1382,41 +1382,85 @@ app.get('/api/applicants/with-email-addresses', authMiddleware, requireRole('adm
 // Enhanced: Also return referring organization (even if soft deleted)
 // Search applicants by name (supports partial matching, case-insensitive)
 app.get('/api/applicants/search', authMiddleware, async (req, res) => {
-  const { name } = req.query;
+  const { name, expand } = req.query;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'name query parameter is required' });
   }
   
+  const includeAll = expand === 'true' || expand === '1';
   const session = driver.session();
   try {
-    // Search for applicants by name (case-insensitive, partial match)
-    const result = await session.run(
-      `MATCH (a:Applicant)
-       WHERE toLower(a.name) CONTAINS toLower($name)
-       OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
-       OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
-       RETURN a, o, collect({lovedOne: l, relationship: rel.relationship}) AS lovedOnes
-       ORDER BY a.name
-       LIMIT 50`,
-      { name: name.trim() }
-    );
-    
-    const applicants = result.records.map(r => {
-      const applicant = r.get('a').properties;
-      const orgNode = r.get('o');
-      const referringOrg = orgNode ? orgNode.properties : null;
-      const lovedOnesRaw = r.get('lovedOnes');
-      const lovedOnes = lovedOnesRaw
-        .filter(lo => lo.lovedOne)
-        .map(lo => ({
-          ...lo.lovedOne.properties,
-          relationship: lo.relationship || ''
-        }));
-      return { applicant, referringOrg, lovedOnes };
-    });
-    
-    await session.close();
-    res.json({ applicants, count: applicants.length });
+    if (includeAll) {
+      // Search with all related data
+      const result = await session.run(
+        `MATCH (a:Applicant)
+         WHERE toLower(a.name) CONTAINS toLower($name)
+         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
+         OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
+         OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
+         OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
+         RETURN a, o, 
+                collect(DISTINCT {lovedOne: l, relationship: rel.relationship}) AS lovedOnes,
+                comm,
+                collect(DISTINCT u.email) AS assignedTo
+         ORDER BY a.name
+         LIMIT 50`,
+        { name: name.trim() }
+      );
+      
+      const applicants = result.records.map(r => {
+        const applicant = r.get('a').properties;
+        const orgNode = r.get('o');
+        const referringOrg = orgNode ? orgNode.properties : null;
+        const lovedOnesRaw = r.get('lovedOnes');
+        const lovedOnes = lovedOnesRaw
+          .filter(lo => lo && lo.lovedOne)
+          .map(lo => ({
+            ...lo.lovedOne.properties,
+            relationship: lo.relationship || ''
+          }));
+        const commNode = r.get('comm');
+        return {
+          applicant,
+          referringOrg,
+          lovedOnes,
+          community: commNode ? commNode.properties : null,
+          assignedTo: r.get('assignedTo').filter(e => !!e)
+        };
+      });
+      
+      await session.close();
+      res.json({ applicants, count: applicants.length });
+    } else {
+      // Original behavior: Search for applicants by name (case-insensitive, partial match)
+      const result = await session.run(
+        `MATCH (a:Applicant)
+         WHERE toLower(a.name) CONTAINS toLower($name)
+         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
+         OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
+         RETURN a, o, collect({lovedOne: l, relationship: rel.relationship}) AS lovedOnes
+         ORDER BY a.name
+         LIMIT 50`,
+        { name: name.trim() }
+      );
+      
+      const applicants = result.records.map(r => {
+        const applicant = r.get('a').properties;
+        const orgNode = r.get('o');
+        const referringOrg = orgNode ? orgNode.properties : null;
+        const lovedOnesRaw = r.get('lovedOnes');
+        const lovedOnes = lovedOnesRaw
+          .filter(lo => lo.lovedOne)
+          .map(lo => ({
+            ...lo.lovedOne.properties,
+            relationship: lo.relationship || ''
+          }));
+        return { applicant, referringOrg, lovedOnes };
+      });
+      
+      await session.close();
+      res.json({ applicants, count: applicants.length });
+    }
   } catch (err) {
     await session.close();
     console.error('Error searching applicants:', err);
@@ -1640,15 +1684,49 @@ app.get('/api/applicants/:id/complete', authMiddleware, async (req, res) => {
 app.get('/api/my-cases', authMiddleware, async (req, res) => {
   const userEmail = req.user && (req.user.email || req.user.preferred_username);
   if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
+  const expand = req.query.expand === 'true' || req.query.expand === '1';
   const session = driver.session();
   try {
-    // Find applicants assigned to this user (correct direction)
-    const result = await session.run(
-      'MATCH (u:User {email: $email})-[:ASSIGNED_TO]->(a:Applicant) RETURN a',
-      { email: userEmail }
-    );
-    const cases = result.records.map(r => r.get('a').properties);
-    res.json({ cases });
+    if (expand) {
+      // Find applicants assigned to this user with all related data
+      const result = await session.run(
+        `MATCH (u:User {email: $email})-[:ASSIGNED_TO]->(a:Applicant)
+         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
+         OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
+         OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
+         RETURN a, o, 
+                collect(DISTINCT {lovedOne: l, relationship: rel.relationship}) AS lovedOnes,
+                comm`,
+        { email: userEmail }
+      );
+      const cases = result.records.map(r => {
+        const a = r.get('a').properties;
+        const orgNode = r.get('o');
+        const lovedOnesRaw = r.get('lovedOnes');
+        const lovedOnes = lovedOnesRaw
+          .filter(lo => lo && lo.lovedOne)
+          .map(lo => ({
+            ...lo.lovedOne.properties,
+            relationship: lo.relationship || ''
+          }));
+        const commNode = r.get('comm');
+        return {
+          ...a,
+          referringOrg: orgNode ? orgNode.properties : null,
+          lovedOnes,
+          community: commNode ? commNode.properties : null
+        };
+      });
+      res.json({ cases });
+    } else {
+      // Original behavior: Find applicants assigned to this user
+      const result = await session.run(
+        'MATCH (u:User {email: $email})-[:ASSIGNED_TO]->(a:Applicant) RETURN a',
+        { email: userEmail }
+      );
+      const cases = result.records.map(r => r.get('a').properties);
+      res.json({ cases });
+    }
   } catch (err) {
     console.error('Failed to fetch my cases:', err);
     res.status(500).json({ error: 'Failed to fetch cases' });
@@ -3141,20 +3219,56 @@ app.post('/api/upload',
 
 // List all cases (applicants) for all users
 app.get('/api/cases', authMiddleware, async (req, res) => {
+  const expand = req.query.expand === 'true' || req.query.expand === '1';
   const session = driver.session();
   try {
-    // Get all applicants and who they are assigned to
-    const result = await session.run(`
-      MATCH (a:Applicant)
-      OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
-      RETURN a, collect(u.email) AS assignedTo
-    `);
-    const cases = result.records.map(r => {
-      const a = r.get('a').properties;
-      a.assignedTo = r.get('assignedTo').filter(e => !!e);
-      return a;
-    });
-    res.json({ cases });
+    if (expand) {
+      // Get all applicants with all related data
+      const result = await session.run(`
+        MATCH (a:Applicant)
+        OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
+        OPTIONAL MATCH (a)-[rel:RELATED_TO]->(l:LovedOne)
+        OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
+        OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
+        RETURN a, o, 
+               collect(DISTINCT {lovedOne: l, relationship: rel.relationship}) AS lovedOnes,
+               collect(DISTINCT u.email) AS assignedTo,
+               comm
+      `);
+      const cases = result.records.map(r => {
+        const a = r.get('a').properties;
+        const orgNode = r.get('o');
+        const lovedOnesRaw = r.get('lovedOnes');
+        const lovedOnes = lovedOnesRaw
+          .filter(lo => lo && lo.lovedOne)
+          .map(lo => ({
+            ...lo.lovedOne.properties,
+            relationship: lo.relationship || ''
+          }));
+        const commNode = r.get('comm');
+        return {
+          ...a,
+          referringOrg: orgNode ? orgNode.properties : null,
+          lovedOnes,
+          assignedTo: r.get('assignedTo').filter(e => !!e),
+          community: commNode ? commNode.properties : null
+        };
+      });
+      res.json({ cases });
+    } else {
+      // Original behavior: Get all applicants and who they are assigned to
+      const result = await session.run(`
+        MATCH (a:Applicant)
+        OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
+        RETURN a, collect(u.email) AS assignedTo
+      `);
+      const cases = result.records.map(r => {
+        const a = r.get('a').properties;
+        a.assignedTo = r.get('assignedTo').filter(e => !!e);
+        return a;
+      });
+      res.json({ cases });
+    }
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch cases' });
   } finally {
@@ -3697,26 +3811,50 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
 
 // Search Loved Ones by community (admin and case_worker)
 app.get('/api/loved-ones', authMiddleware, async (req, res) => {
-  const { community } = req.query;
+  const { community, expand } = req.query;
   if (!community || !community.trim()) {
     return res.status(400).json({ error: 'community is required' });
   }
   const roles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
   const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
   if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
+  const includeAll = expand === 'true' || expand === '1';
   const session = driver.session();
   try {
-    const result = await session.run(
-      `MATCH (l:LovedOne {community: $community})<- [rel:RELATED_TO]-(a:Applicant)
-       RETURN l, a, rel.relationship AS relationship ORDER BY l.name`,
-      { community }
-    );
-    const results = result.records.map(r => ({
-      lovedOne: r.get('l').properties,
-      applicant: r.get('a').properties,
-      relationship: r.get('relationship') || ''
-    }));
-    res.json({ results });
+    if (includeAll) {
+      // Get loved ones with all applicant data
+      const result = await session.run(
+        `MATCH (l:LovedOne {community: $community})<-[rel:RELATED_TO]-(a:Applicant)
+         OPTIONAL MATCH (a)-[:REFERRED_BY]->(o:Organization)
+         OPTIONAL MATCH (a)-[:LOCATED_IN]->(comm:Community)
+         OPTIONAL MATCH (u:User)-[:ASSIGNED_TO]->(a)
+         RETURN l, a, rel.relationship AS relationship, o, comm, collect(DISTINCT u.email) AS assignedTo
+         ORDER BY l.name`,
+        { community }
+      );
+      const results = result.records.map(r => ({
+        lovedOne: r.get('l').properties,
+        applicant: r.get('a').properties,
+        relationship: r.get('relationship') || '',
+        referringOrg: r.get('o') ? r.get('o').properties : null,
+        community: r.get('comm') ? r.get('comm').properties : null,
+        assignedTo: r.get('assignedTo').filter(e => !!e)
+      }));
+      res.json({ results });
+    } else {
+      // Original behavior
+      const result = await session.run(
+        `MATCH (l:LovedOne {community: $community})<-[rel:RELATED_TO]-(a:Applicant)
+         RETURN l, a, rel.relationship AS relationship ORDER BY l.name`,
+        { community }
+      );
+      const results = result.records.map(r => ({
+        lovedOne: r.get('l').properties,
+        applicant: r.get('a').properties,
+        relationship: r.get('relationship') || ''
+      }));
+      res.json({ results });
+    }
   } catch (err) {
     res.status(500).json({ error: 'Failed to search loved ones' });
   } finally {
