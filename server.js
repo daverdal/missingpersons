@@ -482,45 +482,9 @@ let offenderNewsEmailConfig = {
   mailbox: process.env.OFFENDER_NEWS_EMAIL_FOLDER || 'INBOX'
 };
 
-(async function initialiseOffenderNewsConfig() {
-  try {
-    const stored = await configModel.get('offender_news_email');
-    if (stored && typeof stored === 'object') {
-      offenderNewsEmailConfig = {
-        ...offenderNewsEmailConfig,
-        ...stored
-      };
-    }
-  } catch (err) {
-    if (err.code === 'Neo.ClientError.Security.Unauthorized') {
-      console.error('Failed to load Offender News email config from Neo4j: Authentication failed');
-      console.error('This is likely the same Neo4j authentication issue. Please check your .env file.');
-    } else {
-      console.error('Failed to load Offender News email config from Neo4j', err.message);
-    }
-  } finally {
-    offenderNews.init(app, {
-      authMiddleware,
-      requireRole,
-      auditLogger,
-      newsModel,
-      smsService,
-      caseEventModel,
-      configModel,
-      config: {
-        host: offenderNewsEmailConfig.host,
-        port: offenderNewsEmailConfig.port,
-        secure: offenderNewsEmailConfig.secure,
-        username: offenderNewsEmailConfig.username,
-        password: offenderNewsEmailConfig.password,
-        mailbox: offenderNewsEmailConfig.mailbox,
-        defaultLimit: OFFENDER_NEWS_DEFAULT_LIMIT,
-        policeRssUrl: OFFENDER_NEWS_POLICE_RSS_URL,
-        manitobaRssUrl: OFFENDER_NEWS_MANITOBA_RSS_URL
-      }
-    });
-  }
-})();
+// Offender News initialization will happen synchronously before route registration
+// This ensures routes are available when server starts
+let offenderNewsInitialized = false;
 
 // Read-only Offender News configuration for Settings page (admin only)
 app.get(
@@ -2808,6 +2772,9 @@ async function initializeLovedOneStatuses() {
   }
 }
 
+// Offender News will be initialized after all routes are registered
+// but before server starts (see below)
+
 // Register route modules
 const photoRouter = express.Router();
 setupPhotoRoutes(photoRouter, {
@@ -2925,6 +2892,65 @@ setupPublicRoutes(publicRouter, {
   authMiddleware
 });
 app.use('/api', publicRouter);
+
+// Initialize offender-news module AFTER all other routes are registered
+// This ensures requireRole is defined and routes are registered before server starts
+console.log('[server] Starting Offender News module initialization...');
+console.log('[server] RSS URLs:', {
+  police: OFFENDER_NEWS_POLICE_RSS_URL,
+  manitoba: OFFENDER_NEWS_MANITOBA_RSS_URL
+});
+
+// Initialize synchronously first (load config async later if needed)
+try {
+  console.log('[server] Calling offenderNews.init() synchronously...');
+  offenderNews.init(app, {
+    authMiddleware,
+    requireRole,
+    auditLogger,
+    newsModel,
+    smsService,
+    caseEventModel,
+    configModel,
+    config: {
+      host: offenderNewsEmailConfig.host,
+      port: offenderNewsEmailConfig.port,
+      secure: offenderNewsEmailConfig.secure,
+      username: offenderNewsEmailConfig.username,
+      password: offenderNewsEmailConfig.password,
+      mailbox: offenderNewsEmailConfig.mailbox,
+      defaultLimit: OFFENDER_NEWS_DEFAULT_LIMIT,
+      policeRssUrl: OFFENDER_NEWS_POLICE_RSS_URL,
+      manitobaRssUrl: OFFENDER_NEWS_MANITOBA_RSS_URL
+    }
+  });
+  console.log('[server] ✓ Offender News module initialization completed - routes registered');
+  offenderNewsInitialized = true;
+} catch (initErr) {
+  console.error('[server] ✗ FAILED to initialize Offender News module');
+  console.error('[server] ✗ Error:', initErr.message);
+  console.error('[server] ✗ Stack:', initErr.stack);
+}
+
+// Load email config from database asynchronously (non-blocking)
+(async function loadOffenderNewsEmailConfig() {
+  try {
+    const stored = await configModel.get('offender_news_email');
+    if (stored && typeof stored === 'object') {
+      offenderNewsEmailConfig = {
+        ...offenderNewsEmailConfig,
+        ...stored
+      };
+      console.log('[server] Loaded Offender News email config from Neo4j');
+    }
+  } catch (err) {
+    if (err.code === 'Neo.ClientError.Security.Unauthorized') {
+      console.error('[server] Failed to load Offender News email config from Neo4j: Authentication failed');
+    } else {
+      console.error('[server] Failed to load Offender News email config from Neo4j:', err.message);
+    }
+  }
+})();
 
 // Error handler for multer errors (file size, etc.)
 app.use((err, req, res, next) => {
@@ -3701,6 +3727,11 @@ app.listen(PORT, async () => {
   console.log('========================================');
   console.log('   Missing Persons App Server Started');
   console.log(`   Listening on port: ${PORT}`);
+  if (offenderNewsInitialized) {
+    console.log('   Offender News: ✓ Initialized');
+  } else {
+    console.log('   Offender News: ⚠ NOT Initialized - check logs above');
+  }
   console.log('========================================');
   
   // Initialize default statuses
