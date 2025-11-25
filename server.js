@@ -428,6 +428,8 @@ const setupUtilityRoutes = require('./routes/utility');
 const setupPublicRoutes = require('./routes/public');
 const setupTimelineRoutes = require('./routes/timeline');
 const setupReminderRoutes = require('./routes/reminders');
+const setupDashboardRoutes = require('./routes/dashboard');
+const setupWitnessRoutes = require('./routes/witnesses');
 
 (async function initialiseAuditLogging() {
   try {
@@ -2912,6 +2914,24 @@ setupReminderRoutes(reminderRouter, {
   requireRole
 });
 app.use('/api', reminderRouter);
+
+const dashboardRouter = express.Router();
+setupDashboardRoutes(dashboardRouter, {
+  driver,
+  auditLogger,
+  authMiddleware,
+  requireRole
+});
+app.use('/api', dashboardRouter);
+
+const witnessRouter = express.Router();
+setupWitnessRoutes(witnessRouter, {
+  driver,
+  auditLogger,
+  authMiddleware,
+  requireRole
+});
+app.use('/api', witnessRouter);
 
 // Initialize offender-news module AFTER all other routes are registered
 // This ensures requireRole is defined and routes are registered before server starts

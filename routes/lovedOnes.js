@@ -10,6 +10,11 @@ function setupLovedOnesRoutes(router, dependencies) {
   const { driver, auditLogger, authMiddleware } = dependencies;
 
   // IMPORTANT: Specific routes must come BEFORE parameterized routes like /loved-ones/:id
+  // GET /api/loved-ones/all - Get all loved ones (admin and case_worker only)
+  router.get('/loved-ones/all', authMiddleware, (req, res) => {
+    lovedOneController.getAllLovedOnes(req, res, driver, auditLogger);
+  });
+
   // GET /api/loved-ones/with-coordinates - Get loved ones with coordinates (admin and case_worker only)
   router.get('/loved-ones/with-coordinates', authMiddleware, (req, res) => {
     lovedOneController.getLovedOnesWithCoordinates(req, res, driver, auditLogger);

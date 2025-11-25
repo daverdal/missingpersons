@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Missing Persons App</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+</head>
+<body>
+  <header style="position:relative;">
+    <h1 style="text-align:center;">Dashboard</h1>
+    <!-- Navigation will be injected here -->
+  </header>
+  <main>
+    <div id="loadingMessage" style="text-align:center; padding:2rem; color:#888;">Loading dashboard...</div>
+    
+    <div id="dashboardContent" style="display:none;">
+      <!-- Stats Cards -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-bottom:2rem;">
+        <!-- Cases Stats -->
+        <div class="stat-card" style="background:#23272b; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem;">
+          <h3 style="margin-top:0; color:#6fcf6f; font-size:0.9rem;">Total Cases</h3>
+          <div style="font-size:2.5rem; font-weight:bold; color:#fff;" id="totalCases">0</div>
+        </div>
+        
+        <div class="stat-card" style="background:#23272b; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem;">
+          <h3 style="margin-top:0; color:#6fcf6f; font-size:0.9rem;">Active Cases</h3>
+          <div style="font-size:2.5rem; font-weight:bold; color:#6fcf6f;" id="activeCases">0</div>
+        </div>
+        
+        <div class="stat-card" style="background:#23272b; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem;">
+          <h3 style="margin-top:0; color:#6fcf6f; font-size:0.9rem;">My Cases</h3>
+          <div style="font-size:2.5rem; font-weight:bold; color:#ffa500;" id="myCases">0</div>
+        </div>
+        
+        <div class="stat-card" style="background:#23272b; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem;">
+          <h3 style="margin-top:0; color:#6fcf6f; font-size:0.9rem;">Missing Persons</h3>
+          <div style="font-size:2.5rem; font-weight:bold; color:#fff;" id="totalLovedOnes">0</div>
+        </div>
+        
+        <div class="stat-card" style="background:#23272b; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem;">
+          <h3 style="margin-top:0; color:#6fcf6f; font-size:0.9rem;">Active Reminders</h3>
+          <div style="font-size:2.5rem; font-weight:bold; color:#fff;" id="activeReminders">0</div>
+        </div>
+        
+        <div class="stat-card" style="background:#23272b; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem;">
+          <h3 style="margin-top:0; color:#ff6b6b; font-size:0.9rem;">Overdue Reminders</h3>
+          <div style="font-size:2.5rem; font-weight:bold; color:#ff6b6b;" id="overdueReminders">0</div>
+        </div>
+      </div>
+
+      <!-- Two Column Layout -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem; margin-bottom:2rem;">
+        <!-- Recent Activity (Timeline Events) -->
+        <div style="background:#23272b; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem;">
+          <h2 style="margin-top:0; color:#6fcf6f;">Recent Activity</h2>
+          <div id="recentActivity" style="max-height:400px; overflow-y:auto;">
+            <!-- Activity items will be inserted here -->
+          </div>
+        </div>
+
+        <!-- Upcoming Reminders -->
+        <div style="background:#23272b; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem;">
+          <h2 style="margin-top:0; color:#6fcf6f;">Upcoming Reminders</h2>
+          <div id="upcomingReminders" style="max-height:400px; overflow-y:auto;">
+            <!-- Reminders will be inserted here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Cases by Status -->
+      <div style="background:#23272b; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem; margin-bottom:2rem;">
+        <h2 style="margin-top:0; color:#6fcf6f;">Cases by Status</h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:1rem;">
+          <div>
+            <div style="color:#888; font-size:0.9rem;">Active</div>
+            <div style="font-size:1.5rem; font-weight:bold; color:#6fcf6f;" id="statusActive">0</div>
+          </div>
+          <div>
+            <div style="color:#888; font-size:0.9rem;">Closed</div>
+            <div style="font-size:1.5rem; font-weight:bold; color:#888;" id="statusClosed">0</div>
+          </div>
+          <div>
+            <div style="color:#888; font-size:0.9rem;">Follow-up Required</div>
+            <div style="font-size:1.5rem; font-weight:bold; color:#ffa500;" id="statusFollowup">0</div>
+          </div>
+          <div>
+            <div style="color:#888; font-size:0.9rem;">On Hold</div>
+            <div style="font-size:1.5rem; font-weight:bold; color:#95a5a6;" id="statusOnHold">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="errorMessage" style="display:none; text-align:center; padding:2rem; color:#ff6b6b;"></div>
+  </main>
+
+  <script>
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+      if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+      if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+      return date.toLocaleDateString();
+    }
+
+    function formatDateTime(dateString) {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    async function loadDashboard() {
+      const token = getToken();
+      if (!token) {
+        document.getElementById('loadingMessage').textContent = 'Please log in to view dashboard';
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/dashboard/stats', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load dashboard data');
+        }
+
+        const data = await response.json();
+
+        // Update stats cards
+        document.getElementById('totalCases').textContent = data.cases.total || 0;
+        document.getElementById('activeCases').textContent = data.cases.active || 0;
+        document.getElementById('myCases').textContent = data.myCases || 0;
+        document.getElementById('totalLovedOnes').textContent = data.lovedOnes.total || 0;
+        document.getElementById('activeReminders').textContent = data.reminders.totalActive || 0;
+        document.getElementById('overdueReminders').textContent = data.reminders.overdue || 0;
+
+        // Update status breakdown
+        document.getElementById('statusActive').textContent = data.cases.active || 0;
+        document.getElementById('statusClosed').textContent = data.cases.closed || 0;
+        document.getElementById('statusFollowup').textContent = data.cases.followupRequired || 0;
+        document.getElementById('statusOnHold').textContent = data.cases.onHold || 0;
+
+        // Render recent activity
+        const activityContainer = document.getElementById('recentActivity');
+        if (data.recentEvents && data.recentEvents.length > 0) {
+          activityContainer.innerHTML = data.recentEvents.map(event => {
+            const eventTypeColors = {
+              'CaseOpened': '#6fcf6f',
+              'MissingReported': '#ffa500',
+              'Sighting': '#4a9eff',
+              'TipReceived': '#ff6b6b',
+              'StatusChanged': '#9b59b6',
+              'Found': '#2ecc71',
+              'CaseClosed': '#95a5a6'
+            };
+            const color = eventTypeColors[event.eventType] || '#6fcf6f';
+            return `
+              <div style="padding:0.75rem; border-left:3px solid ${color}; margin-bottom:0.5rem; background:#1a1d21;">
+                <div style="display:flex; justify-content:space-between; align-items:start;">
+                  <div style="flex:1;">
+                    <div style="font-weight:bold; color:#fff; margin-bottom:0.25rem;">
+                      ${escapeHtml(event.eventType || 'Event')}
+                    </div>
+                    ${event.lovedOneName ? `<div style="color:#888; font-size:0.9rem; margin-bottom:0.25rem;">${escapeHtml(event.lovedOneName)}</div>` : ''}
+                    ${event.description ? `<div style="color:#ccc; font-size:0.85rem;">${escapeHtml(event.description)}</div>` : ''}
+                  </div>
+                  <div style="color:#888; font-size:0.8rem; white-space:nowrap; margin-left:1rem;">
+                    ${formatDate(event.timestamp)}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          activityContainer.innerHTML = '<div style="color:#888; padding:1rem; text-align:center;">No recent activity</div>';
+        }
+
+        // Render upcoming reminders
+        const remindersContainer = document.getElementById('upcomingReminders');
+        if (data.upcomingReminders && data.upcomingReminders.length > 0) {
+          remindersContainer.innerHTML = data.upcomingReminders.map(reminder => {
+            const priorityColors = {
+              urgent: '#ff6b6b',
+              high: '#ffa500',
+              medium: '#6fcf6f',
+              low: '#95a5a6'
+            };
+            const priorityColor = priorityColors[reminder.priority] || '#6fcf6f';
+            const dueDate = new Date(reminder.dueDate);
+            const now = new Date();
+            const daysUntil = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+            
+            return `
+              <div style="padding:0.75rem; border-left:3px solid ${priorityColor}; margin-bottom:0.5rem; background:#1a1d21;">
+                <div style="font-weight:bold; color:#fff; margin-bottom:0.25rem;">
+                  ${escapeHtml(reminder.title || 'Untitled')}
+                </div>
+                ${reminder.description ? `<div style="color:#ccc; font-size:0.85rem; margin-bottom:0.25rem;">${escapeHtml(reminder.description)}</div>` : ''}
+                ${reminder.relatedTo ? `<div style="color:#888; font-size:0.8rem; margin-bottom:0.25rem;">Related to: ${escapeHtml(reminder.relatedTo.name || reminder.relatedTo.id)}</div>` : ''}
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="color:#888; font-size:0.8rem;">Due: ${formatDateTime(reminder.dueDate)}</div>
+                  <div style="color:${priorityColor}; font-size:0.8rem; font-weight:bold;">
+                    ${daysUntil < 0 ? 'Overdue' : daysUntil === 0 ? 'Today' : `${daysUntil} day${daysUntil !== 1 ? 's' : ''} left`}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          remindersContainer.innerHTML = '<div style="color:#888; padding:1rem; text-align:center;">No upcoming reminders</div>';
+        }
+
+        // Show content
+        document.getElementById('loadingMessage').style.display = 'none';
+        document.getElementById('dashboardContent').style.display = 'block';
+      } catch (err) {
+        console.error('Error loading dashboard:', err);
+        document.getElementById('loadingMessage').style.display = 'none';
+        document.getElementById('errorMessage').style.display = 'block';
+        document.getElementById('errorMessage').textContent = 'Failed to load dashboard. Please try again later.';
+      }
+    }
+
+    // Load dashboard on page load
+    document.addEventListener('DOMContentLoaded', loadDashboard);
+
+    // Auto-refresh every 5 minutes
+    setInterval(loadDashboard, 5 * 60 * 1000);
+  </script>
+</body>
+</html>
+

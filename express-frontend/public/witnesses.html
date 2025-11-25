@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Witness Management - Missing Persons App</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+</head>
+<body>
+  <header style="position:relative;">
+    <h1 style="text-align:center;">Witness Management</h1>
+    <!-- Navigation will be injected here -->
+  </header>
+  <main>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+      <div></div>
+      <button id="addWitnessBtn" style="padding:0.5rem 1rem; background:#23272b; color:#6fcf6f; border:1px solid #3a3f47; border-radius:4px; cursor:pointer; font-weight:600;">+ Add Witness</button>
+    </div>
+
+    <div class="toolbar">
+      <label for="filterRelatedToType">
+        Related To:
+        <select id="filterRelatedToType">
+          <option value="">All</option>
+          <option value="case">Case</option>
+          <option value="lovedOne">Missing Person</option>
+        </select>
+      </label>
+      <label for="filterRelatedToId">
+        Related ID:
+        <input type="text" id="filterRelatedToId" placeholder="Case ID or LovedOne ID">
+      </label>
+      <label for="filterReportedTo">
+        Reported To:
+        <select id="filterReportedTo">
+          <option value="">All Caseworkers</option>
+        </select>
+      </label>
+      <button id="applyFiltersBtn" style="padding:0.5rem 1rem; background:#6fcf6f; color:#000; border:none; border-radius:4px; cursor:pointer;">Apply Filters</button>
+      <button id="clearFiltersBtn" style="padding:0.5rem 1rem; background:#3a3f47; color:#fff; border:none; border-radius:4px; cursor:pointer;">Clear</button>
+      <span id="statusMessage"></span>
+    </div>
+
+    <div id="witnessesContainer">
+      <!-- Witnesses will be rendered here -->
+    </div>
+
+    <!-- Add/Edit Witness Modal -->
+    <div id="witnessModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); z-index:1000; overflow-y:auto;">
+      <div style="max-width:700px; margin:2rem auto; background:#23272b; border:2px solid #6fcf6f; border-radius:8px; padding:2rem;">
+        <h2 style="margin-top:0; color:#6fcf6f;" id="modalTitle">Add Witness</h2>
+        <form id="witnessForm">
+          <input type="hidden" id="modalWitnessId">
+          <label>
+            Name: *
+            <input type="text" id="modalName" required placeholder="Witness full name">
+          </label>
+          <label>
+            Contact (Phone/Email):
+            <input type="text" id="modalContact" placeholder="Phone number or email">
+          </label>
+          <label>
+            Address:
+            <textarea id="modalAddress" rows="2" placeholder="Witness address"></textarea>
+          </label>
+          <label>
+            Statement/Notes: *
+            <textarea id="modalStatement" rows="6" required placeholder="Witness statement or notes..."></textarea>
+          </label>
+          <label>
+            Date of Statement: *
+            <input type="datetime-local" id="modalDateOfStatement" required>
+          </label>
+          <label>
+            Related To:
+            <select id="modalRelatedToType">
+              <option value="">None</option>
+              <option value="case">Case</option>
+              <option value="lovedOne">Missing Person</option>
+            </select>
+          </label>
+          <label id="relatedToIdLabel" style="display:none;">
+            Select: *
+            <select id="modalRelatedToId" required>
+              <option value="">-- Select --</option>
+            </select>
+          </label>
+          <div style="margin-top:1.5rem; display:flex; gap:1rem;">
+            <button type="submit" style="flex:1;">Save Witness</button>
+            <button type="button" id="cancelWitnessBtn" style="flex:1;">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    function setStatus(message, isError) {
+      const el = document.getElementById('statusMessage');
+      el.textContent = message || '';
+      el.style.color = isError ? '#ff7f7f' : '#6fcf6f';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    }
+
+    let currentWitnesses = [];
+    let allUsers = [];
+    let allCases = [];
+    let allLovedOnes = [];
+
+    // Load users for filter dropdown only
+    async function loadUsers() {
+      const token = getToken();
+      if (!token) return;
+
+      try {
+        const response = await fetch('/api/users', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          allUsers = data.users || [];
+          
+          // Populate filter dropdown only
+          const reportedToSelect = document.getElementById('filterReportedTo');
+          if (reportedToSelect) {
+            const currentValue = reportedToSelect.value;
+            reportedToSelect.innerHTML = '<option value="">All Caseworkers</option>';
+            
+            allUsers.forEach(user => {
+              const option = document.createElement('option');
+              option.value = user.email;
+              option.textContent = user.name || user.email;
+              reportedToSelect.appendChild(option);
+            });
+            
+            if (currentValue) reportedToSelect.value = currentValue;
+          }
+        }
+      } catch (err) {
+        console.error('Error loading users:', err);
+      }
+    }
+
+    // Load cases and loved ones for dropdowns
+    async function loadCasesAndLovedOnes() {
+      const token = getToken();
+      if (!token) return;
+
+      try {
+        // Load cases
+        const casesResponse = await fetch('/api/cases', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (casesResponse.ok) {
+          const casesData = await casesResponse.json();
+          allCases = casesData.cases || [];
+          console.log('Loaded cases:', allCases.length);
+        }
+
+        // Load loved ones - use the new /all endpoint
+        const lovedOnesResponse = await fetch('/api/loved-ones/all', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (lovedOnesResponse.ok) {
+          const lovedOnesData = await lovedOnesResponse.json();
+          allLovedOnes = lovedOnesData.lovedOnes || [];
+          console.log('Loaded loved ones:', allLovedOnes.length);
+        } else {
+          console.error('Failed to load loved ones:', await lovedOnesResponse.text());
+        }
+      } catch (err) {
+        console.error('Error loading cases and loved ones:', err);
+      }
+    }
+
+    // Load witnesses
+    async function loadWitnesses() {
+      const token = getToken();
+      if (!token) return;
+
+      try {
+        const relatedToType = document.getElementById('filterRelatedToType').value;
+        const relatedToId = document.getElementById('filterRelatedToId').value.trim();
+        const reportedTo = document.getElementById('filterReportedTo').value;
+
+        let url = '/api/witnesses?';
+        const params = [];
+        if (relatedToType) params.push(`relatedToType=${encodeURIComponent(relatedToType)}`);
+        if (relatedToId) params.push(`relatedToId=${encodeURIComponent(relatedToId)}`);
+        if (reportedTo) params.push(`reportedTo=${encodeURIComponent(reportedTo)}`);
+        url += params.join('&');
+
+        const response = await fetch(url, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          currentWitnesses = data.witnesses || [];
+          renderWitnesses();
+        } else {
+          setStatus('Failed to load witnesses', true);
+        }
+      } catch (err) {
+        console.error('Error loading witnesses:', err);
+        setStatus('Error loading witnesses', true);
+      }
+    }
+
+    function renderWitnesses() {
+      const container = document.getElementById('witnessesContainer');
+      
+      if (currentWitnesses.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:2rem; color:#888;">No witnesses found.</div>';
+        return;
+      }
+
+      let html = '';
+      currentWitnesses.forEach(witness => {
+        html += `
+          <div class="witness-card" style="background:#23272b; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:1rem;">
+              <div style="flex:1;">
+                <h3 style="margin:0; color:#6fcf6f; margin-bottom:0.5rem;">${escapeHtml(witness.name || 'Unknown')}</h3>
+                ${witness.contact ? `<div style="color:#ccc; margin-bottom:0.25rem;">Contact: ${escapeHtml(witness.contact)}</div>` : ''}
+                ${witness.address ? `<div style="color:#888; font-size:0.9rem; margin-bottom:0.25rem;">Address: ${escapeHtml(witness.address)}</div>` : ''}
+                ${witness.relatedTo ? `<div style="color:#888; font-size:0.9rem; margin-bottom:0.25rem;">Related to: ${escapeHtml(witness.relatedTo.name || witness.relatedTo.id)} (${escapeHtml(witness.relatedTo.type)})</div>` : ''}
+                ${witness.reportedToUser ? `<div style="color:#888; font-size:0.9rem; margin-bottom:0.25rem;">Reported to: ${escapeHtml(witness.reportedToUser.name || witness.reportedToUser.email)}</div>` : ''}
+                <div style="color:#888; font-size:0.9rem;">Statement Date: ${formatDate(witness.dateOfStatement)}</div>
+              </div>
+              <div style="display:flex; gap:0.5rem;">
+                <button onclick="editWitness('${witness.witnessId}')" style="padding:0.5rem; background:#6fcf6f; color:#000; border:none; border-radius:4px; cursor:pointer;">Edit</button>
+                <button onclick="deleteWitness('${witness.witnessId}')" style="padding:0.5rem; background:#ff6b6b; color:#fff; border:none; border-radius:4px; cursor:pointer;">Delete</button>
+              </div>
+            </div>
+            <div style="background:#1a1d21; padding:1rem; border-radius:4px; margin-top:1rem;">
+              <div style="color:#888; font-size:0.9rem; margin-bottom:0.5rem;">Statement:</div>
+              <div style="color:#ccc; white-space:pre-wrap;">${escapeHtml(witness.statement || 'No statement provided')}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Modal functions
+    function openModal(witness = null) {
+      const modal = document.getElementById('witnessModal');
+      const form = document.getElementById('witnessForm');
+      const title = document.getElementById('modalTitle');
+      
+      if (witness) {
+        title.textContent = 'Edit Witness';
+        document.getElementById('modalWitnessId').value = witness.witnessId;
+        document.getElementById('modalName').value = witness.name || '';
+        document.getElementById('modalContact').value = witness.contact || '';
+        document.getElementById('modalAddress').value = witness.address || '';
+        document.getElementById('modalStatement').value = witness.statement || '';
+        if (witness.dateOfStatement) {
+          const date = new Date(witness.dateOfStatement);
+          document.getElementById('modalDateOfStatement').value = date.toISOString().slice(0, 16);
+        }
+        document.getElementById('modalRelatedToType').value = witness.relatedToType || '';
+        updateRelatedToLabel(); // This will populate the dropdown
+        // Set the value after dropdown is populated
+        setTimeout(() => {
+          document.getElementById('modalRelatedToId').value = witness.relatedToId || '';
+        }, 0);
+      } else {
+        title.textContent = 'Add Witness';
+        form.reset();
+        document.getElementById('modalWitnessId').value = '';
+        document.getElementById('modalDateOfStatement').value = new Date().toISOString().slice(0, 16);
+      }
+      
+      modal.style.display = 'block';
+    }
+
+    function closeModal() {
+      document.getElementById('witnessModal').style.display = 'none';
+    }
+
+    function updateRelatedToLabel() {
+      const type = document.getElementById('modalRelatedToType').value;
+      const label = document.getElementById('relatedToIdLabel');
+      const select = document.getElementById('modalRelatedToId');
+      
+      if (type) {
+        label.style.display = 'block';
+        select.required = true;
+        
+        // Populate dropdown based on type
+        select.innerHTML = '<option value="">-- Select --</option>';
+        
+        if (type === 'case') {
+          if (allCases.length === 0) {
+            select.innerHTML = '<option value="">No cases available. Please refresh the page.</option>';
+          } else {
+            allCases.forEach(caseItem => {
+              const option = document.createElement('option');
+              option.value = caseItem.id;
+              option.textContent = `${caseItem.name || 'Unknown'} (${caseItem.id})`;
+              select.appendChild(option);
+            });
+          }
+        } else if (type === 'lovedOne') {
+          if (allLovedOnes.length === 0) {
+            select.innerHTML = '<option value="">No missing persons available. Please refresh the page.</option>';
+          } else {
+            allLovedOnes.forEach(lovedOne => {
+              const option = document.createElement('option');
+              option.value = lovedOne.id;
+              option.textContent = `${lovedOne.name || 'Unknown'} (${lovedOne.id})`;
+              select.appendChild(option);
+            });
+          }
+        }
+      } else {
+        label.style.display = 'none';
+        select.required = false;
+        select.innerHTML = '<option value="">-- Select --</option>';
+      }
+    }
+
+    function getUserEmail() {
+      const token = getToken();
+      if (!token) return null;
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.email || payload.preferred_username || null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function saveWitness(e) {
+      e.preventDefault();
+      const token = getToken();
+      if (!token) return;
+
+      const witnessId = document.getElementById('modalWitnessId').value;
+      const currentUserEmail = getUserEmail();
+      const witness = {
+        name: document.getElementById('modalName').value.trim(),
+        contact: document.getElementById('modalContact').value.trim() || null,
+        address: document.getElementById('modalAddress').value.trim() || null,
+        statement: document.getElementById('modalStatement').value.trim(),
+        dateOfStatement: document.getElementById('modalDateOfStatement').value,
+        relatedToType: document.getElementById('modalRelatedToType').value || null,
+        relatedToId: document.getElementById('modalRelatedToId').value.trim() || null,
+        reportedTo: currentUserEmail // Automatically use logged-in user
+      };
+
+      try {
+        const url = witnessId ? `/api/witnesses/${witnessId}` : '/api/witnesses';
+        const method = witnessId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(witness)
+        });
+
+        if (response.ok) {
+          setStatus(witnessId ? 'Witness updated successfully' : 'Witness created successfully', false);
+          closeModal();
+          loadWitnesses();
+        } else {
+          const error = await response.json();
+          setStatus(error.error || 'Failed to save witness', true);
+        }
+      } catch (err) {
+        console.error('Error saving witness:', err);
+        setStatus('Error saving witness', true);
+      }
+    }
+
+    function editWitness(witnessId) {
+      const witness = currentWitnesses.find(w => w.witnessId === witnessId);
+      if (witness) {
+        openModal(witness);
+      }
+    }
+
+    async function deleteWitness(witnessId) {
+      if (!confirm('Are you sure you want to delete this witness?')) return;
+
+      const token = getToken();
+      if (!token) return;
+
+      try {
+        const response = await fetch(`/api/witnesses/${witnessId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (response.ok) {
+          setStatus('Witness deleted successfully', false);
+          loadWitnesses();
+        } else {
+          setStatus('Failed to delete witness', true);
+        }
+      } catch (err) {
+        console.error('Error deleting witness:', err);
+        setStatus('Error deleting witness', true);
+      }
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        await loadUsers();
+      } catch (err) {
+        console.error('Error loading users:', err);
+      }
+      
+      try {
+        await loadCasesAndLovedOnes();
+      } catch (err) {
+        console.error('Error loading cases and loved ones:', err);
+      }
+      
+      loadWitnesses();
+
+      document.getElementById('addWitnessBtn').addEventListener('click', () => {
+        console.log('Add Witness button clicked');
+        openModal();
+      });
+      document.getElementById('cancelWitnessBtn').addEventListener('click', closeModal);
+      document.getElementById('witnessForm').addEventListener('submit', saveWitness);
+      document.getElementById('modalRelatedToType').addEventListener('change', updateRelatedToLabel);
+      document.getElementById('applyFiltersBtn').addEventListener('click', loadWitnesses);
+      document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+        document.getElementById('filterRelatedToType').value = '';
+        document.getElementById('filterRelatedToId').value = '';
+        document.getElementById('filterReportedTo').value = '';
+        loadWitnesses();
+      });
+
+      // Close modal on outside click
+      document.getElementById('witnessModal').addEventListener('click', (e) => {
+        if (e.target.id === 'witnessModal') closeModal();
+      });
+    });
+  </script>
+</body>
+</html>
+

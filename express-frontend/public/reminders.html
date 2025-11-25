@@ -123,8 +123,10 @@
             </select>
           </label>
           <label id="relatedToIdLabel" style="display:none;">
-            Related ID:
-            <input type="text" id="modalRelatedToId" placeholder="Case ID or LovedOne ID">
+            Select: *
+            <select id="modalRelatedToId" required>
+              <option value="">-- Select --</option>
+            </select>
           </label>
           <div style="margin-top:1.5rem; display:flex; gap:1rem;">
             <button type="submit" style="flex:1;">Save Reminder</button>
@@ -178,6 +180,8 @@
     }
 
     let allUsers = [];
+    let allCases = [];
+    let allLovedOnes = [];
     let currentReminders = [];
     let remindersTimeline = null;
 
@@ -432,6 +436,70 @@
       }
     }
 
+    async function loadCasesAndLovedOnes() {
+      const token = getToken();
+      if (!token) return;
+
+      try {
+        // Load cases
+        const casesResponse = await fetch('/api/cases', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (casesResponse.ok) {
+          const casesData = await casesResponse.json();
+          allCases = casesData.cases || [];
+        } else {
+          console.error('Failed to load cases:', casesResponse.status, await casesResponse.text());
+        }
+
+        // Load loved ones
+        const lovedOnesResponse = await fetch('/api/loved-ones/all', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (lovedOnesResponse.ok) {
+          const lovedOnesData = await lovedOnesResponse.json();
+          allLovedOnes = lovedOnesData.lovedOnes || [];
+        } else {
+          console.error('Failed to load loved ones:', lovedOnesResponse.status, await lovedOnesResponse.text());
+        }
+      } catch (err) {
+        console.error('Error loading cases and loved ones:', err);
+      }
+    }
+
+    function updateRelatedToLabel() {
+      const type = document.getElementById('modalRelatedToType').value;
+      const label = document.getElementById('relatedToIdLabel');
+      const select = document.getElementById('modalRelatedToId');
+      
+      if (type) {
+        label.style.display = 'block';
+        select.required = true;
+        
+        select.innerHTML = '<option value="">-- Select --</option>';
+        
+        if (type === 'case') {
+          allCases.forEach(caseItem => {
+            const option = document.createElement('option');
+            option.value = caseItem.id;
+            option.textContent = `${caseItem.name || 'Unknown'} (${caseItem.id})`;
+            select.appendChild(option);
+          });
+        } else if (type === 'lovedOne') {
+          allLovedOnes.forEach(lovedOneItem => {
+            const option = document.createElement('option');
+            option.value = lovedOneItem.id;
+            option.textContent = `${lovedOneItem.name || 'Unknown'} (${lovedOneItem.id})`;
+            select.appendChild(option);
+          });
+        }
+      } else {
+        label.style.display = 'none';
+        select.required = false;
+        select.innerHTML = '<option value="">-- Select --</option>';
+      }
+    }
+
     async function loadReminders() {
       const token = getToken();
       if (!token) {
@@ -577,15 +645,15 @@
         document.getElementById('modalPriority').value = reminder.priority || 'medium';
         document.getElementById('modalAssignedTo').value = reminder.assignedTo || '';
         document.getElementById('modalRelatedToType').value = reminder.relatedToType || '';
+        updateRelatedToLabel(); // Update dropdown options
         document.getElementById('modalRelatedToId').value = reminder.relatedToId || '';
-        document.getElementById('relatedToIdLabel').style.display = reminder.relatedToType ? 'block' : 'none';
       } else {
         // New reminder (may have pre-filled data)
         document.getElementById('modalDueDate').value = new Date().toISOString().slice(0, 16);
         if (reminder && reminder.relatedToType) {
           document.getElementById('modalRelatedToType').value = reminder.relatedToType;
+          updateRelatedToLabel(); // Update dropdown options
           document.getElementById('modalRelatedToId').value = reminder.relatedToId || '';
-          document.getElementById('relatedToIdLabel').style.display = 'block';
         }
         // Pre-fill assigned to current user
         const currentUserEmail = getUserEmail();
@@ -722,9 +790,7 @@
       saveReminder(formData);
     });
 
-    document.getElementById('modalRelatedToType').addEventListener('change', (e) => {
-      document.getElementById('relatedToIdLabel').style.display = e.target.value ? 'block' : 'none';
-    });
+    document.getElementById('modalRelatedToType').addEventListener('change', updateRelatedToLabel);
 
     // Filter handlers
     document.getElementById('filterAssignedTo').addEventListener('change', loadReminders);
@@ -738,9 +804,12 @@
     const prefillCaseId = urlParams.get('caseId');
 
     // Load on page load
-    loadUsers();
-    loadReminders();
-    loadUpcomingReminders();
+    (async () => {
+      await loadUsers();
+      await loadCasesAndLovedOnes(); // Load data before rendering
+      loadReminders();
+      loadUpcomingReminders();
+    })();
 
     // If coming from LovedOne page, open modal with pre-filled data
     if (prefillLovedOneId) {

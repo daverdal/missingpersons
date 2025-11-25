@@ -175,8 +175,8 @@
                         document.cookie = `token=${result.token}; path=/; SameSite=Lax`;
                         // Also store in localStorage for easy access
                         localStorage.setItem('token', result.token);
-                        // Redirect immediately after successful login
-                        window.location.href = 'allcases.html';
+                        // Redirect immediately after successful login to Dashboard
+                        window.location.href = 'dashboard.html';
                 } else {
                         document.getElementById('loginMessage').textContent = result.error || 'Login failed.';
                         document.getElementById('loginMessage').style.color = '#ff7f7f';

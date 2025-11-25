@@ -53,6 +53,15 @@ These endpoints are used by the public-facing website and do not require authent
   - Parameters: `province` (string) - province name or code
   - MCP Tool: `missing.getApplicantsByProvince` ✅
 
+### LovedOne Queries
+- **GET** `/api/loved-ones/all`
+  - Returns all missing persons (LovedOnes) without requiring a community filter
+  - Useful for dropdowns and general queries where you need all loved ones
+  - Parameters: None
+  - Response Format: `{ lovedOnes: [{ id, name, community, province, lastLocation, dateOfIncident, status, ... }] }`
+  - Permission Required: `missing.read` (admin or case_worker roles only)
+  - MCP Tool: `missing.getAllLovedOnes` ⏳
+
 ### Communication Preferences
 - **Fields**: `smsOptIn`, `emailOptIn` on Applicant nodes
   - Used to filter SMS and email blasts
@@ -380,6 +389,866 @@ Use this section to list features that have been added to the Missing Persons ap
   - Output Schema: Object with `success` boolean and `inquiry` object containing the updated inquiry data
 
 **Note**: Public inquiries are created when users submit the contact form on the public-facing website (`http://192.168.2.27:4000`). They are stored as `PublicInquiry` nodes in Neo4j with properties: id, fullName, email, phone, community, preferredContactMethod, message, source, status, createdAt, ipAddress.
+
+### Get All Loved Ones (No Community Filter)
+
+- **API Endpoint**: `GET /api/loved-ones/all`
+- **Description**: Retrieve all missing persons (LovedOnes) without requiring a community filter. This endpoint is useful for dropdowns, general queries, and features like Witness Management where you need to select from all loved ones regardless of community.
+- **Parameters**: None (no query parameters required)
+- **Response Format**: 
+  ```json
+  {
+    "lovedOnes": [
+      {
+        "id": "LO123",
+        "name": "John Doe",
+        "community": "Sagkeeng First Nation",
+        "province": "MB",
+        "lastLocation": "Winnipeg",
+        "dateOfIncident": "2025-01-15",
+        "status": "Active",
+        ...
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - `403 Forbidden`: User does not have admin or case_worker role
+  - `500 Internal Server Error`: Server error during database query
+- **Permission Required**: `missing.read` (admin or case_worker roles only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getAllLovedOnes`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "properties": {}
+    }
+    ```
+  - Output Schema: Object with `lovedOnes` array containing all LovedOne objects (id, name, community, province, lastLocation, dateOfIncident, status, and other properties)
+  - **Note**: This endpoint returns all loved ones ordered by name. Unlike `/api/loved-ones?community={community}`, this endpoint does not require a community parameter, making it suitable for general-purpose queries and dropdown population.
+
+### Witness Management
+
+Witness Management allows caseworkers to record and track witness statements related to cases or missing persons. Witnesses can be linked to either a case (Applicant) or a missing person (LovedOne), and are automatically assigned to the logged-in caseworker.
+
+- **API Endpoint**: `GET /api/witnesses`
+- **Description**: Retrieve all witnesses with optional filters. Returns witnesses ordered by date of statement (newest first).
+- **Parameters** (query):
+  - `relatedToType` (string, optional): Filter by relationship type - "case" or "lovedOne"
+  - `relatedToId` (string, optional): Filter by specific case ID or LovedOne ID
+  - `reportedTo` (string, optional): Filter by caseworker email who took the statement
+  - `createdBy` (string, optional): Filter by creator email
+- **Response Format**: 
+  ```json
+  {
+    "witnesses": [
+      {
+        "witnessId": "uuid",
+        "name": "John Smith",
+        "contact": "204-555-0100",
+        "address": "123 Main St, Winnipeg, MB",
+        "statement": "I saw the person at the gas station...",
+        "dateOfStatement": "2025-01-28T10:00:00.000Z",
+        "relatedToType": "lovedOne",
+        "relatedToId": "LO123",
+        "reportedTo": "caseworker@example.com",
+        "createdBy": "caseworker@example.com",
+        "createdAt": "2025-01-28T10:00:00.000Z",
+        "updatedAt": "2025-01-28T10:00:00.000Z",
+        "metadata": null,
+        "relatedTo": {
+          "type": "lovedOne",
+          "name": "Jane Doe",
+          "id": "LO123"
+        },
+        "reportedToUser": {
+          "email": "caseworker@example.com",
+          "name": "Case Worker Name"
+        }
+      }
+    ]
+  }
+  ```
+- **Permission Required**: `missing.read` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getWitnesses`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "relatedToType": {
+          "type": "string",
+          "enum": ["case", "lovedOne"],
+          "description": "Filter by relationship type"
+        },
+        "relatedToId": {
+          "type": "string",
+          "description": "Filter by case ID or LovedOne ID"
+        },
+        "reportedTo": {
+          "type": "string",
+          "description": "Filter by caseworker email"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Filter by creator email"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `witnesses` array containing witness objects with full details including related case/lovedOne and reportedTo user info
+
+- **API Endpoint**: `GET /api/witnesses/:witnessId`
+- **Description**: Retrieve a specific witness by ID.
+- **Parameters**: 
+  - `witnessId` (string, required, path): Witness UUID
+- **Response Format**: 
+  ```json
+  {
+    "witness": {
+      "witnessId": "uuid",
+      "name": "John Smith",
+      "contact": "204-555-0100",
+      "address": "123 Main St, Winnipeg, MB",
+      "statement": "I saw the person at the gas station...",
+      "dateOfStatement": "2025-01-28T10:00:00.000Z",
+      "relatedToType": "lovedOne",
+      "relatedToId": "LO123",
+      "reportedTo": "caseworker@example.com",
+      "createdBy": "caseworker@example.com",
+      "createdAt": "2025-01-28T10:00:00.000Z",
+      "updatedAt": "2025-01-28T10:00:00.000Z",
+      "metadata": null,
+      "relatedTo": {
+        "type": "lovedOne",
+        "name": "Jane Doe",
+        "id": "LO123"
+      },
+      "reportedToUser": {
+        "email": "caseworker@example.com",
+        "name": "Case Worker Name"
+      }
+    }
+  }
+  ```
+- **Error Responses**:
+  - `404 Not Found`: Witness not found
+  - `500 Internal Server Error`: Server error during database query
+- **Permission Required**: `missing.read` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getWitnessById`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["witnessId"],
+      "properties": {
+        "witnessId": {
+          "type": "string",
+          "description": "The witness UUID"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `witness` containing full witness details
+
+- **API Endpoint**: `POST /api/witnesses`
+- **Description**: Create a new witness record. The `reportedTo` field is automatically set to the logged-in user if not provided.
+- **Parameters** (body):
+  - `name` (string, required): Witness name
+  - `contact` (string, optional): Phone number or email
+  - `address` (string, optional): Physical address
+  - `statement` (string, optional): Witness statement/notes
+  - `dateOfStatement` (string, optional): ISO date string (defaults to current date)
+  - `relatedToType` (string, optional): "case" or "lovedOne"
+  - `relatedToId` (string, optional): Case ID or LovedOne ID
+  - `reportedTo` (string, optional): Caseworker email (auto-set to logged-in user if not provided)
+  - `metadata` (object, optional): Additional flexible data
+- **Response Format**: 
+  ```json
+  {
+    "witness": {
+      "witnessId": "uuid",
+      "name": "John Smith",
+      "contact": "204-555-0100",
+      "address": "123 Main St, Winnipeg, MB",
+      "statement": "I saw the person at the gas station...",
+      "dateOfStatement": "2025-01-28T10:00:00.000Z",
+      "relatedToType": "lovedOne",
+      "relatedToId": "LO123",
+      "reportedTo": "caseworker@example.com",
+      "createdBy": "caseworker@example.com",
+      "createdAt": "2025-01-28T10:00:00.000Z",
+      "updatedAt": "2025-01-28T10:00:00.000Z",
+      "metadata": null
+    }
+  }
+  ```
+- **Error Responses**:
+  - `400 Bad Request`: Name is required
+  - `500 Internal Server Error`: Server error during creation
+- **Permission Required**: `missing.write` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.createWitness`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Witness name (required)"
+        },
+        "contact": {
+          "type": "string",
+          "description": "Phone number or email"
+        },
+        "address": {
+          "type": "string",
+          "description": "Physical address"
+        },
+        "statement": {
+          "type": "string",
+          "description": "Witness statement or notes"
+        },
+        "dateOfStatement": {
+          "type": "string",
+          "description": "ISO date string when statement was taken"
+        },
+        "relatedToType": {
+          "type": "string",
+          "enum": ["case", "lovedOne"],
+          "description": "Type of entity this witness is related to"
+        },
+        "relatedToId": {
+          "type": "string",
+          "description": "Case ID or LovedOne ID"
+        },
+        "reportedTo": {
+          "type": "string",
+          "description": "Caseworker email (auto-set to logged-in user if not provided)"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Additional flexible data"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `witness` containing the created witness data
+
+- **API Endpoint**: `PUT /api/witnesses/:witnessId`
+- **Description**: Update an existing witness record. Only provided fields will be updated.
+- **Parameters**: 
+  - `witnessId` (string, required, path): Witness UUID
+  - Body: Same fields as POST (all optional except those being updated)
+- **Response Format**: Same as GET by ID
+- **Error Responses**:
+  - `404 Not Found`: Witness not found
+  - `500 Internal Server Error`: Server error during update
+- **Permission Required**: `missing.write` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.updateWitness`
+  - Handler: `rest`
+  - Input Schema: Same as createWitness but with `witnessId` as path parameter
+  - Output Schema: Object with `witness` containing updated witness data
+
+- **API Endpoint**: `DELETE /api/witnesses/:witnessId`
+- **Description**: Delete a witness record and all its relationships.
+- **Parameters**: 
+  - `witnessId` (string, required, path): Witness UUID
+- **Response Format**: 
+  ```json
+  {
+    "success": true
+  }
+  ```
+- **Error Responses**:
+  - `500 Internal Server Error`: Server error during deletion
+- **Permission Required**: `missing.write` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.deleteWitness`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["witnessId"],
+      "properties": {
+        "witnessId": {
+          "type": "string",
+          "description": "The witness UUID to delete"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `success` boolean
+
+**Note**: Witnesses are stored as `Witness` nodes in Neo4j with relationships:
+- `WITNESSED` → `Applicant` (if related to a case)
+- `WITNESSED` → `LovedOne` (if related to a missing person)
+- `REPORTED_TO` → `User` (caseworker who took the statement)
+
+### Timeline Events Management
+
+Timeline Events track significant occurrences related to missing persons (LovedOnes), such as sightings, tips, status changes, and case notes. Events are automatically created for certain actions (e.g., "CaseOpened" when a LovedOne is created).
+
+- **API Endpoint**: `GET /api/timeline/events`
+- **Description**: Retrieve all timeline events (global timeline view). Supports filtering by event type, date range, community, and active cases.
+- **Parameters** (query):
+  - `eventType` (string, optional): Filter by event type (e.g., "Sighting", "TipReceived", "StatusChanged")
+  - `startDate` (string, optional): ISO date string - filter events from this date
+  - `endDate` (string, optional): ISO date string - filter events until this date
+  - `community` (string, optional): Filter by community name
+  - `activeOnly` (boolean, optional): Show only events for active cases
+  - `limit` (number, optional): Maximum number of results
+- **Response Format**: 
+  ```json
+  {
+    "events": [
+      {
+        "eventId": "uuid",
+        "lovedOneId": "LO123",
+        "lovedOneName": "Jane Doe",
+        "eventType": "Sighting",
+        "timestamp": "2025-01-28T10:00:00.000Z",
+        "description": "Witness reported seeing person at gas station",
+        "createdBy": "caseworker@example.com",
+        "location": "Winnipeg, MB",
+        "metadata": {}
+      }
+    ]
+  }
+  ```
+- **Permission Required**: `missing.read` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getTimelineEvents`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "eventType": {
+          "type": "string",
+          "description": "Filter by event type"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "ISO date string - filter from this date"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "ISO date string - filter until this date"
+        },
+        "community": {
+          "type": "string",
+          "description": "Filter by community name"
+        },
+        "activeOnly": {
+          "type": "boolean",
+          "description": "Show only events for active cases"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum number of results"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `events` array containing timeline event objects
+
+- **API Endpoint**: `GET /api/timeline/loved-ones/:lovedOneId/events`
+- **Description**: Retrieve all timeline events for a specific missing person (LovedOne).
+- **Parameters**: 
+  - `lovedOneId` (string, required, path): LovedOne ID
+- **Response Format**: Same as GET all events, but filtered to one LovedOne
+- **Permission Required**: `missing.read` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getLovedOneTimelineEvents`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["lovedOneId"],
+      "properties": {
+        "lovedOneId": {
+          "type": "string",
+          "description": "The LovedOne ID"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `events` array containing timeline events for the specified LovedOne
+
+- **API Endpoint**: `POST /api/timeline/loved-ones/:lovedOneId/events`
+- **Description**: Create a new timeline event for a missing person.
+- **Parameters**: 
+  - `lovedOneId` (string, required, path): LovedOne ID
+  - Body:
+    - `eventType` (string, required): Event type (e.g., "Sighting", "TipReceived", "StatusChanged", "NoteAdded", "SearchDispatched", "Found", "CaseClosed")
+    - `description` (string, required): Event description/details
+    - `timestamp` (string, optional): ISO date string (defaults to current time)
+    - `location` (string, optional): Location where event occurred
+    - `metadata` (object, optional): Additional flexible data
+- **Response Format**: 
+  ```json
+  {
+    "event": {
+      "eventId": "uuid",
+      "lovedOneId": "LO123",
+      "eventType": "Sighting",
+      "timestamp": "2025-01-28T10:00:00.000Z",
+      "description": "Witness reported seeing person at gas station",
+      "createdBy": "caseworker@example.com",
+      "location": "Winnipeg, MB",
+      "metadata": {}
+    }
+  }
+  ```
+- **Error Responses**:
+  - `400 Bad Request`: Missing required fields or invalid event type
+  - `404 Not Found`: LovedOne not found
+  - `500 Internal Server Error`: Server error during creation
+- **Permission Required**: `missing.write` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.createTimelineEvent`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["lovedOneId", "eventType", "description"],
+      "properties": {
+        "lovedOneId": {
+          "type": "string",
+          "description": "The LovedOne ID"
+        },
+        "eventType": {
+          "type": "string",
+          "enum": ["CaseOpened", "MissingReported", "LastSeen", "Sighting", "TipReceived", "StatusChanged", "SearchDispatched", "NoteAdded", "Found", "CaseClosed"],
+          "description": "Type of timeline event"
+        },
+        "description": {
+          "type": "string",
+          "description": "Event description/details (required)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO date string (defaults to current time)"
+        },
+        "location": {
+          "type": "string",
+          "description": "Location where event occurred"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Additional flexible data"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `event` containing the created timeline event
+
+- **API Endpoint**: `PUT /api/timeline/events/:eventId`
+- **Description**: Update an existing timeline event.
+- **Parameters**: 
+  - `eventId` (string, required, path): Event UUID
+  - Body: Same fields as POST (all optional)
+- **Response Format**: Same as POST
+- **Error Responses**:
+  - `404 Not Found`: Event not found
+  - `500 Internal Server Error`: Server error during update
+- **Permission Required**: `missing.write` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.updateTimelineEvent`
+  - Handler: `rest`
+  - Input Schema: Same as createTimelineEvent but with `eventId` as path parameter
+  - Output Schema: Object with `event` containing updated event data
+
+- **API Endpoint**: `DELETE /api/timeline/events/:eventId`
+- **Description**: Delete a timeline event.
+- **Parameters**: 
+  - `eventId` (string, required, path): Event UUID
+- **Response Format**: 
+  ```json
+  {
+    "success": true
+  }
+  ```
+- **Permission Required**: `missing.write` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.deleteTimelineEvent`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["eventId"],
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "description": "The event UUID to delete"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `success` boolean
+
+**Note**: Timeline events are stored as `TimelineEvent` nodes in Neo4j with a `FOR_LOVEDONE` relationship to `LovedOne` nodes. Common event types include: CaseOpened, MissingReported, LastSeen, Sighting, TipReceived, StatusChanged, SearchDispatched, NoteAdded, Found, CaseClosed.
+
+### Reminders Management
+
+Reminders allow caseworkers to schedule follow-up tasks related to cases or missing persons. Reminders can be assigned to specific users and filtered by priority, completion status, and due date.
+
+- **API Endpoint**: `GET /api/reminders`
+- **Description**: Retrieve all reminders with optional filters. Returns reminders sorted by creation date (newest first).
+- **Parameters** (query):
+  - `assignedTo` (string, optional): Filter by assigned user email
+  - `relatedToType` (string, optional): Filter by "case" or "lovedOne"
+  - `relatedToId` (string, optional): Filter by case ID or LovedOne ID
+  - `priority` (string, optional): Filter by priority ("low", "medium", "high", "urgent")
+  - `completed` (boolean, optional): Filter by completion status
+  - `overdue` (boolean, optional): Show only overdue reminders
+  - `upcoming` (boolean, optional): Show only upcoming reminders (next 7 days)
+- **Response Format**: 
+  ```json
+  {
+    "reminders": [
+      {
+        "reminderId": "uuid",
+        "title": "Follow up with witness",
+        "description": "Call John Smith about his statement",
+        "dueDate": "2025-02-01T10:00:00.000Z",
+        "priority": "high",
+        "completed": false,
+        "assignedTo": "caseworker@example.com",
+        "relatedToType": "lovedOne",
+        "relatedToId": "LO123",
+        "createdBy": "caseworker@example.com",
+        "createdAt": "2025-01-28T10:00:00.000Z",
+        "updatedAt": "2025-01-28T10:00:00.000Z"
+      }
+    ]
+  }
+  ```
+- **Permission Required**: `missing.read` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getReminders`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "assignedTo": {
+          "type": "string",
+          "description": "Filter by assigned user email"
+        },
+        "relatedToType": {
+          "type": "string",
+          "enum": ["case", "lovedOne"],
+          "description": "Filter by relationship type"
+        },
+        "relatedToId": {
+          "type": "string",
+          "description": "Filter by case ID or LovedOne ID"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "urgent"],
+          "description": "Filter by priority level"
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Filter by completion status"
+        },
+        "overdue": {
+          "type": "boolean",
+          "description": "Show only overdue reminders"
+        },
+        "upcoming": {
+          "type": "boolean",
+          "description": "Show only upcoming reminders (next 7 days)"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `reminders` array containing reminder objects
+
+- **API Endpoint**: `GET /api/reminders/upcoming`
+- **Description**: Retrieve upcoming reminders (next 7 days by default). Shows all upcoming reminders regardless of assignment.
+- **Parameters** (query):
+  - `days` (number, optional): Number of days ahead to look (default: 7)
+- **Response Format**: Same as GET all reminders, but filtered to upcoming dates
+- **Permission Required**: `missing.read` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getUpcomingReminders`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "days": {
+          "type": "number",
+          "description": "Number of days ahead to look (default: 7)"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `reminders` array containing upcoming reminders
+
+- **API Endpoint**: `GET /api/reminders/:reminderId`
+- **Description**: Retrieve a specific reminder by ID.
+- **Parameters**: 
+  - `reminderId` (string, required, path): Reminder UUID
+- **Response Format**: 
+  ```json
+  {
+    "reminder": {
+      "reminderId": "uuid",
+      "title": "Follow up with witness",
+      "description": "Call John Smith about his statement",
+      "dueDate": "2025-02-01T10:00:00.000Z",
+      "priority": "high",
+      "completed": false,
+      "assignedTo": "caseworker@example.com",
+      "relatedToType": "lovedOne",
+      "relatedToId": "LO123",
+      "createdBy": "caseworker@example.com",
+      "createdAt": "2025-01-28T10:00:00.000Z",
+      "updatedAt": "2025-01-28T10:00:00.000Z"
+    }
+  }
+  ```
+- **Error Responses**:
+  - `404 Not Found`: Reminder not found
+- **Permission Required**: `missing.read` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getReminderById`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["reminderId"],
+      "properties": {
+        "reminderId": {
+          "type": "string",
+          "description": "The reminder UUID"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `reminder` containing full reminder details
+
+- **API Endpoint**: `POST /api/reminders`
+- **Description**: Create a new reminder. Any logged-in user can create reminders for any case or missing person.
+- **Parameters** (body):
+  - `title` (string, required): Reminder title
+  - `description` (string, optional): Detailed description
+  - `dueDate` (string, required): ISO date string for when reminder is due
+  - `priority` (string, optional): Priority level ("low", "medium", "high", "urgent", default: "medium")
+  - `assignedTo` (string, optional): User email to assign reminder to (defaults to creator)
+  - `relatedToType` (string, optional): "case" or "lovedOne"
+  - `relatedToId` (string, optional): Case ID or LovedOne ID
+- **Response Format**: 
+  ```json
+  {
+    "reminder": {
+      "reminderId": "uuid",
+      "title": "Follow up with witness",
+      "description": "Call John Smith about his statement",
+      "dueDate": "2025-02-01T10:00:00.000Z",
+      "priority": "high",
+      "completed": false,
+      "assignedTo": "caseworker@example.com",
+      "relatedToType": "lovedOne",
+      "relatedToId": "LO123",
+      "createdBy": "caseworker@example.com",
+      "createdAt": "2025-01-28T10:00:00.000Z",
+      "updatedAt": "2025-01-28T10:00:00.000Z"
+    }
+  }
+  ```
+- **Error Responses**:
+  - `400 Bad Request`: Missing required fields (title, dueDate)
+  - `500 Internal Server Error`: Server error during creation
+- **Permission Required**: `missing.write` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.createReminder`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["title", "dueDate"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Reminder title (required)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "ISO date string for when reminder is due (required)"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "urgent"],
+          "description": "Priority level (default: medium)"
+        },
+        "assignedTo": {
+          "type": "string",
+          "description": "User email to assign reminder to (defaults to creator)"
+        },
+        "relatedToType": {
+          "type": "string",
+          "enum": ["case", "lovedOne"],
+          "description": "Type of entity this reminder is related to"
+        },
+        "relatedToId": {
+          "type": "string",
+          "description": "Case ID or LovedOne ID"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `reminder` containing the created reminder data
+
+- **API Endpoint**: `PUT /api/reminders/:reminderId`
+- **Description**: Update an existing reminder (e.g., mark as completed, change due date).
+- **Parameters**: 
+  - `reminderId` (string, required, path): Reminder UUID
+  - Body: Same fields as POST (all optional)
+- **Response Format**: Same as GET by ID
+- **Error Responses**:
+  - `404 Not Found`: Reminder not found
+  - `500 Internal Server Error`: Server error during update
+- **Permission Required**: `missing.write` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.updateReminder`
+  - Handler: `rest`
+  - Input Schema: Same as createReminder but with `reminderId` as path parameter
+  - Output Schema: Object with `reminder` containing updated reminder data
+
+- **API Endpoint**: `DELETE /api/reminders/:reminderId`
+- **Description**: Delete a reminder.
+- **Parameters**: 
+  - `reminderId` (string, required, path): Reminder UUID
+- **Response Format**: 
+  ```json
+  {
+    "success": true
+  }
+  ```
+- **Permission Required**: `missing.write` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.deleteReminder`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["reminderId"],
+      "properties": {
+        "reminderId": {
+          "type": "string",
+          "description": "The reminder UUID to delete"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `success` boolean
+
+**Note**: Reminders are stored as `Reminder` nodes in Neo4j with relationships:
+- `RELATED_TO` → `Applicant` (if related to a case)
+- `RELATED_TO` → `LovedOne` (if related to a missing person)
+- `ASSIGNED_TO` → `User` (assigned caseworker)
+
+### Dashboard Statistics
+
+The Dashboard provides aggregated statistics and recent activity for caseworkers to get an overview of the system.
+
+- **API Endpoint**: `GET /api/dashboard/stats`
+- **Description**: Retrieve aggregated dashboard statistics including case counts, missing person counts, reminder statistics, recent timeline events, and upcoming reminders.
+- **Parameters**: None
+- **Response Format**: 
+  ```json
+  {
+    "stats": {
+      "totalCases": 150,
+      "activeCases": 120,
+      "myCases": 25,
+      "missingPersons": 180,
+      "activeReminders": 45,
+      "overdueReminders": 5,
+      "casesByStatus": [
+        {
+          "status": "Active",
+          "count": 120
+        },
+        {
+          "status": "Closed",
+          "count": 30
+        }
+      ],
+      "recentEvents": [
+        {
+          "eventId": "uuid",
+          "lovedOneId": "LO123",
+          "lovedOneName": "Jane Doe",
+          "eventType": "Sighting",
+          "timestamp": "2025-01-28T10:00:00.000Z",
+          "description": "Witness reported seeing person at gas station"
+        }
+      ],
+      "upcomingReminders": [
+        {
+          "reminderId": "uuid",
+          "title": "Follow up with witness",
+          "dueDate": "2025-02-01T10:00:00.000Z",
+          "priority": "high"
+        }
+      ]
+    }
+  }
+  ```
+- **Permission Required**: `missing.read` (any authenticated user)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getDashboardStats`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "properties": {}
+    }
+    ```
+  - Output Schema: Object with `stats` containing:
+    - `totalCases`: Total number of cases
+    - `activeCases`: Number of active cases
+    - `myCases`: Number of cases assigned to logged-in user
+    - `missingPersons`: Total number of missing persons
+    - `activeReminders`: Number of incomplete reminders
+    - `overdueReminders`: Number of overdue reminders
+    - `casesByStatus`: Array of status counts
+    - `recentEvents`: Array of recent timeline events (last 10)
+    - `upcomingReminders`: Array of upcoming reminders (next 5 for current user)
+
+**Note**: The dashboard stats are calculated in real-time and include personalized data (e.g., "myCases" and "upcomingReminders" are filtered for the logged-in user).
 
 ### Template for New Features
 

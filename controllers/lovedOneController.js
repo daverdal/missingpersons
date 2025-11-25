@@ -37,6 +37,32 @@ async function getLovedOnesWithCoordinates(req, res, driver, auditLogger) {
 }
 
 /**
+ * Get all loved ones (admin and case_worker only)
+ * Simple endpoint to get all loved ones without filters
+ */
+async function getAllLovedOnes(req, res, driver, auditLogger) {
+  const roles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
+  const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
+  if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
+  
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (l:LovedOne)
+       RETURN l
+       ORDER BY l.name`
+    );
+    const lovedOnes = result.records.map(r => r.get('l').properties);
+    res.json({ lovedOnes });
+  } catch (err) {
+    console.error('Failed to fetch all loved ones:', err);
+    res.status(500).json({ error: 'Failed to fetch loved ones' });
+  } finally {
+    await session.close();
+  }
+}
+
+/**
  * Get loved ones by community (admin and case_worker only)
  * Supports ?expand=true for comprehensive data
  */
@@ -333,6 +359,7 @@ async function updateLovedOne(req, res, driver, auditLogger) {
 }
 
 module.exports = {
+  getAllLovedOnes,
   getLovedOnesWithCoordinates,
   getLovedOnesByCommunity,
   getLovedOnesByDate,

@@ -2,6 +2,7 @@
 // Model and Neo4j queries for timeline event tracking for LovedOnes
 
 const { v4: uuidv4 } = require('uuid');
+const neo4j = require('neo4j-driver');
 
 class TimelineEventModel {
   constructor(driver) {
@@ -142,7 +143,13 @@ class TimelineEventModel {
 
       if (filters.limit) {
         query += ` LIMIT $limit`;
-        params.limit = parseInt(filters.limit, 10);
+        // Ensure limit is a proper Neo4j integer (not float)
+        const limitValue = parseInt(filters.limit, 10);
+        if (isNaN(limitValue) || limitValue < 0) {
+          throw new Error('Invalid limit value');
+        }
+        // Use Neo4j integer type to ensure it's not treated as float
+        params.limit = neo4j.int(limitValue);
       }
 
       const result = await session.run(query, params);
