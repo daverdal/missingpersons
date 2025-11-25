@@ -653,7 +653,10 @@
                 const otherSupportValueAttr = escapeAttr(lo.otherSupport || '');
                 const additionalNotesValueHtml = escapeHtml(lo.additionalNotes || '');
                 html += `<div class='loved-one-card' style='margin:0.5em 0 1em 1em; padding:0.5em; border-left:3px solid #e6b85c;'>`;
-                if (lo.name) html += `<div><span style='color:#aaa;'>Name:</span> <span>${lo.name}</span></div>`;
+                if (lo.name) {
+                    html += `<div style='margin-bottom:0.5em;'><span style='color:#aaa;'>Name:</span> <span>${lo.name}</span>`;
+                    html += ` <a href="lovedone-timeline.html?lovedOneId=${encodeURIComponent(lo.id)}&caseId=${encodeURIComponent(data.applicant.id)}" style='margin-left:1em; color:#6fcf6f; text-decoration:underline;'>📅 View Timeline</a></div>`;
+                }
                 if (lo.status) html += `<div><span style='color:#aaa;'>Status:</span> <span style='font-weight:bold;color:#6fcf6f;'>${escapeHtml(lo.status)}</span></div>`;
                 html += `<div><span style='color:#aaa;'>Coummunity of Loved One:</span> <span>${lo.community || '(not specified)'}</span></div>`;
                 if (lo.relationship) html += `<div><span style='color:#aaa;'>Relationship:</span> <span>${lo.relationship}</span></div>`;

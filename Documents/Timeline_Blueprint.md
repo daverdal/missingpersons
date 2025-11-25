@@ -258,3 +258,106 @@ You can use any frontend, Cursor will wire it up.
 
 ✔ END OF BLUEPRINT 2
 
+---
+
+## Blueprint 3: Missing Person Individual Timeline Blueprint
+
+### Goal
+
+A Facebook-style vertical timeline for each Missing Person, showing all events with the newest on top.
+
+### Data Model
+
+**MissingPerson:**
+- id, name, photo, dateOfMissing, status
+
+**TimelineEvent:**
+- id
+- missingPersonId (FK)
+- eventType (Sighted, Tip, PoliceUpdate, CaseNote, Message, StatusChange, Evidence, CallLog, LocationPing, SystemEvent)
+- title
+- description (text)
+- createdAt
+- createdByUserId
+- attachments (list of file URLs)
+- location {lat, long, address}
+- visibility (Public, Internal, PoliceOnly)
+- importance (optional)
+- confidence_level (optional)
+
+**Attachment Model:**
+
+TimelineAttachment:
+- id
+- eventId (FK)
+- fileUrl
+- thumbnailUrl
+- fileType
+
+### Sorting
+
+ORDER BY createdAt DESC
+
+### Filtering
+
+- eventType filter
+- visibility filter
+- importance filter
+- keyword search
+
+### UI Layout (Vertical Feed)
+
+- Timeline shown newest → oldest
+- Time badge ("3 hours ago")
+- Icon by event type
+- Title + body text
+- Attachments preview
+- Map snippet if location exists
+- Expandable details
+
+### Event Types + Icons (recommended)
+
+- Sighted 👁️
+- Tip 💬
+- PoliceUpdate 🚔
+- CaseNote 📝
+- Evidence 📁
+- LocationPing 📍
+- CallLog ☎️
+- StatusChange 🔄
+- SystemEvent ⚙️
+
+### Add Event Modal
+
+- Event Type dropdown
+- Title
+- Description (rich text)
+- Upload images/files
+- Location picker
+- Visibility (Public, Internal, PoliceOnly)
+- checkbox: "Notify family"
+- Save
+
+### Permissions
+
+**Public:**
+- show only visibility=Public events
+
+**Internal staff:**
+- show Public + Internal
+
+**Police:**
+- show ALL events + editing tools + audit trail
+
+### Notifications
+
+- Optional SMS/email when new event added
+- Optional integration with admin messaging channels
+
+### Frontend Recommendation
+
+- Use CSS flex + left border line OR
+- react-vertical-timeline-component
+
+✔ END OF BLUEPRINT 3
+

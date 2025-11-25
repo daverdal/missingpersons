@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timeline - Missing Persons App</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+  <!-- vis-timeline library -->
+  <script type="text/javascript" src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+  <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+  <header style="position:relative;">
+    <h1 style="text-align:center;">Missing Person Timeline</h1>
+    <!-- Navigation will be injected here -->
+  </header>
+  <main>
+    <div id="lovedOneInfo" style="margin-bottom: 2rem; padding: 1rem; background: #23272b; border: 1px solid #3a3f47; border-radius: 4px;">
+      <h2 id="lovedOneName">Loading...</h2>
+      <div id="lovedOneDetails"></div>
+    </div>
+
+    <div id="horizontalTimelineContainer" style="margin-bottom: 2rem;"></div>
+
+    <div class="toolbar">
+      <button id="addEventBtn">+ Add Event</button>
+      <label for="eventTypeFilter">
+        Filter by Type:
+        <select id="eventTypeFilter">
+          <option value="">All Types</option>
+          <option value="CaseOpened">Case Opened</option>
+          <option value="MissingReported">Missing Reported</option>
+          <option value="LastSeen">Last Seen</option>
+          <option value="Sighting">Sighting</option>
+          <option value="StatusChanged">Status Changed</option>
+          <option value="SearchDispatched">Search Dispatched</option>
+          <option value="TipReceived">Tip Received</option>
+          <option value="NoteAdded">Note Added</option>
+          <option value="Found">Found</option>
+          <option value="CaseClosed">Case Closed</option>
+        </select>
+      </label>
+      <label for="searchInput">
+        Search:
+        <input type="text" id="searchInput" placeholder="Search events...">
+      </label>
+      <span id="statusMessage"></span>
+    </div>
+
+    <div id="timelineContainer" class="vertical-timeline">
+      <!-- Timeline events will be rendered here -->
+    </div>
+
+    <!-- Add Event Modal -->
+    <div id="addEventModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); z-index:1000; overflow-y:auto;">
+      <div style="max-width:600px; margin:2rem auto; background:#23272b; border:2px solid #6fcf6f; border-radius:8px; padding:2rem;">
+        <h2 style="margin-top:0; color:#6fcf6f;">Add Timeline Event</h2>
+        <form id="addEventForm">
+          <label>
+            Event Type: *
+            <select id="modalEventType" required>
+              <option value="">-- Select Event Type --</option>
+              <option value="CaseOpened">Case Opened</option>
+              <option value="MissingReported">Missing Reported</option>
+              <option value="LastSeen">Last Seen</option>
+              <option value="Sighting">Sighting</option>
+              <option value="StatusChanged">Status Changed</option>
+              <option value="SearchDispatched">Search Dispatched</option>
+              <option value="TipReceived">Tip Received</option>
+              <option value="NoteAdded">Note Added</option>
+              <option value="Found">Found</option>
+              <option value="CaseClosed">Case Closed</option>
+            </select>
+          </label>
+          <label>
+            Description: *
+            <textarea id="modalDescription" rows="4" required placeholder="Describe what happened..."></textarea>
+          </label>
+          <label>
+            Location:
+            <input type="text" id="modalLocation" placeholder="e.g., Winnipeg, MB">
+          </label>
+          <label>
+            Date & Time:
+            <input type="datetime-local" id="modalTimestamp">
+          </label>
+          <div style="margin-top:1.5rem; display:flex; gap:1rem;">
+            <button type="submit" style="flex:1;">Save Event</button>
+            <button type="button" id="cancelEventBtn" style="flex:1;">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    function setStatus(message, isError) {
+      const el = document.getElementById('statusMessage');
+      el.textContent = message || '';
+      el.style.color = isError ? '#ff7f7f' : '#6fcf6f';
+    }
+
+    // Get lovedOneId from URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const lovedOneId = urlParams.get('lovedOneId');
+    
+    if (!lovedOneId) {
+      document.getElementById('timelineContainer').innerHTML = '<div class="empty-state">Error: No LovedOne ID provided</div>';
+    }
+
+    // Event type icons
+    const eventIcons = {
+      'CaseOpened': '📋',
+      'MissingReported': '🚨',
+      'LastSeen': '👁️',
+      'Sighting': '👁️',
+      'StatusChanged': '🔄',
+      'SearchDispatched': '🔍',
+      'TipReceived': '💬',
+      'NoteAdded': '📝',
+      'Found': '✅',
+      'CaseClosed': '🔒'
+    };
+
+    // Event type colors
+    const eventColors = {
+      'CaseOpened': '#4da6ff',
+      'MissingReported': '#ff6b6b',
+      'LastSeen': '#ffd93d',
+      'Sighting': '#6bcf7f',
+      'StatusChanged': '#9b59b6',
+      'SearchDispatched': '#3498db',
+      'TipReceived': '#f39c12',
+      'NoteAdded': '#95a5a6',
+      'Found': '#2ecc71',
+      'CaseClosed': '#34495e'
+    };
+
+    function formatTimeAgo(timestamp) {
+      const now = new Date();
+      const eventTime = new Date(timestamp);
+      const diffMs = now - eventTime;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+      if (diffDays < 30) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      return eventTime.toLocaleDateString();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    async function loadLovedOneInfo() {
+      if (!lovedOneId) return;
+      
+      const token = getToken();
+      if (!token) {
+        setStatus('Authentication required', true);
+        return;
+      }
+
+      try {
+        // Get LovedOne info from the case notes API
+        const caseId = urlParams.get('caseId');
+        if (caseId) {
+          const response = await fetch(`/api/applicants/${caseId}/complete`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const lovedOne = data.lovedOnes?.find(lo => lo.id === lovedOneId);
+            if (lovedOne) {
+              document.getElementById('lovedOneName').textContent = lovedOne.name || 'Unknown';
+              let details = '';
+              if (lovedOne.status) details += `<div><strong>Status:</strong> ${escapeHtml(lovedOne.status)}</div>`;
+              if (lovedOne.community) details += `<div><strong>Community:</strong> ${escapeHtml(lovedOne.community)}</div>`;
+              if (lovedOne.dateOfIncident) details += `<div><strong>Date of Incident:</strong> ${escapeHtml(lovedOne.dateOfIncident)}</div>`;
+              document.getElementById('lovedOneDetails').innerHTML = details;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load LovedOne info:', err);
+      }
+    }
+
+    async function loadTimeline() {
+      if (!lovedOneId) return;
+      
+      const token = getToken();
+      if (!token) {
+        setStatus('Authentication required. Please log in again.', true);
+        return;
+      }
+
+      setStatus('Loading timeline...');
+
+      try {
+        const eventType = document.getElementById('eventTypeFilter').value;
+        const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
+        
+        let url = `/api/timeline/loved-ones/${lovedOneId}/events`;
+        if (eventType) {
+          url += `?eventType=${encodeURIComponent(eventType)}`;
+        }
+
+        const response = await fetch(url, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load timeline events.');
+        }
+
+        const data = await response.json();
+        let events = data.events || [];
+
+        // Filter by search term if provided
+        if (searchTerm) {
+          events = events.filter(event => {
+            const searchable = [
+              event.eventType,
+              event.description || '',
+              event.location || '',
+              event.createdBy || ''
+            ].join(' ').toLowerCase();
+            return searchable.includes(searchTerm);
+          });
+        }
+
+        // Sort by timestamp DESC (newest first) for vertical timeline
+        const sortedEvents = [...events].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        // Render horizontal timeline (all events, sorted chronologically)
+        renderHorizontalTimeline(events);
+        
+        // Render vertical timeline
+        renderTimeline(sortedEvents);
+        setStatus(`Loaded ${events.length} event(s).`);
+      } catch (err) {
+        console.error('Error loading timeline:', err);
+        setStatus('Failed to load timeline: ' + (err.message || 'Unknown error'), true);
+      }
+    }
+
+    let horizontalTimeline = null;
+
+    function renderHorizontalTimeline(events) {
+      const container = document.getElementById('horizontalTimelineContainer');
+      
+      if (!events || events.length === 0) {
+        container.innerHTML = '';
+        if (horizontalTimeline) {
+          horizontalTimeline.destroy();
+          horizontalTimeline = null;
+        }
+        return;
+      }
+
+      // Sort events chronologically for horizontal timeline
+      const sortedEvents = [...events].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      // Create a single group for this LovedOne
+      const groups = new vis.DataSet([
+        {
+          id: lovedOneId,
+          content: document.getElementById('lovedOneName').textContent || 'Missing Person'
+        }
+      ]);
+
+      // Create items from events
+      const items = new vis.DataSet(
+        sortedEvents.map(event => {
+          const eventDate = new Date(event.timestamp);
+          const color = eventColors[event.eventType] || '#6fcf6f';
+          
+          return {
+            id: event.eventId,
+            group: lovedOneId,
+            content: event.eventType,
+            start: eventDate,
+            title: `${event.eventType}: ${event.description || ''}`,
+            className: `event-${event.eventType.toLowerCase()}`,
+            style: `background-color: ${color}44; border-color: ${color}; color: ${color};`,
+            data: {
+              event: event
+            }
+          };
+        })
+      );
+
+      // Destroy existing timeline if it exists
+      if (horizontalTimeline) {
+        horizontalTimeline.destroy();
+      }
+
+      // Create timeline options
+      const options = {
+        stack: false,
+        editable: false,
+        start: sortedEvents.length > 0 ? new Date(sortedEvents[0].timestamp) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        end: sortedEvents.length > 0 ? new Date(new Date(sortedEvents[sortedEvents.length - 1].timestamp).getTime() + 7 * 24 * 60 * 60 * 1000) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        zoomMin: 1000 * 60 * 60, // 1 hour
+        zoomMax: 1000 * 60 * 60 * 24 * 365 * 2, // 2 years
+        orientation: 'top',
+        showCurrentTime: true,
+        tooltip: {
+          followMouse: true,
+          overflowMethod: 'cap'
+        }
+      };
+
+      // Create the timeline
+      horizontalTimeline = new vis.Timeline(container, items, groups, options);
+
+      // Handle event click
+      horizontalTimeline.on('select', function(properties) {
+        if (properties.items && properties.items.length > 0) {
+          const itemId = properties.items[0];
+          const item = items.get(itemId);
+          if (item && item.data) {
+            // Scroll to the event in the vertical timeline
+            const verticalEvent = document.querySelector(`[data-event-id="${itemId}"]`);
+            if (verticalEvent) {
+              verticalEvent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              verticalEvent.style.background = '#3a3f47';
+              setTimeout(() => {
+                verticalEvent.style.background = '';
+              }, 2000);
+            }
+          }
+        }
+      });
+    }
+
+    function renderTimeline(events) {
+      const container = document.getElementById('timelineContainer');
+      
+      if (!events || events.length === 0) {
+        container.innerHTML = '<div class="empty-state">No timeline events found.</div>';
+        return;
+      }
+
+      let html = '';
+      events.forEach((event, index) => {
+        const icon = eventIcons[event.eventType] || '📌';
+        const color = eventColors[event.eventType] || '#6fcf6f';
+        const timeAgo = formatTimeAgo(event.timestamp);
+        const eventDate = new Date(event.timestamp);
+        const formattedDate = eventDate.toLocaleString();
+
+        html += `
+          <div class="timeline-event" data-event-id="${event.eventId}">
+            <div class="timeline-event-icon" style="background-color: ${color}22; border-color: ${color};">
+              ${icon}
+            </div>
+            <div class="timeline-event-content">
+              <div class="timeline-event-header">
+                <span class="timeline-event-type" style="color: ${color};">${escapeHtml(event.eventType)}</span>
+                <span class="timeline-event-time">${timeAgo}</span>
+              </div>
+              <div class="timeline-event-body">
+                <p>${escapeHtml(event.description || 'No description')}</p>
+                ${event.location ? `<div class="timeline-event-location">📍 ${escapeHtml(event.location)}</div>` : ''}
+                <div class="timeline-event-meta">
+                  <span>By: ${escapeHtml(event.createdBy || 'system')}</span>
+                  <span>•</span>
+                  <span>${formattedDate}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Add event modal handlers
+    document.getElementById('addEventBtn').addEventListener('click', function() {
+      document.getElementById('addEventModal').style.display = 'block';
+      document.getElementById('modalTimestamp').value = new Date().toISOString().slice(0, 16);
+    });
+
+    document.getElementById('cancelEventBtn').addEventListener('click', function() {
+      document.getElementById('addEventModal').style.display = 'none';
+      document.getElementById('addEventForm').reset();
+    });
+
+    document.getElementById('addEventForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const token = getToken();
+      if (!token) {
+        setStatus('Authentication required', true);
+        return;
+      }
+
+      const eventType = document.getElementById('modalEventType').value;
+      const description = document.getElementById('modalDescription').value;
+      const location = document.getElementById('modalLocation').value;
+      const timestamp = document.getElementById('modalTimestamp').value;
+
+      if (!eventType || !description) {
+        setStatus('Event type and description are required', true);
+        return;
+      }
+
+      setStatus('Creating event...');
+
+      try {
+        let eventTimestamp = timestamp ? new Date(timestamp).toISOString() : new Date().toISOString();
+        
+        const response = await fetch(`/api/timeline/loved-ones/${lovedOneId}/events`, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            eventType,
+            description,
+            location: location || null,
+            timestamp: eventTimestamp
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          setStatus('Event created successfully!');
+          document.getElementById('addEventModal').style.display = 'none';
+          document.getElementById('addEventForm').reset();
+          loadTimeline();
+        } else {
+          setStatus('Error: ' + (data.error || 'Failed to create event'), true);
+        }
+      } catch (err) {
+        console.error('Error creating event:', err);
+        setStatus('Failed to create event: ' + err.message, true);
+      }
+    });
+
+    // Filter handlers
+    document.getElementById('eventTypeFilter').addEventListener('change', loadTimeline);
+    document.getElementById('searchInput').addEventListener('input', loadTimeline);
+
+    // Load on page load
+    loadLovedOneInfo();
+    loadTimeline();
+  </script>
+</body>
+</html>
+
