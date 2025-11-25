@@ -304,13 +304,23 @@
         </div>
 
         <div class="examples">
-            <h3>Example Questions:</h3>
+            <h3>Example Questions - Click to try:</h3>
+            
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">📋 Basic Queries</h4>
             <div class="example-queries">
                 <button class="example-btn" onclick="setQuery('List all communities')">List all communities</button>
                 <button class="example-btn" onclick="setQuery('Show all cases')">Show all cases</button>
                 <button class="example-btn" onclick="setQuery('Show active cases')">Show active cases</button>
                 <button class="example-btn" onclick="setQuery('Find closed cases')">Find closed cases</button>
-                <button class="example-btn" onclick="setQuery('Search cases')">Search cases</button>
+                <button class="example-btn" onclick="setQuery('How many cases are there?')">How many cases are there?</button>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">🔍 Case Queries</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Search for cases by name')">Search cases by name</button>
+                <button class="example-btn" onclick="setQuery('Find cases in Manitoba')">Find cases in Manitoba</button>
+                <button class="example-btn" onclick="setQuery('Show cases from Alberta')">Show cases from Alberta</button>
+                <button class="example-btn" onclick="setQuery('Get all cases from Ontario')">Get all cases from Ontario</button>
             </div>
             
             <div class="example-with-param">
@@ -343,6 +353,13 @@
                 </div>
             </div>
 
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">🏘️ Community Queries</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Show missing persons in Peguis')">Show missing persons in Peguis</button>
+                <button class="example-btn" onclick="setQuery('Find cases from Sagkeeng First Nation')">Find cases from Sagkeeng</button>
+                <button class="example-btn" onclick="setQuery('Get all loved ones from Brokenhead Ojibway Nation')">Get loved ones from Brokenhead</button>
+            </div>
+
             <div class="example-with-param">
                 <div class="param-group">
                     <label>Search nearby sightings for community:</label>
@@ -351,6 +368,114 @@
                     </select>
                     <button class="example-btn" onclick="setQueryWithCommunity('Search nearby sightings for {community}')">Search Sightings</button>
                 </div>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">📍 Province Queries</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Show missing persons in Manitoba')">Show missing persons in Manitoba</button>
+                <button class="example-btn" onclick="setQuery('Get all cases from Alberta')">Get all cases from Alberta</button>
+                <button class="example-btn" onclick="setQuery('Find applicants in Saskatchewan')">Find applicants in Saskatchewan</button>
+                <button class="example-btn" onclick="setQuery('Show loved ones from British Columbia')">Show loved ones from BC</button>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">📅 Timeline & Events</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Show recent timeline events')">Show recent timeline events</button>
+                <button class="example-btn" onclick="setQuery('Find all sightings')">Find all sightings</button>
+                <button class="example-btn" onclick="setQuery('Show tips received this month')">Show tips received this month</button>
+                <button class="example-btn" onclick="setQuery('Get all status changes')">Get all status changes</button>
+                <button class="example-btn" onclick="setQuery('Show timeline events for active cases only')">Show timeline events for active cases only</button>
+                <button class="example-btn" onclick="setQuery('Find all CaseOpened events')">Find all CaseOpened events</button>
+                <button class="example-btn" onclick="setQuery('Show timeline events from last week')">Show timeline events from last week</button>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">⏰ Reminders</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Show my upcoming reminders')">Show my upcoming reminders</button>
+                <button class="example-btn" onclick="setQuery('Find overdue reminders')">Find overdue reminders</button>
+                <button class="example-btn" onclick="setQuery('Get high priority reminders')">Get high priority reminders</button>
+                <button class="example-btn" onclick="setQuery('Show all incomplete reminders')">Show all incomplete reminders</button>
+                <button class="example-btn" onclick="setQuery('Get urgent reminders')">Get urgent reminders</button>
+                <button class="example-btn" onclick="setQuery('Show reminders due in next 7 days')">Show reminders due in next 7 days</button>
+                <button class="example-btn" onclick="setQuery('Find completed reminders')">Find completed reminders</button>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">👁️ Witness Queries</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Show all witnesses')">Show all witnesses</button>
+                <button class="example-btn" onclick="setQuery('Find witnesses without statements')">Find witnesses without statements</button>
+                <button class="example-btn" onclick="setQuery('Get witnesses needing follow-up')">Get witnesses needing follow-up</button>
+                <button class="example-btn" onclick="setQuery('Show witnesses I reported')">Show witnesses I reported</button>
+                <button class="example-btn" onclick="setQuery('Find witnesses related to cases')">Find witnesses related to cases</button>
+                <button class="example-btn" onclick="setQuery('Get witnesses related to missing persons')">Get witnesses related to missing persons</button>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">📊 Reports (Admin Only)</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Generate case statistics report')">Case Statistics Report</button>
+                <button class="example-btn" onclick="setQuery('Show workload distribution report')">Workload Distribution</button>
+                <button class="example-btn" onclick="setQuery('Get caseworker activity report')">Caseworker Activity</button>
+                <button class="example-btn" onclick="setQuery('Generate missing person demographics report')">Demographics Report</button>
+                <button class="example-btn" onclick="setQuery('Get witness report')">Witness Report</button>
+                <button class="example-btn" onclick="setQuery('Show family report')">Family Report</button>
+                <button class="example-btn" onclick="setQuery('Get communications report')">Communications Report</button>
+            </div>
+
+            <div class="example-with-param">
+                <div class="param-group">
+                    <label>Community Report for:</label>
+                    <select id="communityReportSelect">
+                        <option value="">Loading communities...</option>
+                    </select>
+                    <button class="example-btn" onclick="setQueryWithCommunity('Generate community report for {community}')">Community Report</button>
+                </div>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">📸 Photos & Media</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Show all missing persons with photos')">Show all missing persons with photos</button>
+                <button class="example-btn" onclick="setQuery('Find loved ones without photos')">Find loved ones without photos</button>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">📧 Public Inquiries</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Show new public inquiries')">Show new public inquiries</button>
+                <button class="example-btn" onclick="setQuery('Get all public contact form submissions')">Get all public contact form submissions</button>
+                <button class="example-btn" onclick="setQuery('Find unresolved public inquiries')">Find unresolved public inquiries</button>
+                <button class="example-btn" onclick="setQuery('Show contacted public inquiries')">Show contacted public inquiries</button>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">👥 All Missing Persons</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('List all missing persons')">List all missing persons</button>
+                <button class="example-btn" onclick="setQuery('Show all loved ones')">Show all loved ones</button>
+                <button class="example-btn" onclick="setQuery('Get complete list of missing persons')">Get complete list of missing persons</button>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">📊 Dashboard & Statistics</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Show dashboard statistics')">Show dashboard statistics</button>
+                <button class="example-btn" onclick="setQuery('Get my case count')">Get my case count</button>
+                <button class="example-btn" onclick="setQuery('Show recent activity')">Show recent activity</button>
+                <button class="example-btn" onclick="setQuery('How many active cases do I have?')">How many active cases do I have?</button>
+                <button class="example-btn" onclick="setQuery('What are my upcoming reminders?')">What are my upcoming reminders?</button>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:3.5rem; margin-bottom:0.5rem;">🏢 Organization Contacts</h4>
+            <div class="example-queries">
+                <button class="example-btn" onclick="setQuery('Show organization contacts')">Show organization contacts</button>
+                <button class="example-btn" onclick="setQuery('Find contacts for organizations')">Find contacts for organizations</button>
+            </div>
+
+            <h4 style="color:#6fcf6f; margin-top:1.5rem; margin-bottom:0.5rem;">💡 Tips</h4>
+            <div style="background:#1a1a1a; border:1px solid #3a3f47; border-radius:4px; padding:1rem; margin-top:0.5rem;">
+                <ul style="margin:0.5rem 0; padding-left:1.5rem; color:#ccc;">
+                    <li>You can ask questions in plain English - the AI will understand your intent</li>
+                    <li>Use specific names, IDs, or locations for more accurate results</li>
+                    <li>Try combining filters: "Show active cases in Peguis from last month"</li>
+                    <li>For reports, specify date ranges: "Generate case statistics for January 2025"</li>
+                    <li>Ask follow-up questions based on previous results</li>
+                </ul>
             </div>
         </div>
 
@@ -460,13 +585,17 @@
 
         // Populate community dropdown
         function populateCommunitySelect() {
-            const select = document.getElementById('communitySelect');
-            select.innerHTML = '<option value="">Select a community...</option>';
-            communities.forEach(comm => {
-                const option = document.createElement('option');
-                option.value = comm.name || comm.id || '';
-                option.textContent = comm.name || comm.id || 'Unknown';
-                select.appendChild(option);
+            const selects = ['communitySelect', 'communityReportSelect'];
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (!select) return;
+                select.innerHTML = '<option value="">Select a community...</option>';
+                communities.forEach(comm => {
+                    const option = document.createElement('option');
+                    option.value = comm.name || comm.id || '';
+                    option.textContent = comm.name || comm.id || 'Unknown';
+                    select.appendChild(option);
+                });
             });
         }
 

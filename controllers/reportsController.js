@@ -178,7 +178,7 @@ async function getCaseworkerActivityReport(req, res, driver, auditLogger) {
     // Get all caseworkers
     const usersResult = await session.run(`
       MATCH (u:User)
-      WHERE u.roles CONTAINS 'case_worker' OR u.roles CONTAINS 'admin'
+      WHERE 'case_worker' IN u.roles OR 'admin' IN u.roles
       RETURN u.email as email, u.name as name
       ORDER BY u.name
     `);
@@ -683,7 +683,7 @@ async function getWorkloadDistributionReport(req, res, driver, auditLogger) {
     // Get all caseworkers
     const usersResult = await session.run(`
       MATCH (u:User)
-      WHERE u.roles CONTAINS 'case_worker' OR u.roles CONTAINS 'admin'
+      WHERE 'case_worker' IN u.roles OR 'admin' IN u.roles
       RETURN u.email as email, u.name as name
       ORDER BY u.name
     `);
@@ -692,8 +692,9 @@ async function getWorkloadDistributionReport(req, res, driver, auditLogger) {
       name: r.get('name') || r.get('email')
     }));
 
-    // Get workload for each caseworker
-    const workloadData = await Promise.all(caseworkers.map(async (cw) => {
+    // Get workload for each caseworker (run sequentially to avoid session conflicts)
+    const workloadData = [];
+    for (const cw of caseworkers) {
       const email = cw.email;
 
       // Cases assigned
@@ -754,7 +755,7 @@ async function getWorkloadDistributionReport(req, res, driver, auditLogger) {
       // Active loved ones: 2 points each
       const workloadScore = (activeCases * 10) + (activeReminders * 1) + (overdueReminders * 5) + (activeLovedOnes * 2);
 
-      return {
+      workloadData.push({
         caseworker: cw.name,
         email: email,
         cases: {
@@ -776,8 +777,8 @@ async function getWorkloadDistributionReport(req, res, driver, auditLogger) {
           witnesses: totalWitnesses
         },
         workloadScore: workloadScore
-      };
-    }));
+      });
+    }
 
     // Calculate statistics
     const workloadScores = workloadData.map(w => w.workloadScore).filter(s => s > 0);

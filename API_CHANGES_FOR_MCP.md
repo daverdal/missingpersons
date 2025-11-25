@@ -1250,6 +1250,448 @@ The Dashboard provides aggregated statistics and recent activity for caseworkers
 
 **Note**: The dashboard stats are calculated in real-time and include personalized data (e.g., "myCases" and "upcomingReminders" are filtered for the logged-in user).
 
+### Reports API
+
+The Reports API provides comprehensive analytical reports for administrators. All report endpoints require admin role and support optional date range filtering.
+
+#### Case Statistics Report
+
+- **API Endpoint**: `GET /api/reports/case-statistics`
+- **Description**: Generate a comprehensive case statistics report showing overview of all cases, status breakdown, trends, missing persons, reminders, and timeline events.
+- **Parameters** (query):
+  - `startDate` (string, optional): ISO date string - filter data from this date
+  - `endDate` (string, optional): ISO date string - filter data until this date
+- **Response Format**: 
+  ```json
+  {
+    "report": {
+      "type": "Case Statistics",
+      "generatedAt": "2025-01-28T12:00:00.000Z",
+      "dateRange": { "startDate": "2025-01-01", "endDate": "2025-01-31" },
+      "statistics": {
+        "cases": {
+          "total": 150,
+          "active": 120,
+          "closed": 30,
+          "followupRequired": 10,
+          "onHold": 5,
+          "byStatus": [
+            { "status": "Active", "count": 120 },
+            { "status": "Closed", "count": 30 }
+          ]
+        },
+        "missingPersons": {
+          "total": 180,
+          "active": 150,
+          "found": 30
+        },
+        "reminders": {
+          "total": 200,
+          "completed": 150,
+          "overdue": 5
+        },
+        "timelineEvents": {
+          "total": 500
+        },
+        "trends": {
+          "casesByMonth": [
+            { "month": "2025-01", "count": 15 }
+          ]
+        }
+      }
+    }
+  }
+  ```
+- **Permission Required**: `missing.admin` (admin role only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getCaseStatisticsReport`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "startDate": {
+          "type": "string",
+          "description": "ISO date string - filter from this date"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "ISO date string - filter until this date"
+        }
+      }
+    }
+    ```
+  - Output Schema: Object with `report` containing case statistics data
+
+#### Caseworker Activity Report
+
+- **API Endpoint**: `GET /api/reports/caseworker-activity`
+- **Description**: Generate a report showing activity metrics and performance for each caseworker including cases, reminders, timeline events, and witnesses.
+- **Parameters** (query):
+  - `startDate` (string, optional): ISO date string - filter data from this date
+  - `endDate` (string, optional): ISO date string - filter data until this date
+- **Response Format**: 
+  ```json
+  {
+    "report": {
+      "type": "Caseworker Activity",
+      "generatedAt": "2025-01-28T12:00:00.000Z",
+      "dateRange": { "startDate": "2025-01-01", "endDate": "2025-01-31" },
+      "caseworkers": [
+        {
+          "caseworker": "Case Worker Name",
+          "email": "worker@example.com",
+          "cases": { "total": 25, "active": 20, "closed": 5 },
+          "reminders": { "total": 50, "completed": 45, "overdue": 2, "completionRate": 90 },
+          "timelineEvents": { "total": 100 },
+          "witnesses": { "total": 15 }
+        }
+      ]
+    }
+  }
+  ```
+- **Permission Required**: `missing.admin` (admin role only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getCaseworkerActivityReport`
+  - Handler: `rest`
+  - Input Schema: Same as Case Statistics Report
+  - Output Schema: Object with `report` containing caseworker activity data
+
+#### Case Detail Export
+
+- **API Endpoint**: `GET /api/reports/case-detail-export`
+- **Description**: Generate a detailed export of case information including events, reminders, witnesses, and timeline events for specific cases.
+- **Parameters** (query):
+  - `startDate` (string, optional): ISO date string - filter cases created from this date
+  - `endDate` (string, optional): ISO date string - filter cases created until this date
+  - `status` (string, optional): Filter by case status (e.g., "Active", "Closed")
+  - `caseIds` (string, optional): Comma-separated list of case IDs (e.g., "A1,A2,A3")
+- **Response Format**: 
+  ```json
+  {
+    "report": {
+      "type": "Case Detail Export",
+      "generatedAt": "2025-01-28T12:00:00.000Z",
+      "dateRange": { "startDate": "2025-01-01", "endDate": "2025-01-31" },
+      "cases": [
+        {
+          "case": { "id": "A1", "name": "John Doe", "status": "Active" },
+          "lovedOnes": [...],
+          "reminders": [...],
+          "timelineEvents": [...],
+          "witnesses": [...]
+        }
+      ]
+    }
+  }
+  ```
+- **Permission Required**: `missing.admin` (admin role only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getCaseDetailExport`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "status": { "type": "string" },
+        "caseIds": { "type": "string", "description": "Comma-separated case IDs" }
+      }
+    }
+    ```
+  - Output Schema: Object with `report` containing detailed case data
+
+#### Community Report
+
+- **API Endpoint**: `GET /api/reports/community`
+- **Description**: Generate a comprehensive report for a First Nation community/reserve showing all related cases, missing persons, case notes, witnesses, reminders, and timeline events.
+- **Parameters** (query):
+  - `community` (string, required): Community/reserve name
+  - `startDate` (string, optional): ISO date string - filter data from this date
+  - `endDate` (string, optional): ISO date string - filter data until this date
+- **Response Format**: 
+  ```json
+  {
+    "report": {
+      "type": "Community Report",
+      "generatedAt": "2025-01-28T12:00:00.000Z",
+      "community": "Peguis First Nation",
+      "dateRange": { "startDate": "2025-01-01", "endDate": "2025-01-31" },
+      "summary": {
+        "totalCases": 10,
+        "activeCases": 8,
+        "totalLovedOnes": 12,
+        "activeLovedOnes": 10,
+        "totalNotes": 50,
+        "totalEvents": 30,
+        "totalReminders": 20,
+        "totalWitnesses": 15,
+        "totalTimelineEvents": 40
+      },
+      "cases": [...],
+      "lovedOnes": [...],
+      "standaloneTimelineEvents": [...],
+      "standaloneReminders": [...],
+      "standaloneWitnesses": [...]
+    }
+  }
+  ```
+- **Permission Required**: `missing.admin` (admin role only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getCommunityReport`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "required": ["community"],
+      "properties": {
+        "community": {
+          "type": "string",
+          "description": "Community/reserve name (required)"
+        },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" }
+      }
+    }
+    ```
+  - Output Schema: Object with `report` containing comprehensive community data
+
+#### Workload Distribution Report
+
+- **API Endpoint**: `GET /api/reports/workload-distribution`
+- **Description**: Analyze workload balance across caseworkers to identify overloaded and underloaded staff. Calculates workload scores based on active cases, reminders, and missing persons.
+- **Parameters**: None (no date filtering)
+- **Response Format**: 
+  ```json
+  {
+    "report": {
+      "type": "Workload Distribution",
+      "generatedAt": "2025-01-28T12:00:00.000Z",
+      "summary": {
+        "totalCaseworkers": 10,
+        "averageWorkload": 45.5,
+        "maxWorkload": 120,
+        "minWorkload": 5,
+        "overloaded": 2,
+        "balanced": 6,
+        "underloaded": 1,
+        "noWorkload": 1
+      },
+      "caseworkers": [
+        {
+          "caseworker": "Case Worker Name",
+          "email": "worker@example.com",
+          "activeCases": 15,
+          "activeReminders": 20,
+          "overdueReminders": 2,
+          "activeLovedOnes": 10,
+          "workloadScore": 120,
+          "status": "Overloaded",
+          "deviation": "+50.0"
+        }
+      ]
+    }
+  }
+  ```
+- **Permission Required**: `missing.admin` (admin role only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getWorkloadDistributionReport`
+  - Handler: `rest`
+  - Input Schema: 
+    ```json
+    {
+      "type": "object",
+      "properties": {}
+    }
+    ```
+  - Output Schema: Object with `report` containing workload distribution analysis
+
+#### Missing Person Demographics Report
+
+- **API Endpoint**: `GET /api/reports/missing-person-demographics`
+- **Description**: Generate demographic analysis of missing persons including age groups, gender distribution, time missing categories, status distribution, and risk factors.
+- **Parameters** (query):
+  - `startDate` (string, optional): ISO date string - filter cases created from this date
+  - `endDate` (string, optional): ISO date string - filter cases created until this date
+- **Response Format**: 
+  ```json
+  {
+    "report": {
+      "type": "Missing Person Demographics",
+      "generatedAt": "2025-01-28T12:00:00.000Z",
+      "dateRange": { "startDate": "2025-01-01", "endDate": "2025-01-31" },
+      "totalMissingPersons": 180,
+      "demographics": {
+        "ageGroups": [
+          { "group": "0-12", "count": 20 },
+          { "group": "13-17", "count": 30 }
+        ],
+        "gender": [
+          { "gender": "Male", "count": 90 },
+          { "gender": "Female", "count": 90 }
+        ],
+        "timeMissing": [
+          { "period": "0-24 hours", "count": 10 }
+        ],
+        "status": [
+          { "status": "Active", "count": 150 }
+        ]
+      },
+      "analysis": {
+        "ageByStatus": {...},
+        "genderByStatus": {...}
+      },
+      "riskFactors": {
+        "highRiskStatus": 15,
+        "longTermMissing": 20,
+        "minors": 50,
+        "recentMissing": 10
+      }
+    }
+  }
+  ```
+- **Permission Required**: `missing.admin` (admin role only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getMissingPersonDemographicsReport`
+  - Handler: `rest`
+  - Input Schema: Same as Case Statistics Report
+  - Output Schema: Object with `report` containing demographic analysis
+
+#### Witness Report
+
+- **API Endpoint**: `GET /api/reports/witness`
+- **Description**: Generate a comprehensive witness analysis report showing total witnesses, statement analysis, most active witnesses, witnesses by caseworker, and follow-up needs.
+- **Parameters** (query):
+  - `startDate` (string, optional): ISO date string - filter statements from this date
+  - `endDate` (string, optional): ISO date string - filter statements until this date
+- **Response Format**: 
+  ```json
+  {
+    "report": {
+      "type": "Witness Report",
+      "generatedAt": "2025-01-28T12:00:00.000Z",
+      "dateRange": { "startDate": "2025-01-01", "endDate": "2025-01-31" },
+      "summary": {
+        "totalWitnesses": 200,
+        "statementAnalysis": {
+          "withStatement": 150,
+          "withoutStatement": 50,
+          "complete": 120,
+          "incomplete": 80
+        },
+        "avgStatementLength": 250,
+        "totalCasesWithWitnesses": 50,
+        "totalLovedOnesWithWitnesses": 60
+      },
+      "mostActiveWitnesses": [...],
+      "witnessesByCaseworker": [...],
+      "witnessesByPeriod": [...],
+      "followUpNeeds": [...]
+    }
+  }
+  ```
+- **Permission Required**: `missing.admin` (admin role only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getWitnessReport`
+  - Handler: `rest`
+  - Input Schema: Same as Case Statistics Report
+  - Output Schema: Object with `report` containing witness analysis
+
+#### Family Report
+
+- **API Endpoint**: `GET /api/reports/family`
+- **Description**: Generate a family/applicant analysis report showing repeat applicants, demographics, communication preferences, support needs, and families needing follow-up.
+- **Parameters** (query):
+  - `startDate` (string, optional): ISO date string - filter families created from this date
+  - `endDate` (string, optional): ISO date string - filter families created until this date
+- **Response Format**: 
+  ```json
+  {
+    "report": {
+      "type": "Family Report",
+      "generatedAt": "2025-01-28T12:00:00.000Z",
+      "dateRange": { "startDate": "2025-01-01", "endDate": "2025-01-31" },
+      "summary": {
+        "totalFamilies": 150,
+        "repeatApplicantsCount": 10,
+        "familiesWithMultipleMissingPersons": 5,
+        "familiesWithSupport": 20
+      },
+      "demographics": {
+        "province": [...],
+        "community": [...],
+        "status": [...],
+        "language": [...]
+      },
+      "communicationAnalysis": {
+        "smsOptIn": 100,
+        "emailOptIn": 120,
+        "canReceiveSms": 80,
+        "canReceiveEmail": 100
+      },
+      "repeatApplicants": [...],
+      "missingPersonsPerFamily": [...],
+      "supportServices": [...],
+      "followUpNeeds": [...]
+    }
+  }
+  ```
+- **Permission Required**: `missing.admin` (admin role only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getFamilyReport`
+  - Handler: `rest`
+  - Input Schema: Same as Case Statistics Report
+  - Output Schema: Object with `report` containing family analysis
+
+#### Communications Report
+
+- **API Endpoint**: `GET /api/reports/communications`
+- **Description**: Generate a communications analysis report showing SMS and Email sent, recipients, opt-in status, frequency, and caseworker activity.
+- **Parameters** (query):
+  - `startDate` (string, optional): ISO date string - filter communications from this date
+  - `endDate` (string, optional): ISO date string - filter communications until this date
+- **Response Format**: 
+  ```json
+  {
+    "report": {
+      "type": "Communications Report",
+      "generatedAt": "2025-01-28T12:00:00.000Z",
+      "dateRange": { "startDate": "2025-01-01", "endDate": "2025-01-31" },
+      "summary": {
+        "totalCommunications": 500,
+        "smsCount": 200,
+        "emailCount": 300,
+        "uniqueRecipients": 100,
+        "uniqueCaseworkers": 10
+      },
+      "optInAnalysis": {
+        "totalApplicants": 150,
+        "smsOptIn": 100,
+        "emailOptIn": 120,
+        "canReceiveSms": 80,
+        "canReceiveEmail": 100
+      },
+      "communicationsByPeriod": [...],
+      "communicationsByCaseworker": [...],
+      "mostContacted": [...],
+      "recentCommunications": [...],
+      "frequencyAnalysis": {...}
+    }
+  }
+  ```
+- **Permission Required**: `missing.admin` (admin role only)
+- **MCP Tool Needed**:
+  - Tool ID: `missing.getCommunicationsReport`
+  - Handler: `rest`
+  - Input Schema: Same as Case Statistics Report
+  - Output Schema: Object with `report` containing communications analysis
+
+**Note**: All Reports API endpoints require admin role (`missing.admin` permission scope). Reports support optional date range filtering via `startDate` and `endDate` query parameters (ISO date strings). Reports are generated in real-time and return comprehensive analytical data.
+
 ### Template for New Features
 
 ```markdown
