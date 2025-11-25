@@ -1165,6 +1165,84 @@ main .toolbar button:hover {
   background: #ffffff;
   border-color: #e5e5e5;
 }
+/* Reminders timeline container */
+#remindersTimelineContainer {
+  width: 100%;
+}
+.light-mode #remindersTimelineContainer {
+  background: #ffffff;
+  border-color: #e5e5e5;
+}
+/* Reminder/Scheduling Styles */
+.reminder-card {
+  background: #23272b;
+  border: 1px solid #3a3f47;
+  border-radius: 4px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.light-mode .reminder-card {
+  background: #ffffff;
+  border-color: #e5e5e5;
+  color: rgb(38, 38, 38);
+}
+.reminder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.reminder-header h3 {
+  color: #6fcf6f;
+  margin: 0;
+}
+.light-mode .reminder-header h3 {
+  color: rgb(38, 38, 38);
+}
+.reminder-body {
+  color: #ccc;
+}
+.light-mode .reminder-body {
+  color: rgb(38, 38, 38);
+}
+.reminder-meta {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #3a3f47;
+  font-size: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.light-mode .reminder-meta {
+  border-top-color: #e5e5e5;
+  color: rgb(38, 38, 38);
+  opacity: 0.8;
+}
+.reminder-card button {
+  padding: 0.4rem 0.8rem;
+  background: #23272b;
+  color: #6fcf6f;
+  border: 1px solid #3a3f47;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.reminder-card button:hover {
+  background: #2a2f35;
+  border-color: #6fcf6f;
+  color: #aaffaa;
+}
+.light-mode .reminder-card button {
+  background: #ffffff;
+  color: rgb(38, 38, 38);
+  border-color: #e5e5e5;
+}
+.light-mode .reminder-card button:hover {
+  background: #f9f9f9;
+  border-color: rgb(38, 38, 38);
+}
 /* Event types explanation section */
 #eventTypesExplanation {
   margin-top: 3rem;

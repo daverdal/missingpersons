@@ -18,8 +18,13 @@
   </header>
   <main>
     <div id="lovedOneInfo" style="margin-bottom: 2rem; padding: 1rem; background: #23272b; border: 1px solid #3a3f47; border-radius: 4px;">
-      <h2 id="lovedOneName">Loading...</h2>
-      <div id="lovedOneDetails"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <h2 id="lovedOneName" style="margin:0 0 0.5rem 0;">Loading...</h2>
+          <div id="lovedOneDetails"></div>
+        </div>
+        <button id="addReminderBtn" style="padding:0.5rem 1rem; background:#23272b; color:#6fcf6f; border:1px solid #3a3f47; border-radius:4px; cursor:pointer; font-weight:600;">⏰ Add Reminder</button>
+      </div>
     </div>
 
     <div id="horizontalTimelineContainer" style="margin-bottom: 2rem;"></div>
@@ -464,6 +469,12 @@
     // Filter handlers
     document.getElementById('eventTypeFilter').addEventListener('change', loadTimeline);
     document.getElementById('searchInput').addEventListener('input', loadTimeline);
+
+    // Add Reminder button handler
+    document.getElementById('addReminderBtn').addEventListener('click', function() {
+      // Open reminders page with pre-filled LovedOne ID
+      window.location.href = `reminders.html?lovedOneId=${encodeURIComponent(lovedOneId)}&caseId=${encodeURIComponent(urlParams.get('caseId') || '')}`;
+    });
 
     // Load on page load
     loadLovedOneInfo();

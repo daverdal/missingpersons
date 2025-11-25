@@ -655,7 +655,8 @@
                 html += `<div class='loved-one-card' style='margin:0.5em 0 1em 1em; padding:0.5em; border-left:3px solid #e6b85c;'>`;
                 if (lo.name) {
                     html += `<div style='margin-bottom:0.5em;'><span style='color:#aaa;'>Name:</span> <span>${lo.name}</span>`;
-                    html += ` <a href="lovedone-timeline.html?lovedOneId=${encodeURIComponent(lo.id)}&caseId=${encodeURIComponent(data.applicant.id)}" style='margin-left:1em; color:#6fcf6f; text-decoration:underline;'>📅 View Timeline</a></div>`;
+                    html += ` <a href="lovedone-timeline.html?lovedOneId=${encodeURIComponent(lo.id)}&caseId=${encodeURIComponent(data.applicant.id)}" style='margin-left:1em; color:#6fcf6f; text-decoration:underline;'>📅 View Timeline</a>`;
+                    html += ` <button class='addReminderFromCaseBtn' data-loved-one-id='${lo.id}' data-case-id='${data.applicant.id}' style='margin-left:1em; padding:0.2em 0.6em; background:#23272b; color:#6fcf6f; border:1px solid #3a3f47; border-radius:4px; cursor:pointer; font-size:0.9em;'>⏰ Add Reminder</button></div>`;
                 }
                 if (lo.status) html += `<div><span style='color:#aaa;'>Status:</span> <span style='font-weight:bold;color:#6fcf6f;'>${escapeHtml(lo.status)}</span></div>`;
                 html += `<div><span style='color:#aaa;'>Coummunity of Loved One:</span> <span>${lo.community || '(not specified)'}</span></div>`;
@@ -1633,6 +1634,70 @@
                     submitButton.textContent = originalButtonText;
                 }
             });
+        });
+
+        // Handle "Add Reminder" buttons
+        document.addEventListener('click', async function(e) {
+            if (e.target.classList.contains('addReminderFromCaseBtn')) {
+                const lovedOneId = e.target.dataset.lovedOneId;
+                const caseId = e.target.dataset.caseId;
+                
+                // Get token
+                const token = getToken();
+                if (!token) {
+                    alert('Please log in to create reminders');
+                    return;
+                }
+
+                // Prompt for reminder details
+                const title = prompt('Reminder Title:', 'Follow up with client');
+                if (!title) return;
+
+                const description = prompt('Description (optional):', '');
+                const dueDateStr = prompt('Due Date & Time (YYYY-MM-DD HH:MM):', '');
+                if (!dueDateStr) return;
+
+                // Parse date
+                let dueDate;
+                try {
+                    dueDate = new Date(dueDateStr).toISOString();
+                } catch (err) {
+                    alert('Invalid date format');
+                    return;
+                }
+
+                const reminderType = prompt('Reminder Type (followup/court/checkin/anniversary/other):', 'followup') || 'followup';
+                const priority = prompt('Priority (low/medium/high/urgent):', 'medium') || 'medium';
+
+                try {
+                    const response = await fetch('/api/reminders', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            title,
+                            description: description || '',
+                            dueDate,
+                            reminderType,
+                            priority,
+                            relatedToType: 'lovedOne',
+                            relatedToId: lovedOneId
+                        })
+                    });
+
+                    if (response.ok) {
+                        alert('Reminder created successfully!');
+                    } else {
+                        const data = await response.json();
+                        alert('Error: ' + (data.error || 'Failed to create reminder'));
+                    }
+                } catch (err) {
+                    console.error('Error creating reminder:', err);
+                    alert('Failed to create reminder: ' + err.message);
+                }
+            }
         });
     }
 

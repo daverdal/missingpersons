@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reminders & Scheduling - Missing Persons App</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+  <!-- vis-timeline library -->
+  <script type="text/javascript" src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+  <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+  <header style="position:relative;">
+    <h1 style="text-align:center;">Reminders & Scheduling</h1>
+    <!-- Navigation will be injected here -->
+  </header>
+  <main>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+      <div></div>
+      <button id="addReminderBtn" style="padding:0.5rem 1rem; background:#23272b; color:#6fcf6f; border:1px solid #3a3f47; border-radius:4px; cursor:pointer; font-weight:600;">+ Add Reminder</button>
+    </div>
+
+    <div id="upcomingRemindersSection" style="margin-bottom: 2rem; padding: 1rem; background: #23272b; border: 1px solid #3a3f47; border-radius: 4px;">
+      <h2 style="margin-top:0; color:#6fcf6f;">Upcoming Reminders (Next 7 Days)</h2>
+      <div id="upcomingRemindersList"></div>
+    </div>
+
+    <div style="margin-bottom: 2rem;">
+      <h2 style="color:#6fcf6f; margin-bottom:0.5rem;">Reminders Timeline (Next 7 Days)</h2>
+      <div id="remindersTimelineContainer" style="height: 300px; border: 1px solid #3a3f47; border-radius: 4px; background: #111;"></div>
+    </div>
+
+    <div style="margin-top: 3rem; margin-bottom: 1rem;">
+      <h2 style="color:#6fcf6f; margin:0;">View all reminders</h2>
+    </div>
+
+    <div class="toolbar">
+      <label for="filterAssignedTo">
+        Assigned To:
+        <select id="filterAssignedTo">
+          <option value="">All Users</option>
+        </select>
+      </label>
+      <label for="filterCompleted">
+        Status:
+        <select id="filterCompleted">
+          <option value="">All</option>
+          <option value="false">Active</option>
+          <option value="true">Completed</option>
+        </select>
+      </label>
+      <label for="filterPriority">
+        Priority:
+        <select id="filterPriority">
+          <option value="">All</option>
+          <option value="urgent">Urgent</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </label>
+      <label for="showOverdue">
+        <input type="checkbox" id="showOverdue"> Show Overdue Only
+      </label>
+      <span id="statusMessage"></span>
+    </div>
+
+    <div id="remindersContainer">
+      <!-- Reminders will be rendered here -->
+    </div>
+
+    <!-- Add/Edit Reminder Modal -->
+    <div id="reminderModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); z-index:1000; overflow-y:auto;">
+      <div style="max-width:600px; margin:2rem auto; background:#23272b; border:2px solid #6fcf6f; border-radius:8px; padding:2rem;">
+        <h2 style="margin-top:0; color:#6fcf6f;" id="modalTitle">Add Reminder</h2>
+        <form id="reminderForm">
+          <input type="hidden" id="modalReminderId">
+          <label>
+            Title: *
+            <input type="text" id="modalTitleInput" required placeholder="e.g., Follow up with client">
+          </label>
+          <label>
+            Description:
+            <textarea id="modalDescription" rows="3" placeholder="Additional details..."></textarea>
+          </label>
+          <label>
+            Due Date & Time: *
+            <input type="datetime-local" id="modalDueDate" required>
+          </label>
+          <label>
+            Reminder Type:
+            <select id="modalReminderType">
+              <option value="followup">Follow-up</option>
+              <option value="court">Court Date</option>
+              <option value="checkin">Check-in</option>
+              <option value="anniversary">Anniversary</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>
+            Priority:
+            <select id="modalPriority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </label>
+          <label>
+            Assigned To:
+            <select id="modalAssignedTo">
+              <option value="">Unassigned</option>
+            </select>
+          </label>
+          <label>
+            Related To:
+            <select id="modalRelatedToType">
+              <option value="">None</option>
+              <option value="case">Case</option>
+              <option value="lovedOne">LovedOne</option>
+            </select>
+          </label>
+          <label id="relatedToIdLabel" style="display:none;">
+            Related ID:
+            <input type="text" id="modalRelatedToId" placeholder="Case ID or LovedOne ID">
+          </label>
+          <div style="margin-top:1.5rem; display:flex; gap:1rem;">
+            <button type="submit" style="flex:1;">Save Reminder</button>
+            <button type="button" id="cancelReminderBtn" style="flex:1;">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    function setStatus(message, isError) {
+      const el = document.getElementById('statusMessage');
+      el.textContent = message || '';
+      el.style.color = isError ? '#ff7f7f' : '#6fcf6f';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    }
+
+    function isOverdue(dueDate, completed) {
+      if (completed) return false;
+      return new Date(dueDate) < new Date();
+    }
+
+    function getDaysUntil(dueDate) {
+      const now = new Date();
+      const due = new Date(dueDate);
+      const diffTime = due - now;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
+    }
+
+    let allUsers = [];
+    let currentReminders = [];
+    let remindersTimeline = null;
+
+    function renderRemindersTimeline(reminders) {
+      const container = document.getElementById('remindersTimelineContainer');
+      
+      if (!reminders || reminders.length === 0) {
+        container.innerHTML = '<div style="padding:2rem; text-align:center; color:#888;">No reminders to display on timeline.</div>';
+        if (remindersTimeline) {
+          remindersTimeline.destroy();
+          remindersTimeline = null;
+        }
+        return;
+      }
+
+      // Filter to only show active (non-completed) reminders
+      const activeReminders = reminders.filter(r => !r.completed);
+
+      if (activeReminders.length === 0) {
+        container.innerHTML = '<div style="padding:2rem; text-align:center; color:#888;">No active reminders to display on timeline.</div>';
+        if (remindersTimeline) {
+          remindersTimeline.destroy();
+          remindersTimeline = null;
+        }
+        return;
+      }
+
+      // Group reminders by assigned user
+      const userGroups = {};
+      activeReminders.forEach(reminder => {
+        const assignedTo = reminder.assignedTo || 'Unassigned';
+        if (!userGroups[assignedTo]) {
+          userGroups[assignedTo] = [];
+        }
+        userGroups[assignedTo].push(reminder);
+      });
+
+      // Create groups (one per user)
+      const groups = new vis.DataSet(
+        Object.keys(userGroups).map((email, index) => ({
+          id: email || 'unassigned',
+          content: email === 'Unassigned' ? 'Unassigned' : (allUsers.find(u => u.email === email)?.name || email)
+        }))
+      );
+
+      // Priority colors
+      const priorityColors = {
+        urgent: '#ff6b6b',
+        high: '#ffa500',
+        medium: '#6fcf6f',
+        low: '#95a5a6'
+      };
+
+      // Create items from reminders
+      const items = new vis.DataSet(
+        activeReminders.map(reminder => {
+          const dueDate = new Date(reminder.dueDate);
+          const color = priorityColors[reminder.priority] || '#6fcf6f';
+          const reminderOverdue = isOverdue(reminder.dueDate, reminder.completed);
+          
+          return {
+            id: reminder.reminderId,
+            group: reminder.assignedTo || 'unassigned',
+            content: reminder.title,
+            start: dueDate,
+            title: `${reminder.title}\n${reminder.description || ''}\nDue: ${formatDate(reminder.dueDate)}\nPriority: ${reminder.priority}`,
+            className: `reminder-${reminder.priority}`,
+            style: `background-color: ${color}44; border-color: ${color}; color: ${color}; ${reminderOverdue ? 'border-width: 3px;' : ''}`,
+            data: {
+              reminder: reminder
+            }
+          };
+        })
+      );
+
+      // Destroy existing timeline if it exists
+      if (remindersTimeline) {
+        remindersTimeline.destroy();
+      }
+
+      // Calculate date range: today to 7 days ahead
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const weekAhead = new Date(today);
+      weekAhead.setDate(weekAhead.getDate() + 7);
+      weekAhead.setHours(23, 59, 59, 999);
+
+      // Create timeline options
+      const options = {
+        stack: false,
+        editable: false,
+        start: today,
+        end: weekAhead,
+        zoomMin: 1000 * 60 * 60 * 24, // 1 day minimum
+        zoomMax: 1000 * 60 * 60 * 24 * 14, // 2 weeks maximum
+        orientation: 'top',
+        showCurrentTime: true,
+        tooltip: {
+          followMouse: true,
+          overflowMethod: 'cap'
+        }
+      };
+
+      // Create the timeline
+      remindersTimeline = new vis.Timeline(container, items, groups, options);
+
+      // Handle reminder click
+      remindersTimeline.on('select', function(properties) {
+        if (properties.items && properties.items.length > 0) {
+          const itemId = properties.items[0];
+          const item = items.get(itemId);
+          if (item && item.data) {
+            // Scroll to the reminder in the list
+            const reminderCard = document.querySelector(`[data-reminder-id="${itemId}"]`);
+            if (reminderCard) {
+              reminderCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              reminderCard.style.background = '#3a3f47';
+              setTimeout(() => {
+                reminderCard.style.background = '';
+              }, 2000);
+            }
+          }
+        }
+      });
+    }
+
+    async function loadUpcomingReminders() {
+      const token = getToken();
+      if (!token) return;
+
+      try {
+        // Load all upcoming reminders (not filtered by user)
+        // We'll filter by date range on the client side to show all reminders due in next 7 days
+        const now = new Date();
+        const weekAhead = new Date(now);
+        weekAhead.setDate(weekAhead.getDate() + 7);
+        
+        const startDate = now.toISOString();
+        const endDate = weekAhead.toISOString();
+
+        const url = `/api/reminders?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&completed=false`;
+
+        const response = await fetch(url, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          let reminders = data.reminders || [];
+          
+          // Filter to only show reminders due in the next 7 days (including today)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const sevenDaysAhead = new Date(today);
+          sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
+          sevenDaysAhead.setHours(23, 59, 59, 999);
+          
+          reminders = reminders.filter(reminder => {
+            const dueDate = new Date(reminder.dueDate);
+            return dueDate >= today && dueDate <= sevenDaysAhead;
+          });
+          
+          // Sort by due date
+          reminders.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+          
+          renderUpcomingReminders(reminders);
+        }
+      } catch (err) {
+        console.error('Error loading upcoming reminders:', err);
+      }
+    }
+
+    function getUserEmail() {
+      const token = getToken();
+      if (!token) return null;
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.email || payload.preferred_username || null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function renderUpcomingReminders(reminders) {
+      const container = document.getElementById('upcomingRemindersList');
+
+      if (!reminders || reminders.length === 0) {
+        container.innerHTML = '<div style="color:#888; padding:1rem;">No upcoming reminders in the next 7 days.</div>';
+        return;
+      }
+
+      let html = '';
+      reminders.forEach(reminder => {
+        const daysUntil = getDaysUntil(reminder.dueDate);
+        const priorityColors = {
+          urgent: '#ff6b6b',
+          high: '#ffa500',
+          medium: '#6fcf6f',
+          low: '#95a5a6'
+        };
+        const priorityColor = priorityColors[reminder.priority] || '#6fcf6f';
+
+        html += `
+          <div class="reminder-card" style="border-left: 4px solid ${priorityColor}; margin-bottom:0.5rem;">
+            <div class="reminder-header">
+              <div>
+                <strong>${escapeHtml(reminder.title)}</strong>
+                <span style="margin-left:1rem; color:#888;">Due: ${formatDate(reminder.dueDate)}</span>
+                <span style="margin-left:1rem; color:${priorityColor};">(${daysUntil} day${daysUntil !== 1 ? 's' : ''} remaining)</span>
+              </div>
+            </div>
+            ${reminder.description ? `<div style="margin-top:0.5rem; color:#ccc;">${escapeHtml(reminder.description)}</div>` : ''}
+            ${reminder.relatedToType && reminder.relatedToId ? `<div style="margin-top:0.5rem; font-size:0.9rem; color:#888;">Related to: ${escapeHtml(reminder.relatedToType)} ${escapeHtml(reminder.relatedToId)}</div>` : ''}
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    async function loadUsers() {
+      const token = getToken();
+      if (!token) return;
+
+      try {
+        const response = await fetch('/api/users', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          allUsers = data.users || [];
+          
+          // Populate assigned to dropdowns
+          const assignedToSelect = document.getElementById('filterAssignedTo');
+          const modalAssignedTo = document.getElementById('modalAssignedTo');
+          
+          allUsers.forEach(user => {
+            const option1 = document.createElement('option');
+            option1.value = user.email;
+            option1.textContent = user.name || user.email;
+            assignedToSelect.appendChild(option1);
+
+            const option2 = document.createElement('option');
+            option2.value = user.email;
+            option2.textContent = user.name || user.email;
+            modalAssignedTo.appendChild(option2);
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load users:', err);
+      }
+    }
+
+    async function loadReminders() {
+      const token = getToken();
+      if (!token) {
+        setStatus('Authentication required', true);
+        return;
+      }
+
+      setStatus('Loading reminders...');
+
+      try {
+        const filters = {};
+        const assignedTo = document.getElementById('filterAssignedTo').value;
+        const completed = document.getElementById('filterCompleted').value;
+        const priority = document.getElementById('filterPriority').value;
+        const overdue = document.getElementById('showOverdue').checked;
+
+        if (assignedTo) filters.assignedTo = assignedTo;
+        if (completed !== '') filters.completed = completed === 'true';
+        if (priority) filters.priority = priority;
+        if (overdue) filters.overdue = true;
+
+        const queryParams = new URLSearchParams();
+        Object.keys(filters).forEach(key => {
+          if (filters[key] !== undefined) {
+            queryParams.append(key, filters[key]);
+          }
+        });
+
+        const response = await fetch('/api/reminders?' + queryParams.toString(), {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load reminders');
+        }
+
+        const data = await response.json();
+        currentReminders = data.reminders || [];
+        renderReminders(currentReminders);
+        renderRemindersTimeline(currentReminders);
+        setStatus(`Loaded ${currentReminders.length} reminder(s).`);
+      } catch (err) {
+        console.error('Error loading reminders:', err);
+        setStatus('Failed to load reminders: ' + (err.message || 'Unknown error'), true);
+      }
+    }
+
+    function renderReminders(reminders) {
+      const container = document.getElementById('remindersContainer');
+
+      if (!reminders || reminders.length === 0) {
+        container.innerHTML = '<div class="empty-state">No reminders found.</div>';
+        return;
+      }
+
+      // Sort: newest first (by createdAt), then overdue, then by due date
+      const sorted = [...reminders].sort((a, b) => {
+        // First, sort by creation date (newest first)
+        const aCreated = new Date(a.createdAt || a.dueDate);
+        const bCreated = new Date(b.createdAt || b.dueDate);
+        const createdDiff = bCreated - aCreated;
+        if (Math.abs(createdDiff) > 1000) { // More than 1 second difference
+          return createdDiff;
+        }
+        // If created at similar times, prioritize overdue
+        const aOverdue = isOverdue(a.dueDate, a.completed);
+        const bOverdue = isOverdue(b.dueDate, b.completed);
+        if (aOverdue && !bOverdue) return -1;
+        if (!aOverdue && bOverdue) return 1;
+        // Finally, sort by due date (earliest first)
+        return new Date(a.dueDate) - new Date(b.dueDate);
+      });
+
+      let html = '';
+      sorted.forEach(reminder => {
+        const overdue = isOverdue(reminder.dueDate, reminder.completed);
+        const daysUntil = getDaysUntil(reminder.dueDate);
+        const priorityColors = {
+          urgent: '#ff6b6b',
+          high: '#ffa500',
+          medium: '#6fcf6f',
+          low: '#95a5a6'
+        };
+        const priorityColor = priorityColors[reminder.priority] || '#6fcf6f';
+
+        html += `
+          <div class="reminder-card" data-reminder-id="${reminder.reminderId}" style="border-left: 4px solid ${priorityColor}; ${reminder.completed ? 'opacity: 0.6;' : ''}">
+            <div class="reminder-header">
+              <div>
+                <h3 style="margin:0; display:inline;">${escapeHtml(reminder.title)}</h3>
+                ${reminder.completed ? '<span style="color:#6fcf6f; margin-left:1rem;">✓ Completed</span>' : ''}
+                ${overdue ? '<span style="color:#ff6b6b; margin-left:1rem; font-weight:bold;">⚠️ OVERDUE</span>' : ''}
+              </div>
+              <div style="display:flex; gap:0.5rem;">
+                <button class="editReminderBtn" data-id="${reminder.reminderId}">Edit</button>
+                <button class="deleteReminderBtn" data-id="${reminder.reminderId}">Delete</button>
+                ${!reminder.completed ? `<button class="completeReminderBtn" data-id="${reminder.reminderId}">Mark Complete</button>` : ''}
+              </div>
+            </div>
+            <div class="reminder-body">
+              ${reminder.description ? `<p>${escapeHtml(reminder.description)}</p>` : ''}
+              <div class="reminder-meta">
+                <span><strong>Due:</strong> ${formatDate(reminder.dueDate)}</span>
+                ${!reminder.completed && !overdue ? `<span>(${daysUntil} day${daysUntil !== 1 ? 's' : ''} remaining)</span>` : ''}
+                ${reminder.assignedTo ? `<span><strong>Assigned to:</strong> ${escapeHtml(reminder.assignedTo)}</span>` : ''}
+                ${reminder.relatedToType && reminder.relatedToId ? `<span><strong>Related to:</strong> ${escapeHtml(reminder.relatedToType)} ${escapeHtml(reminder.relatedToId)}</span>` : ''}
+                <span style="color:${priorityColor};"><strong>Priority:</strong> ${escapeHtml(reminder.priority)}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+
+      // Attach event handlers
+      document.querySelectorAll('.editReminderBtn').forEach(btn => {
+        btn.addEventListener('click', () => editReminder(btn.dataset.id));
+      });
+
+      document.querySelectorAll('.deleteReminderBtn').forEach(btn => {
+        btn.addEventListener('click', () => deleteReminder(btn.dataset.id));
+      });
+
+      document.querySelectorAll('.completeReminderBtn').forEach(btn => {
+        btn.addEventListener('click', () => completeReminder(btn.dataset.id));
+      });
+    }
+
+    function openModal(reminder = null) {
+      document.getElementById('reminderModal').style.display = 'block';
+      document.getElementById('modalTitle').textContent = reminder && reminder.reminderId ? 'Edit Reminder' : 'Add Reminder';
+      document.getElementById('reminderForm').reset();
+      document.getElementById('modalReminderId').value = '';
+
+      if (reminder && reminder.reminderId) {
+        // Editing existing reminder
+        document.getElementById('modalReminderId').value = reminder.reminderId;
+        document.getElementById('modalTitleInput').value = reminder.title || '';
+        document.getElementById('modalDescription').value = reminder.description || '';
+        document.getElementById('modalDueDate').value = reminder.dueDate ? new Date(reminder.dueDate).toISOString().slice(0, 16) : '';
+        document.getElementById('modalReminderType').value = reminder.reminderType || 'other';
+        document.getElementById('modalPriority').value = reminder.priority || 'medium';
+        document.getElementById('modalAssignedTo').value = reminder.assignedTo || '';
+        document.getElementById('modalRelatedToType').value = reminder.relatedToType || '';
+        document.getElementById('modalRelatedToId').value = reminder.relatedToId || '';
+        document.getElementById('relatedToIdLabel').style.display = reminder.relatedToType ? 'block' : 'none';
+      } else {
+        // New reminder (may have pre-filled data)
+        document.getElementById('modalDueDate').value = new Date().toISOString().slice(0, 16);
+        if (reminder && reminder.relatedToType) {
+          document.getElementById('modalRelatedToType').value = reminder.relatedToType;
+          document.getElementById('modalRelatedToId').value = reminder.relatedToId || '';
+          document.getElementById('relatedToIdLabel').style.display = 'block';
+        }
+        // Pre-fill assigned to current user
+        const currentUserEmail = getUserEmail();
+        if (currentUserEmail) {
+          document.getElementById('modalAssignedTo').value = currentUserEmail;
+        }
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('reminderModal').style.display = 'none';
+      document.getElementById('reminderForm').reset();
+    }
+
+    async function saveReminder(formData) {
+      const token = getToken();
+      if (!token) {
+        setStatus('Authentication required', true);
+        return;
+      }
+
+      const reminderId = document.getElementById('modalReminderId').value;
+      const url = reminderId 
+        ? `/api/reminders/${reminderId}`
+        : '/api/reminders';
+      const method = reminderId ? 'PUT' : 'POST';
+
+      setStatus('Saving reminder...');
+
+      try {
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          setStatus('Reminder saved successfully!');
+          closeModal();
+          loadReminders();
+        } else {
+          setStatus('Error: ' + (data.error || 'Failed to save reminder'), true);
+        }
+      } catch (err) {
+        console.error('Error saving reminder:', err);
+        setStatus('Failed to save reminder: ' + err.message, true);
+      }
+    }
+
+    async function deleteReminder(reminderId) {
+      if (!confirm('Are you sure you want to delete this reminder?')) return;
+
+      const token = getToken();
+      if (!token) return;
+
+      setStatus('Deleting reminder...');
+
+      try {
+        const response = await fetch(`/api/reminders/${reminderId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (response.ok) {
+          setStatus('Reminder deleted successfully!');
+          loadReminders();
+        } else {
+          const data = await response.json();
+          setStatus('Error: ' + (data.error || 'Failed to delete reminder'), true);
+        }
+      } catch (err) {
+        console.error('Error deleting reminder:', err);
+        setStatus('Failed to delete reminder: ' + err.message, true);
+      }
+    }
+
+    async function completeReminder(reminderId) {
+      const token = getToken();
+      if (!token) return;
+
+      setStatus('Updating reminder...');
+
+      try {
+        const response = await fetch(`/api/reminders/${reminderId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ completed: true })
+        });
+
+        if (response.ok) {
+          setStatus('Reminder marked as complete!');
+          loadReminders();
+        } else {
+          const data = await response.json();
+          setStatus('Error: ' + (data.error || 'Failed to update reminder'), true);
+        }
+      } catch (err) {
+        console.error('Error completing reminder:', err);
+        setStatus('Failed to update reminder: ' + err.message, true);
+      }
+    }
+
+    async function editReminder(reminderId) {
+      const reminder = currentReminders.find(r => r.reminderId === reminderId);
+      if (reminder) {
+        openModal(reminder);
+      }
+    }
+
+    // Event handlers
+    document.getElementById('addReminderBtn').addEventListener('click', () => openModal());
+    document.getElementById('cancelReminderBtn').addEventListener('click', closeModal);
+
+    document.getElementById('reminderForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = {
+        title: document.getElementById('modalTitleInput').value,
+        description: document.getElementById('modalDescription').value,
+        dueDate: new Date(document.getElementById('modalDueDate').value).toISOString(),
+        reminderType: document.getElementById('modalReminderType').value,
+        priority: document.getElementById('modalPriority').value,
+        assignedTo: document.getElementById('modalAssignedTo').value || null,
+        relatedToType: document.getElementById('modalRelatedToType').value || null,
+        relatedToId: document.getElementById('modalRelatedToId').value || null
+      };
+      saveReminder(formData);
+    });
+
+    document.getElementById('modalRelatedToType').addEventListener('change', (e) => {
+      document.getElementById('relatedToIdLabel').style.display = e.target.value ? 'block' : 'none';
+    });
+
+    // Filter handlers
+    document.getElementById('filterAssignedTo').addEventListener('change', loadReminders);
+    document.getElementById('filterCompleted').addEventListener('change', loadReminders);
+    document.getElementById('filterPriority').addEventListener('change', loadReminders);
+    document.getElementById('showOverdue').addEventListener('change', loadReminders);
+
+    // Check for pre-filled LovedOne ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const prefillLovedOneId = urlParams.get('lovedOneId');
+    const prefillCaseId = urlParams.get('caseId');
+
+    // Load on page load
+    loadUsers();
+    loadReminders();
+    loadUpcomingReminders();
+
+    // If coming from LovedOne page, open modal with pre-filled data
+    if (prefillLovedOneId) {
+      setTimeout(() => {
+        openModal({
+          relatedToType: 'lovedOne',
+          relatedToId: prefillLovedOneId
+        });
+      }, 500);
+    }
+  </script>
+</body>
+</html>
+
