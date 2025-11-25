@@ -430,6 +430,7 @@ const setupTimelineRoutes = require('./routes/timeline');
 const setupReminderRoutes = require('./routes/reminders');
 const setupDashboardRoutes = require('./routes/dashboard');
 const setupWitnessRoutes = require('./routes/witnesses');
+const setupCalendarRoutes = require('./routes/calendar');
 
 (async function initialiseAuditLogging() {
   try {
@@ -2932,6 +2933,15 @@ setupWitnessRoutes(witnessRouter, {
   requireRole
 });
 app.use('/api', witnessRouter);
+
+const calendarRouter = express.Router();
+setupCalendarRoutes(calendarRouter, {
+  driver,
+  auditLogger,
+  authMiddleware,
+  requireRole
+});
+app.use('/api', calendarRouter);
 
 // Initialize offender-news module AFTER all other routes are registered
 // This ensures requireRole is defined and routes are registered before server starts

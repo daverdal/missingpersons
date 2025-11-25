@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendar - Missing Persons App</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+  <!-- FullCalendar CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet" type="text/css" />
+  <!-- Fallback CDN -->
+  <link href="https://unpkg.com/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet" type="text/css" onerror="console.error('Primary FullCalendar CSS failed to load')" />
+  <style>
+    #calendar {
+      background: #23272b;
+      border: 1px solid #3a3f47;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      min-height: 600px;
+    }
+    .fc {
+      color: #ccc;
+    }
+    .fc-toolbar {
+      background: #1a1d20 !important;
+      border-bottom: 1px solid #3a3f47 !important;
+      padding: 0.5rem !important;
+      margin-bottom: 0 !important;
+    }
+    .fc-toolbar-title {
+      color: #6fcf6f;
+    }
+    .fc-header-toolbar {
+      background: #1a1d20 !important;
+      border-bottom: 1px solid #3a3f47 !important;
+      padding: 0.5rem !important;
+      margin-bottom: 0 !important;
+    }
+    .fc-scrollgrid-section-header {
+      background: #1a1d20 !important;
+      border-color: #3a3f47 !important;
+    }
+    .fc-scrollgrid-section-header > td {
+      background: #1a1d20 !important;
+      border-color: #3a3f47 !important;
+    }
+    .fc-daygrid .fc-col-header-cell {
+      background: #1a1d20 !important;
+      border-color: #3a3f47 !important;
+    }
+    .fc-col-header {
+      background: #1a1d20 !important;
+    }
+    .fc-col-header-cell {
+      background: #1a1d20 !important;
+      border-color: #3a3f47 !important;
+      color: #6fcf6f !important;
+    }
+    .fc-col-header-cell a {
+      color: #6fcf6f !important;
+    }
+    /* Target any white backgrounds */
+    .fc table {
+      background: transparent !important;
+    }
+    .fc-scrollgrid {
+      background: #23272b !important;
+    }
+    .fc-scrollgrid table {
+      background: transparent !important;
+    }
+    /* Force dark theme on all FullCalendar elements */
+    .fc * {
+      background-color: inherit !important;
+    }
+    .fc-scrollgrid-section-header table {
+      background: #1a1d20 !important;
+    }
+    .fc-scrollgrid-section-header th {
+      background: #1a1d20 !important;
+      border-color: #3a3f47 !important;
+    }
+    /* Override any white backgrounds specifically */
+    .fc-daygrid .fc-col-header,
+    .fc-daygrid .fc-col-header-cell,
+    .fc-daygrid .fc-col-header-cell-cushion {
+      background: #1a1d20 !important;
+      background-color: #1a1d20 !important;
+    }
+    /* Make sure the header row is dark */
+    .fc-col-header tr {
+      background: #1a1d20 !important;
+    }
+    .fc-col-header tr td,
+    .fc-col-header tr th {
+      background: #1a1d20 !important;
+      background-color: #1a1d20 !important;
+    }
+    .fc-button {
+      background: #3a3f47 !important;
+      border-color: #3a3f47 !important;
+      color: #ccc !important;
+    }
+    .fc-button:hover {
+      background: #4a4f57 !important;
+    }
+    .fc-button-active {
+      background: #6fcf6f !important;
+      border-color: #6fcf6f !important;
+      color: #111 !important;
+    }
+    .fc-daygrid-day {
+      background: #1a1d20;
+      border-color: #3a3f47;
+    }
+    .fc-daygrid-day:hover {
+      background: #23272b;
+    }
+    .fc-day-today {
+      background: #2a2d30 !important;
+    }
+    .fc-col-header-cell {
+      background: #1a1d20;
+      border-color: #3a3f47;
+      color: #6fcf6f;
+    }
+    .fc-scrollgrid {
+      background: #23272b !important;
+      border-color: #3a3f47 !important;
+    }
+    .fc-scrollgrid-section {
+      background: #1a1d20 !important;
+      border-color: #3a3f47 !important;
+    }
+    .fc-scrollgrid-section-header {
+      background: #1a1d20 !important;
+    }
+    .fc-theme-standard td, .fc-theme-standard th {
+      border-color: #3a3f47 !important;
+    }
+    .fc-event {
+      border: none;
+      padding: 2px 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .fc-event:hover {
+      opacity: 0.8;
+    }
+    .event-details-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      overflow-y: auto;
+    }
+    .event-details-content {
+      max-width: 600px;
+      margin: 2rem auto;
+      background: #23272b;
+      border: 2px solid #6fcf6f;
+      border-radius: 8px;
+      padding: 2rem;
+    }
+    .event-details-content h2 {
+      margin-top: 0;
+      color: #6fcf6f;
+    }
+    .event-details-content .detail-row {
+      margin: 1rem 0;
+      padding: 0.5rem;
+      background: #1a1d20;
+      border-radius: 4px;
+    }
+    .event-details-content .detail-label {
+      color: #6fcf6f;
+      font-weight: bold;
+      margin-right: 0.5rem;
+    }
+    .event-details-content .detail-value {
+      color: #ccc;
+    }
+    .calendar-filters {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .calendar-filters label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #ccc;
+    }
+    .calendar-filters input[type="checkbox"] {
+      width: auto;
+    }
+    .calendar-filters select {
+      background: #23272b;
+      color: #ccc;
+      border: 1px solid #3a3f47;
+      padding: 0.5rem;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <header style="position:relative;">
+    <h1 style="text-align:center;">Calendar</h1>
+    <!-- Navigation will be injected here -->
+  </header>
+  <main>
+    <div class="calendar-filters">
+      <label>
+        <input type="checkbox" id="filterReminders" checked> Reminders
+      </label>
+      <label>
+        <input type="checkbox" id="filterTimeline" checked> Timeline Events
+      </label>
+      <label>
+        Assigned To:
+        <select id="filterAssignedTo">
+          <option value="">All Users</option>
+        </select>
+      </label>
+      <span id="statusMessage" style="color: #6fcf6f; margin-left: auto;"></span>
+    </div>
+
+    <div id="calendar"></div>
+
+    <!-- Event Details Modal -->
+    <div id="eventDetailsModal" class="event-details-modal">
+      <div class="event-details-content">
+        <h2 id="eventDetailsTitle">Event Details</h2>
+        <div id="eventDetailsBody"></div>
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+          <button id="eventDetailsClose" style="flex: 1; padding: 0.5rem; background: #3a3f47; color: #ccc; border: 1px solid #3a3f47; border-radius: 4px; cursor: pointer;">Close</button>
+          <button id="eventDetailsAction" style="flex: 1; padding: 0.5rem; background: #6fcf6f; color: #111; border: 1px solid #6fcf6f; border-radius: 4px; cursor: pointer; display: none;">Action</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- FullCalendar JS -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js" onerror="this.onerror=null; this.src='https://unpkg.com/fullcalendar@6.1.10/index.global.min.js'"></script>
+  <script>
+
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    function setStatus(message, isError) {
+      const el = document.getElementById('statusMessage');
+      el.textContent = message || '';
+      el.style.color = isError ? '#ff7f7f' : '#6fcf6f';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    }
+
+    let calendar;
+    let allUsers = [];
+    let allCalendarEvents = [];
+
+    // Function to force dark theme on calendar header
+    function forceDarkHeader() {
+      const headerCells = document.querySelectorAll('.fc-col-header-cell, .fc-scrollgrid-section-header td, .fc-scrollgrid-section-header th');
+      headerCells.forEach(cell => {
+        cell.style.background = '#1a1d20';
+        cell.style.backgroundColor = '#1a1d20';
+        cell.style.color = '#6fcf6f';
+      });
+      
+      const headerRows = document.querySelectorAll('.fc-col-header tr, .fc-scrollgrid-section-header');
+      headerRows.forEach(row => {
+        row.style.background = '#1a1d20';
+        row.style.backgroundColor = '#1a1d20';
+      });
+      
+      const tables = document.querySelectorAll('.fc-scrollgrid-section-header table, .fc-col-header table');
+      tables.forEach(table => {
+        table.style.background = '#1a1d20';
+        table.style.backgroundColor = '#1a1d20';
+      });
+    }
+
+    // Initialize calendar
+    document.addEventListener('DOMContentLoaded', function() {
+      const calendarEl = document.getElementById('calendar');
+      
+      if (!calendarEl) {
+        console.error('Calendar element not found');
+        return;
+      }
+
+      // Check if FullCalendar is loaded
+      if (typeof FullCalendar === 'undefined') {
+        calendarEl.innerHTML = '<div style="padding:2rem; text-align:center; color:#ff7f7f; background:#23272b; border:1px solid #ff7f7f; border-radius:4px;">Error: Calendar library failed to load. Please check your internet connection and refresh the page.<br><br>If the problem persists, check the browser console for errors.</div>';
+        console.error('FullCalendar library not loaded');
+        return;
+      }
+      
+      try {
+        console.log('Initializing FullCalendar...');
+        console.log('FullCalendar object:', typeof FullCalendar, FullCalendar);
+        
+        calendar = new FullCalendar.Calendar(calendarEl, {
+          initialView: 'dayGridMonth',
+          headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+          },
+          height: 'auto',
+          events: function(fetchInfo, successCallback, failureCallback) {
+            console.log('Loading events for:', fetchInfo.start, 'to', fetchInfo.end);
+            loadCalendarEvents(fetchInfo.start, fetchInfo.end, successCallback, failureCallback);
+          },
+          eventClick: function(info) {
+            showEventDetails(info.event);
+          },
+          dateClick: function(info) {
+            console.log('Date clicked:', info.dateStr);
+          },
+          eventDisplay: 'block',
+          eventTimeFormat: {
+            hour: 'numeric',
+            minute: '2-digit',
+            meridiem: 'short'
+          }
+        });
+
+        console.log('Rendering calendar...');
+        calendar.render();
+        console.log('Calendar rendered successfully');
+        
+        // Force dark theme on header after render
+        setTimeout(forceDarkHeader, 100);
+        
+        // Also force it after view changes
+        calendar.setOption('viewDidMount', function() {
+          setTimeout(forceDarkHeader, 50);
+        });
+        
+        loadUsers();
+      } catch (error) {
+        console.error('Error initializing calendar:', error);
+        calendarEl.innerHTML = '<div style="padding:2rem; text-align:center; color:#ff7f7f; background:#1a1d20; border:1px solid #ff7f7f; border-radius:4px;">Error initializing calendar: ' + error.message + '<br><br>Please check the browser console for more details.</div>';
+      }
+    });
+
+    async function loadUsers() {
+      const token = getToken();
+      if (!token) return;
+
+      try {
+        const response = await fetch('/api/users', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          allUsers = data.users || [];
+          
+          const assignedToSelect = document.getElementById('filterAssignedTo');
+          allUsers.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.email;
+            option.textContent = user.name || user.email;
+            assignedToSelect.appendChild(option);
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load users:', err);
+      }
+    }
+
+    async function loadCalendarEvents(start, end, successCallback, failureCallback) {
+      const token = getToken();
+      if (!token) {
+        if (failureCallback) failureCallback('Authentication required');
+        return;
+      }
+
+      try {
+        // Get filter settings
+        const includeReminders = document.getElementById('filterReminders').checked;
+        const includeTimeline = document.getElementById('filterTimeline').checked;
+        const assignedTo = document.getElementById('filterAssignedTo').value;
+
+        const eventTypes = [];
+        if (includeReminders) eventTypes.push('reminders');
+        if (includeTimeline) eventTypes.push('timeline');
+
+        if (eventTypes.length === 0) {
+          if (successCallback) successCallback([]);
+          return;
+        }
+
+        const params = new URLSearchParams({
+          start: start.toISOString(),
+          end: end.toISOString(),
+          eventTypes: eventTypes.join(',')
+        });
+
+        if (assignedTo) {
+          params.append('assignedTo', assignedTo);
+        }
+
+        const response = await fetch(`/api/calendar/events?${params.toString()}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load calendar events');
+        }
+
+        const data = await response.json();
+        allCalendarEvents = data.events || [];
+        
+        // Convert to FullCalendar format
+        const fcEvents = allCalendarEvents.map(event => ({
+          id: event.id,
+          title: event.title,
+          start: event.start,
+          end: event.end,
+          allDay: event.allDay,
+          backgroundColor: event.color,
+          borderColor: event.color,
+          textColor: event.textColor,
+          extendedProps: event.extendedProps
+        }));
+
+        if (successCallback) successCallback(fcEvents);
+        setStatus(`Loaded ${fcEvents.length} event(s).`);
+        
+        // Force dark header after events load
+        setTimeout(forceDarkHeader, 50);
+      } catch (err) {
+        console.error('Error loading calendar events:', err);
+        setStatus('Failed to load calendar events: ' + (err.message || 'Unknown error'), true);
+        if (failureCallback) failureCallback(err);
+      }
+    }
+
+    function showEventDetails(event) {
+      const modal = document.getElementById('eventDetailsModal');
+      const titleEl = document.getElementById('eventDetailsTitle');
+      const bodyEl = document.getElementById('eventDetailsBody');
+      const actionBtn = document.getElementById('eventDetailsAction');
+
+      const props = event.extendedProps;
+      const eventType = props.type || 'unknown';
+
+      titleEl.textContent = event.title;
+      actionBtn.style.display = 'none';
+
+      let html = '';
+
+      if (eventType === 'reminder') {
+        html += `
+          <div class="detail-row">
+            <span class="detail-label">Type:</span>
+            <span class="detail-value">Reminder</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Priority:</span>
+            <span class="detail-value">${escapeHtml(props.priority || 'medium')}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Status:</span>
+            <span class="detail-value">${props.completed ? 'Completed' : (props.overdue ? '⚠️ OVERDUE' : 'Active')}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Due Date:</span>
+            <span class="detail-value">${formatDate(event.start)}</span>
+          </div>
+        `;
+        if (props.description) {
+          html += `
+            <div class="detail-row">
+              <span class="detail-label">Description:</span>
+              <span class="detail-value">${escapeHtml(props.description)}</span>
+            </div>
+          `;
+        }
+        if (props.assignedTo) {
+          html += `
+            <div class="detail-row">
+              <span class="detail-label">Assigned To:</span>
+              <span class="detail-value">${escapeHtml(props.assignedTo)}</span>
+            </div>
+          `;
+        }
+        if (props.relatedToType && props.relatedToId) {
+          html += `
+            <div class="detail-row">
+              <span class="detail-label">Related To:</span>
+              <span class="detail-value">${escapeHtml(props.relatedToType)} - ${escapeHtml(props.relatedToId)}</span>
+            </div>
+          `;
+        }
+        actionBtn.textContent = 'View Reminder';
+        actionBtn.style.display = 'block';
+        actionBtn.onclick = () => {
+          window.location.href = `reminders.html?reminderId=${props.reminderId}`;
+        };
+      } else if (eventType === 'timeline') {
+        html += `
+          <div class="detail-row">
+            <span class="detail-label">Type:</span>
+            <span class="detail-value">Timeline Event</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Event Type:</span>
+            <span class="detail-value">${escapeHtml(props.eventType || 'Unknown')}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Missing Person:</span>
+            <span class="detail-value">${escapeHtml(props.lovedOneName || 'Unknown')}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Date:</span>
+            <span class="detail-value">${formatDate(event.start)}</span>
+          </div>
+        `;
+        if (props.description) {
+          html += `
+            <div class="detail-row">
+              <span class="detail-label">Description:</span>
+              <span class="detail-value">${escapeHtml(props.description)}</span>
+            </div>
+          `;
+        }
+        if (props.location) {
+          html += `
+            <div class="detail-row">
+              <span class="detail-label">Location:</span>
+              <span class="detail-value">${escapeHtml(props.location)}</span>
+            </div>
+          `;
+        }
+        if (props.lovedOneId) {
+          actionBtn.textContent = 'View Timeline';
+          actionBtn.style.display = 'block';
+          actionBtn.onclick = () => {
+            window.location.href = `lovedone-timeline.html?lovedOneId=${props.lovedOneId}`;
+          };
+        }
+      }
+
+      bodyEl.innerHTML = html;
+      modal.style.display = 'block';
+    }
+
+    // Close modal
+    document.getElementById('eventDetailsClose').addEventListener('click', () => {
+      document.getElementById('eventDetailsModal').style.display = 'none';
+    });
+
+    // Close modal on outside click
+    document.getElementById('eventDetailsModal').addEventListener('click', (e) => {
+      if (e.target.id === 'eventDetailsModal') {
+        document.getElementById('eventDetailsModal').style.display = 'none';
+      }
+    });
+
+    // Filter change handlers
+    document.getElementById('filterReminders').addEventListener('change', () => {
+      calendar.refetchEvents();
+    });
+    document.getElementById('filterTimeline').addEventListener('change', () => {
+      calendar.refetchEvents();
+    });
+    document.getElementById('filterAssignedTo').addEventListener('change', () => {
+      calendar.refetchEvents();
+    });
+  </script>
+</body>
+</html>
+
