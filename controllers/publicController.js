@@ -130,7 +130,7 @@ async function getPublicLovedOnes(req, res, driver) {
   const session = driver.session();
   const params = {
     resolvedStatuses,
-    limit: Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200)
+    limit: neo4j.int(Math.floor(Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200)))
   };
 
   const filters = [];
@@ -163,9 +163,15 @@ async function getPublicLovedOnes(req, res, driver) {
     const result = await session.run(
       `
       MATCH (l:LovedOne)
-      OPTIONAL MATCH (a:Applicant)-[rel:RELATED_TO]->(l)
       ${whereClause}
-      RETURN l, rel.relationship AS relationship, a.name AS applicantName
+      OPTIONAL MATCH (a:Applicant)-[rel:RELATED_TO]->(l)
+      OPTIONAL MATCH (l)-[:HAS_PHOTO]->(f:File)
+      WHERE f IS NULL OR f.type = 'photo' OR f.mimetype STARTS WITH 'image/'
+      WITH l, rel, a, f
+      ORDER BY coalesce(l.dateOfIncident, '') DESC, l.name, 
+               CASE WHEN f IS NOT NULL THEN f.uploadedAt END DESC
+      WITH l, rel, a, collect(DISTINCT f.filename)[0] AS photoFilename
+      RETURN l, rel.relationship AS relationship, a.name AS applicantName, photoFilename
       ORDER BY coalesce(l.dateOfIncident, '') DESC, l.name
       LIMIT $limit
       `,
@@ -176,6 +182,9 @@ async function getPublicLovedOnes(req, res, driver) {
       const lovedOneNode = record.get('l');
       const props = lovedOneNode ? lovedOneNode.properties : {};
       const applicantName = record.get('applicantName');
+      const photoFilename = record.get('photoFilename');
+      // Construct photoUrl from filename if photo exists
+      const photoUrl = photoFilename ? `/uploads/${photoFilename}` : null;
       return {
         id: props.id,
         name: props.name || 'Unnamed Loved One',
@@ -192,7 +201,7 @@ async function getPublicLovedOnes(req, res, driver) {
             }
           : null,
         summary: props.additionalNotes ? sanitizeText(props.additionalNotes, 280) : null,
-        photoUrl: props.photoUrl || null,
+        photoUrl: photoUrl,
         familyContactInitials: applicantName
           ? applicantName
               .split(/\s+/)
