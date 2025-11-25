@@ -1,0 +1,2144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports - Missing Persons App</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+  <style>
+    .report-builder {
+      background: #23272b;
+      border: 1px solid #3a3f47;
+      border-radius: 4px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .report-builder h2 {
+      margin-top: 0;
+      color: #6fcf6f;
+    }
+    .report-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .report-option {
+      background: #1a1d20;
+      border: 2px solid #3a3f47;
+      border-radius: 4px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .report-option:hover {
+      border-color: #6fcf6f;
+      background: #23272b;
+    }
+    .report-option.selected {
+      border-color: #6fcf6f;
+      background: #2a3d2a;
+    }
+    .report-option h3 {
+      margin-top: 0;
+      color: #6fcf6f;
+      font-size: 1.1rem;
+    }
+    .report-option p {
+      color: #ccc;
+      font-size: 0.9rem;
+      margin: 0.5rem 0 0 0;
+    }
+    .filter-section {
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #3a3f47;
+    }
+    .filter-row {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .filter-row label {
+      color: #ccc;
+      min-width: 120px;
+    }
+    .filter-row input,
+    .filter-row select {
+      flex: 1;
+      min-width: 200px;
+      background: #1a1d20;
+      color: #ccc;
+      border: 1px solid #3a3f47;
+      padding: 0.5rem;
+      border-radius: 4px;
+    }
+    .report-actions {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .report-results {
+      background: #23272b;
+      border: 1px solid #3a3f47;
+      border-radius: 4px;
+      padding: 1.5rem;
+      display: none;
+    }
+    .report-results.visible {
+      display: block;
+    }
+    .report-results h2 {
+      margin-top: 0;
+      color: #6fcf6f;
+    }
+    .report-meta {
+      color: #888;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #3a3f47;
+    }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-item {
+      background: #1a1d20;
+      border: 1px solid #3a3f47;
+      border-radius: 4px;
+      padding: 1rem;
+    }
+    .stat-item .label {
+      color: #6fcf6f;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+    .stat-item .value {
+      color: #fff;
+      font-size: 1.8rem;
+      font-weight: bold;
+    }
+    .caseworker-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    .caseworker-table th {
+      background: #1a1d20;
+      color: #6fcf6f;
+      padding: 0.75rem;
+      text-align: left;
+      border: 1px solid #3a3f47;
+    }
+    .caseworker-table td {
+      padding: 0.75rem;
+      border: 1px solid #3a3f47;
+      color: #ccc;
+    }
+    .caseworker-table tr:hover {
+      background: #1a1d20;
+    }
+    .export-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <header style="position:relative;">
+    <h1 style="text-align:center;">Reports</h1>
+    <!-- Navigation will be injected here -->
+  </header>
+  <main>
+    <div class="report-builder">
+      <h2>Generate Report</h2>
+      
+      <div class="report-options">
+        <div class="report-option" data-report-type="case-statistics">
+          <h3>Case Statistics</h3>
+          <p>Overview of all cases, status breakdown, and trends</p>
+        </div>
+        <div class="report-option" data-report-type="caseworker-activity">
+          <h3>Caseworker Activity</h3>
+          <p>Activity metrics and performance for each caseworker</p>
+        </div>
+        <div class="report-option" data-report-type="case-detail-export">
+          <h3>Case Detail Export</h3>
+          <p>Detailed export of case information, events, and related data</p>
+        </div>
+        <div class="report-option" data-report-type="community">
+          <h3>Community Report</h3>
+          <p>Comprehensive report for a First Nation community/reserve - cases, missing persons, notes, witnesses, and events</p>
+        </div>
+        <div class="report-option" data-report-type="workload-distribution">
+          <h3>Workload Distribution</h3>
+          <p>Analyze workload balance across caseworkers - identify overloaded and underloaded staff</p>
+        </div>
+        <div class="report-option" data-report-type="missing-person-demographics">
+          <h3>Missing Person Demographics</h3>
+          <p>Demographic analysis - age groups, gender, time missing, status distribution, and risk factors</p>
+        </div>
+        <div class="report-option" data-report-type="witness">
+          <h3>Witness Report</h3>
+          <p>Witness analysis - total witnesses, statement analysis, most active witnesses, and follow-up needs</p>
+        </div>
+        <div class="report-option" data-report-type="family">
+          <h3>Family Report</h3>
+          <p>Family/applicant analysis - repeat applicants, demographics, communication preferences, and support needs</p>
+        </div>
+        <div class="report-option" data-report-type="communications">
+          <h3>Communications Report</h3>
+          <p>Communication analysis - SMS and Email sent, recipients, opt-in status, frequency, and caseworker activity</p>
+        </div>
+      </div>
+
+      <div class="filter-section" id="filterSection" style="display:none;">
+        <h3 style="color:#6fcf6f; margin-top:0;">Filters</h3>
+        
+        <div class="filter-row">
+          <label>Date Range:</label>
+          <input type="date" id="startDate">
+          <span style="color:#888;">to</span>
+          <input type="date" id="endDate">
+        </div>
+
+        <div class="filter-row" id="statusFilterRow" style="display:none;">
+          <label>Case Status:</label>
+          <select id="statusFilter">
+            <option value="">All Statuses</option>
+            <option value="Active">Active</option>
+            <option value="Closed">Closed</option>
+            <option value="Follow-up Required">Follow-up Required</option>
+            <option value="On Hold">On Hold</option>
+          </select>
+        </div>
+
+        <div class="filter-row" id="caseIdsFilterRow" style="display:none;">
+          <label>Case IDs (comma-separated):</label>
+          <input type="text" id="caseIdsFilter" placeholder="A1, A2, A3">
+        </div>
+
+        <div class="filter-row" id="communityFilterRow" style="display:none;">
+          <label>Community/Reserve: *</label>
+          <select id="communityFilter" required>
+            <option value="">-- Select Community --</option>
+          </select>
+        </div>
+
+        <div class="report-actions">
+          <button id="generateReportBtn" style="padding:0.75rem 2rem; background:#6fcf6f; color:#111; border:none; border-radius:4px; cursor:pointer; font-weight:600;">
+            Generate Report
+          </button>
+          <button id="clearReportBtn" style="padding:0.75rem 2rem; background:#3a3f47; color:#ccc; border:1px solid #3a3f47; border-radius:4px; cursor:pointer;">
+            Clear
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="statusMessage" style="color:#6fcf6f; margin-bottom:1rem;"></div>
+
+    <div id="reportResults" class="report-results">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h2 id="reportTitle">Report Results</h2>
+        <div class="export-buttons">
+          <button id="exportPDFBtn" style="padding:0.5rem 1rem; background:#3a3f47; color:#ccc; border:1px solid #3a3f47; border-radius:4px; cursor:pointer;">
+            Export PDF
+          </button>
+          <button id="exportExcelBtn" style="padding:0.5rem 1rem; background:#3a3f47; color:#ccc; border:1px solid #3a3f47; border-radius:4px; cursor:pointer;">
+            Export Excel
+          </button>
+        </div>
+      </div>
+      <div id="reportContent"></div>
+    </div>
+  </main>
+
+  <script>
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    function setStatus(message, isError) {
+      const el = document.getElementById('statusMessage');
+      el.textContent = message || '';
+      el.style.color = isError ? '#ff7f7f' : '#6fcf6f';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    let selectedReportType = null;
+    let currentReportData = null;
+    let allCommunities = [];
+
+    async function loadCommunities() {
+      const token = getToken();
+      if (!token) return;
+
+      try {
+        const response = await fetch('/api/communities', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          allCommunities = data.communities || data || [];
+          
+          const communitySelect = document.getElementById('communityFilter');
+          communitySelect.innerHTML = '<option value="">-- Select Community --</option>';
+          
+          allCommunities.sort((a, b) => {
+            const nameA = (a && a.name ? a.name : a) || '';
+            const nameB = (b && b.name ? b.name : b) || '';
+            return nameA.localeCompare(nameB);
+          });
+          
+          allCommunities.forEach(community => {
+            const name = community && community.name ? community.name : community;
+            if (!name) return;
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name + (community.band_number ? ` (Band ${community.band_number})` : '');
+            communitySelect.appendChild(option);
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load communities:', err);
+      }
+    }
+
+    // Report type selection
+    document.querySelectorAll('.report-option').forEach(option => {
+      option.addEventListener('click', () => {
+        document.querySelectorAll('.report-option').forEach(o => o.classList.remove('selected'));
+        option.classList.add('selected');
+        selectedReportType = option.dataset.reportType;
+        
+        // Clear previous report results
+        document.getElementById('reportResults').classList.remove('visible');
+        document.getElementById('reportContent').innerHTML = '';
+        document.getElementById('reportTitle').textContent = 'Report Results';
+        currentReportData = null;
+        setStatus('');
+        
+        // Show/hide filters based on report type
+        const filterSection = document.getElementById('filterSection');
+        filterSection.style.display = 'block';
+        
+        // Show/hide specific filters
+        document.getElementById('statusFilterRow').style.display = 
+          selectedReportType === 'case-detail-export' ? 'flex' : 'none';
+        document.getElementById('caseIdsFilterRow').style.display = 
+          selectedReportType === 'case-detail-export' ? 'flex' : 'none';
+        document.getElementById('communityFilterRow').style.display = 
+          selectedReportType === 'community' ? 'flex' : 'none';
+        
+        // Load communities if community report is selected
+        if (selectedReportType === 'community') {
+          loadCommunities();
+        }
+      });
+    });
+
+    // Generate report
+    document.getElementById('generateReportBtn').addEventListener('click', async () => {
+      if (!selectedReportType) {
+        setStatus('Please select a report type', true);
+        return;
+      }
+
+      setStatus('Generating report...');
+      const token = getToken();
+      if (!token) {
+        setStatus('Authentication required', true);
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams();
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+        
+        if (selectedReportType === 'case-detail-export') {
+          const status = document.getElementById('statusFilter').value;
+          const caseIds = document.getElementById('caseIdsFilter').value;
+          if (status) params.append('status', status);
+          if (caseIds) params.append('caseIds', caseIds);
+        } else if (selectedReportType === 'community') {
+          const community = document.getElementById('communityFilter').value;
+          if (!community) {
+            setStatus('Please select a community', true);
+            return;
+          }
+          params.append('community', community);
+        }
+
+        const endpoint = `/api/reports/${selectedReportType}`;
+        const url = `${endpoint}${params.toString() ? '?' + params.toString() : ''}`;
+
+        const response = await fetch(url, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to generate report');
+        }
+
+        const data = await response.json();
+        currentReportData = data.report;
+        displayReport(data.report);
+        setStatus('Report generated successfully!');
+      } catch (err) {
+        console.error('Error generating report:', err);
+        setStatus('Failed to generate report: ' + err.message, true);
+      }
+    });
+
+    function displayReport(report) {
+      const resultsDiv = document.getElementById('reportResults');
+      const contentDiv = document.getElementById('reportContent');
+      const titleDiv = document.getElementById('reportTitle');
+      
+      resultsDiv.classList.add('visible');
+      titleDiv.textContent = report.type + ' Report';
+
+      let html = `
+        <div class="report-meta">
+          Generated: ${new Date(report.generatedAt).toLocaleString()}
+          ${report.dateRange ? `<br>Date Range: ${report.dateRange.startDate || 'All'} to ${report.dateRange.endDate || 'All'}` : ''}
+        </div>
+      `;
+
+      if (report.type === 'Case Statistics') {
+        html += renderCaseStatistics(report.statistics);
+      } else if (report.type === 'Caseworker Activity') {
+        html += renderCaseworkerActivity(report.caseworkers);
+      } else if (report.type === 'Case Detail Export') {
+        html += renderCaseDetailExport(report.cases);
+      } else if (report.type === 'Community Report') {
+        html += renderCommunityReport(report);
+      } else if (report.type === 'Workload Distribution') {
+        html += renderWorkloadDistribution(report);
+      } else if (report.type === 'Missing Person Demographics') {
+        html += renderMissingPersonDemographics(report);
+      } else if (report.type === 'Witness Report') {
+        html += renderWitnessReport(report);
+      } else if (report.type === 'Family Report') {
+        html += renderFamilyReport(report);
+      } else if (report.type === 'Communications Report') {
+        html += renderCommunicationsReport(report);
+      }
+
+      contentDiv.innerHTML = html;
+    }
+
+    function renderCaseStatistics(stats) {
+      let html = `
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="label">Total Cases</div>
+            <div class="value">${stats.cases.total}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Active Cases</div>
+            <div class="value" style="color:#6fcf6f;">${stats.cases.active}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Closed Cases</div>
+            <div class="value" style="color:#888;">${stats.cases.closed}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Follow-up Required</div>
+            <div class="value" style="color:#ffa500;">${stats.cases.followupRequired}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">On Hold</div>
+            <div class="value" style="color:#888;">${stats.cases.onHold}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Total Missing Persons</div>
+            <div class="value">${stats.missingPersons.total}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Total Reminders</div>
+            <div class="value">${stats.reminders.total}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Completed Reminders</div>
+            <div class="value" style="color:#6fcf6f;">${stats.reminders.completed}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Overdue Reminders</div>
+            <div class="value" style="color:#ff6b6b;">${stats.reminders.overdue}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Timeline Events</div>
+            <div class="value">${stats.timelineEvents.total}</div>
+          </div>
+        </div>
+
+        <h3 style="color:#6fcf6f;">Cases by Status</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Count</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      stats.cases.byStatus.forEach(item => {
+        html += `
+          <tr>
+            <td>${escapeHtml(item.status)}</td>
+            <td>${item.count}</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+      `;
+
+      if (stats.trends && stats.trends.casesByMonth && stats.trends.casesByMonth.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Cases by Month</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+        stats.trends.casesByMonth.forEach(item => {
+          html += `
+            <tr>
+              <td>${escapeHtml(item.month)}</td>
+              <td>${item.count}</td>
+            </tr>
+          `;
+        });
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      return html;
+    }
+
+    function renderCaseworkerActivity(caseworkers) {
+      let html = `
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Caseworker</th>
+              <th>Total Cases</th>
+              <th>Active Cases</th>
+              <th>Closed Cases</th>
+              <th>Total Reminders</th>
+              <th>Completed</th>
+              <th>Overdue</th>
+              <th>Completion Rate</th>
+              <th>Timeline Events</th>
+              <th>Witnesses</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      caseworkers.forEach(cw => {
+        html += `
+          <tr>
+            <td>${escapeHtml(cw.caseworker)}</td>
+            <td>${cw.cases.total}</td>
+            <td style="color:#6fcf6f;">${cw.cases.active}</td>
+            <td style="color:#888;">${cw.cases.closed}</td>
+            <td>${cw.reminders.total}</td>
+            <td style="color:#6fcf6f;">${cw.reminders.completed}</td>
+            <td style="color:#ff6b6b;">${cw.reminders.overdue}</td>
+            <td>${cw.reminders.completionRate}%</td>
+            <td>${cw.timelineEvents.total}</td>
+            <td>${cw.witnesses.total}</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+      `;
+
+      return html;
+    }
+
+    function renderCaseDetailExport(cases) {
+      if (!cases || cases.length === 0) {
+        return '<p style="color:#888;">No cases found matching the criteria.</p>';
+      }
+
+      let html = `<p style="color:#ccc; margin-bottom:1rem;">Found ${cases.length} case(s)</p>`;
+
+      cases.forEach((caseData, index) => {
+        const c = caseData.case;
+        html += `
+          <div style="background:#1a1d20; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem; margin-bottom:1.5rem;">
+            <h3 style="color:#6fcf6f; margin-top:0;">Case: ${escapeHtml(c.name || c.id)}</h3>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:1rem; margin-bottom:1rem;">
+              <div><strong style="color:#6fcf6f;">ID:</strong> ${escapeHtml(c.id)}</div>
+              <div><strong style="color:#6fcf6f;">Status:</strong> ${escapeHtml(c.status || 'N/A')}</div>
+              <div><strong style="color:#6fcf6f;">Created:</strong> ${c.createdAt ? new Date(c.createdAt).toLocaleString() : 'N/A'}</div>
+              <div><strong style="color:#6fcf6f;">Assigned To:</strong> ${c.assignedTo && c.assignedTo.length > 0 ? c.assignedTo.join(', ') : 'Unassigned'}</div>
+            </div>
+        `;
+
+        if (caseData.lovedOnes && caseData.lovedOnes.length > 0) {
+          html += `
+            <div style="margin-top:1rem;">
+              <strong style="color:#6fcf6f;">Missing Persons (${caseData.lovedOnes.length}):</strong>
+              <ul style="color:#ccc; margin:0.5rem 0;">
+          `;
+          caseData.lovedOnes.forEach(lo => {
+            html += `<li>${escapeHtml(lo.name || lo.id)} - ${escapeHtml(lo.relationship || 'N/A')}</li>`;
+          });
+          html += `</ul></div>`;
+        }
+
+        if (caseData.reminders && caseData.reminders.length > 0) {
+          html += `
+            <div style="margin-top:1rem;">
+              <strong style="color:#6fcf6f;">Reminders (${caseData.reminders.length}):</strong>
+              <ul style="color:#ccc; margin:0.5rem 0;">
+          `;
+          caseData.reminders.forEach(r => {
+            html += `<li>${escapeHtml(r.title || 'Untitled')} - Due: ${r.dueDate ? new Date(r.dueDate).toLocaleString() : 'N/A'} - ${r.completed ? 'Completed' : 'Active'}</li>`;
+          });
+          html += `</ul></div>`;
+        }
+
+        if (caseData.timelineEvents && caseData.timelineEvents.length > 0) {
+          html += `
+            <div style="margin-top:1rem;">
+              <strong style="color:#6fcf6f;">Timeline Events (${caseData.timelineEvents.length}):</strong>
+              <ul style="color:#ccc; margin:0.5rem 0;">
+          `;
+          caseData.timelineEvents.forEach(e => {
+            html += `<li>${escapeHtml(e.eventType || 'Unknown')} - ${e.timestamp ? new Date(e.timestamp).toLocaleString() : 'N/A'}: ${escapeHtml(e.description || '')}</li>`;
+          });
+          html += `</ul></div>`;
+        }
+
+        if (caseData.witnesses && caseData.witnesses.length > 0) {
+          html += `
+            <div style="margin-top:1rem;">
+              <strong style="color:#6fcf6f;">Witnesses (${caseData.witnesses.length}):</strong>
+              <ul style="color:#ccc; margin:0.5rem 0;">
+          `;
+          caseData.witnesses.forEach(w => {
+            html += `<li>${escapeHtml(w.name || 'Unknown')} - ${w.dateOfStatement ? new Date(w.dateOfStatement).toLocaleDateString() : 'N/A'}</li>`;
+          });
+          html += `</ul></div>`;
+        }
+
+        html += `</div>`;
+      });
+
+      return html;
+    }
+
+    function renderCommunityReport(report) {
+      const summary = report.summary;
+      let html = `
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="label">Total Cases</div>
+            <div class="value">${summary.totalCases}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Active Cases</div>
+            <div class="value" style="color:#6fcf6f;">${summary.activeCases}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Total Missing Persons</div>
+            <div class="value">${summary.totalLovedOnes}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Active Missing Persons</div>
+            <div class="value" style="color:#6fcf6f;">${summary.activeLovedOnes}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Total Notes</div>
+            <div class="value">${summary.totalNotes}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Total Case Events</div>
+            <div class="value">${summary.totalEvents}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Total Reminders</div>
+            <div class="value">${summary.totalReminders}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Total Witnesses</div>
+            <div class="value">${summary.totalWitnesses}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Total Timeline Events</div>
+            <div class="value">${summary.totalTimelineEvents}</div>
+          </div>
+        </div>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Cases (${report.cases.length})</h3>
+      `;
+
+      if (report.cases.length === 0) {
+        html += '<p style="color:#888;">No cases found for this community.</p>';
+      } else {
+        report.cases.forEach((caseData, index) => {
+          const c = caseData.case;
+          html += `
+            <div style="background:#1a1d20; border:1px solid #3a3f47; border-radius:4px; padding:1.5rem; margin-bottom:1.5rem;">
+              <h4 style="color:#6fcf6f; margin-top:0;">Case ${index + 1}: ${escapeHtml(c.name || c.id)}</h4>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:1rem; margin-bottom:1rem;">
+                <div><strong style="color:#6fcf6f;">ID:</strong> ${escapeHtml(c.id)}</div>
+                <div><strong style="color:#6fcf6f;">Status:</strong> ${escapeHtml(c.status || 'N/A')}</div>
+                <div><strong style="color:#6fcf6f;">Created:</strong> ${c.createdAt ? new Date(c.createdAt).toLocaleString() : 'N/A'}</div>
+                <div><strong style="color:#6fcf6f;">Assigned To:</strong> ${c.assignedTo && c.assignedTo.length > 0 ? c.assignedTo.join(', ') : 'Unassigned'}</div>
+              </div>
+          `;
+
+          if (caseData.lovedOnes && caseData.lovedOnes.length > 0) {
+            html += `
+              <div style="margin-top:1rem;">
+                <strong style="color:#6fcf6f;">Missing Persons (${caseData.lovedOnes.length}):</strong>
+                <ul style="color:#ccc; margin:0.5rem 0;">
+            `;
+            caseData.lovedOnes.forEach(lo => {
+              html += `<li>${escapeHtml(lo.name || lo.id)} - ${escapeHtml(lo.relationship || 'N/A')}</li>`;
+            });
+            html += `</ul></div>`;
+          }
+
+          if (caseData.notes && caseData.notes.length > 0) {
+            html += `
+              <div style="margin-top:1rem;">
+                <strong style="color:#6fcf6f;">Case Notes (${caseData.notes.length}):</strong>
+                <ul style="color:#ccc; margin:0.5rem 0;">
+            `;
+            caseData.notes.forEach(note => {
+              html += `<li>${escapeHtml(note.text || '')} - ${note.author || 'Unknown'} (${note.timestamp ? new Date(note.timestamp).toLocaleString() : 'N/A'})</li>`;
+            });
+            html += `</ul></div>`;
+          }
+
+          if (caseData.events && caseData.events.length > 0) {
+            html += `
+              <div style="margin-top:1rem;">
+                <strong style="color:#6fcf6f;">Case Events (${caseData.events.length}):</strong>
+                <ul style="color:#ccc; margin:0.5rem 0;">
+            `;
+            caseData.events.forEach(event => {
+              html += `<li>${escapeHtml(event.type || 'Unknown')} - ${escapeHtml(event.description || '')} - ${event.timestamp ? new Date(event.timestamp).toLocaleString() : 'N/A'}</li>`;
+            });
+            html += `</ul></div>`;
+          }
+
+          if (caseData.reminders && caseData.reminders.length > 0) {
+            html += `
+              <div style="margin-top:1rem;">
+                <strong style="color:#6fcf6f;">Reminders (${caseData.reminders.length}):</strong>
+                <ul style="color:#ccc; margin:0.5rem 0;">
+            `;
+            caseData.reminders.forEach(r => {
+              html += `<li>${escapeHtml(r.title || 'Untitled')} - Due: ${r.dueDate ? new Date(r.dueDate).toLocaleString() : 'N/A'} - ${r.completed ? 'Completed' : 'Active'}</li>`;
+            });
+            html += `</ul></div>`;
+          }
+
+          if (caseData.witnesses && caseData.witnesses.length > 0) {
+            html += `
+              <div style="margin-top:1rem;">
+                <strong style="color:#6fcf6f;">Witnesses (${caseData.witnesses.length}):</strong>
+                <ul style="color:#ccc; margin:0.5rem 0;">
+            `;
+            caseData.witnesses.forEach(w => {
+              html += `<li>${escapeHtml(w.name || 'Unknown')} - ${w.dateOfStatement ? new Date(w.dateOfStatement).toLocaleDateString() : 'N/A'}: ${escapeHtml(w.statement ? (w.statement.substring(0, 100) + (w.statement.length > 100 ? '...' : '')) : '')}</li>`;
+            });
+            html += `</ul></div>`;
+          }
+
+          if (caseData.timelineEvents && caseData.timelineEvents.length > 0) {
+            html += `
+              <div style="margin-top:1rem;">
+                <strong style="color:#6fcf6f;">Timeline Events (${caseData.timelineEvents.length}):</strong>
+                <ul style="color:#ccc; margin:0.5rem 0;">
+            `;
+            caseData.timelineEvents.forEach(e => {
+              html += `<li>${escapeHtml(e.eventType || 'Unknown')} - ${escapeHtml(e.lovedOneName || 'Unknown')}: ${escapeHtml(e.description ? (e.description.substring(0, 100) + (e.description.length > 100 ? '...' : '')) : '')} - ${e.timestamp ? new Date(e.timestamp).toLocaleString() : 'N/A'}</li>`;
+            });
+            html += `</ul></div>`;
+          }
+
+          html += `</div>`;
+        });
+      }
+
+      // Standalone missing persons (not in cases)
+      if (report.lovedOnes && report.lovedOnes.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Missing Persons (${report.lovedOnes.length})</h3>
+        `;
+        report.lovedOnes.forEach(lo => {
+          html += `
+            <div style="background:#1a1d20; border:1px solid #3a3f47; border-radius:4px; padding:1rem; margin-bottom:1rem;">
+              <h4 style="color:#6fcf6f; margin-top:0;">${escapeHtml(lo.name || lo.id)}</h4>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0.5rem;">
+                <div><strong style="color:#6fcf6f;">Status:</strong> ${escapeHtml(lo.status || 'N/A')}</div>
+                <div><strong style="color:#6fcf6f;">Date Missing:</strong> ${lo.dateOfIncident || 'N/A'}</div>
+                <div><strong style="color:#6fcf6f;">Last Location:</strong> ${escapeHtml(lo.lastLocation || 'N/A')}</div>
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      // Standalone timeline events
+      if (report.standaloneTimelineEvents && report.standaloneTimelineEvents.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Timeline Events (${report.standaloneTimelineEvents.length})</h3>
+          <ul style="color:#ccc;">
+        `;
+        report.standaloneTimelineEvents.forEach(e => {
+          html += `<li>${escapeHtml(e.lovedOneName || 'Unknown')} - ${escapeHtml(e.eventType || 'Unknown')}: ${escapeHtml(e.description || '')} - ${e.timestamp ? new Date(e.timestamp).toLocaleString() : 'N/A'}</li>`;
+        });
+        html += `</ul>`;
+      }
+
+      // Standalone reminders
+      if (report.standaloneReminders && report.standaloneReminders.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Reminders (${report.standaloneReminders.length})</h3>
+          <ul style="color:#ccc;">
+        `;
+        report.standaloneReminders.forEach(r => {
+          html += `<li>${escapeHtml(r.title || 'Untitled')} - Due: ${r.dueDate ? new Date(r.dueDate).toLocaleString() : 'N/A'} - ${r.completed ? 'Completed' : 'Active'}</li>`;
+        });
+        html += `</ul>`;
+      }
+
+      // Standalone witnesses
+      if (report.standaloneWitnesses && report.standaloneWitnesses.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Witnesses (${report.standaloneWitnesses.length})</h3>
+          <ul style="color:#ccc;">
+        `;
+        report.standaloneWitnesses.forEach(w => {
+          html += `<li>${escapeHtml(w.name || 'Unknown')} - ${w.dateOfStatement ? new Date(w.dateOfStatement).toLocaleDateString() : 'N/A'}: ${escapeHtml(w.statement ? (w.statement.substring(0, 100) + (w.statement.length > 100 ? '...' : '')) : '')}</li>`;
+        });
+        html += `</ul>`;
+      }
+
+      return html;
+    }
+
+    function renderWorkloadDistribution(report) {
+      const stats = report.statistics;
+      let html = `
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="label">Total Caseworkers</div>
+            <div class="value">${stats.totalCaseworkers}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Average Workload</div>
+            <div class="value" style="color:#6fcf6f;">${stats.averageWorkload}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Max Workload</div>
+            <div class="value" style="color:#ff6b6b;">${stats.maxWorkload}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Min Workload</div>
+            <div class="value" style="color:#ffa500;">${stats.minWorkload}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Overloaded</div>
+            <div class="value" style="color:#ff6b6b;">${stats.overloaded}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Balanced</div>
+            <div class="value" style="color:#6fcf6f;">${stats.balanced}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Underloaded</div>
+            <div class="value" style="color:#ffa500;">${stats.underloaded}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">No Workload</div>
+            <div class="value" style="color:#888;">${stats.noWorkload}</div>
+          </div>
+        </div>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Caseworker Workload Details</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Caseworker</th>
+              <th>Total Cases</th>
+              <th>Active Cases</th>
+              <th>Active Reminders</th>
+              <th>Overdue Reminders</th>
+              <th>Active Missing Persons</th>
+              <th>Workload Score</th>
+              <th>Status</th>
+              <th>Deviation from Avg</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      report.caseworkers.forEach(cw => {
+        let statusColor = '#6fcf6f';
+        let statusText = 'Balanced';
+        if (cw.category === 'overloaded') {
+          statusColor = '#ff6b6b';
+          statusText = '⚠️ Overloaded';
+        } else if (cw.category === 'underloaded') {
+          statusColor = '#ffa500';
+          statusText = 'Underloaded';
+        } else if (cw.category === 'no-workload') {
+          statusColor = '#888';
+          statusText = 'No Workload';
+        }
+
+        const deviation = parseFloat(cw.deviationFromAverage);
+        const deviationText = deviation > 0 ? `+${deviation}%` : `${deviation}%`;
+        const deviationColor = Math.abs(deviation) > 50 ? '#ff6b6b' : (Math.abs(deviation) > 25 ? '#ffa500' : '#6fcf6f');
+
+        html += `
+          <tr>
+            <td>${escapeHtml(cw.caseworker)}</td>
+            <td>${cw.cases.total}</td>
+            <td style="color:#6fcf6f;">${cw.cases.active}</td>
+            <td>${cw.reminders.active}</td>
+            <td style="color:${cw.reminders.overdue > 0 ? '#ff6b6b' : '#ccc'};">${cw.reminders.overdue}</td>
+            <td>${cw.lovedOnes.active}</td>
+            <td style="font-weight:bold;">${cw.workloadScore}</td>
+            <td style="color:${statusColor};">${statusText}</td>
+            <td style="color:${deviationColor};">${deviationText}</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+
+        <div style="margin-top:2rem; padding:1rem; background:#1a1d20; border:1px solid #3a3f47; border-radius:4px;">
+          <h4 style="color:#6fcf6f; margin-top:0;">Workload Score Calculation</h4>
+          <p style="color:#ccc; margin:0.5rem 0;">The workload score is calculated using weighted points:</p>
+          <ul style="color:#ccc; margin:0.5rem 0;">
+            <li>Active Cases: 10 points each</li>
+            <li>Active Reminders: 1 point each</li>
+            <li>Overdue Reminders: 5 points each</li>
+            <li>Active Missing Persons: 2 points each</li>
+          </ul>
+          <p style="color:#ccc; margin:0.5rem 0;">
+            <strong>Status Categories:</strong><br>
+            <span style="color:#ff6b6b;">Overloaded:</span> Workload > 150% of average<br>
+            <span style="color:#6fcf6f;">Balanced:</span> Workload between 50% and 150% of average<br>
+            <span style="color:#ffa500;">Underloaded:</span> Workload < 50% of average (but > 0)<br>
+            <span style="color:#888;">No Workload:</span> Workload score = 0
+          </p>
+        </div>
+      `;
+
+      return html;
+    }
+
+    function renderMissingPersonDemographics(report) {
+      let html = `
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="label">Total Missing Persons</div>
+            <div class="value">${report.totalMissingPersons}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">High Risk Status</div>
+            <div class="value" style="color:#ff6b6b;">${report.riskFactors.highRiskStatus}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Long-Term Missing (1+ years)</div>
+            <div class="value" style="color:#ffa500;">${report.riskFactors.longTermMissing}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Minors (< 18 years)</div>
+            <div class="value" style="color:#ff6b6b;">${report.riskFactors.minors}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Recent (Last 7 Days)</div>
+            <div class="value" style="color:#6fcf6f;">${report.riskFactors.recentMissing}</div>
+          </div>
+        </div>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Age Group Distribution</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Age Group</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      const total = report.totalMissingPersons;
+      report.demographics.ageGroups.forEach(item => {
+        const percentage = total > 0 ? ((item.count / total) * 100).toFixed(1) : '0.0';
+        html += `
+          <tr>
+            <td>${escapeHtml(item.group)}</td>
+            <td>${item.count}</td>
+            <td>${percentage}%</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Gender Distribution</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Gender</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      report.demographics.gender.forEach(item => {
+        const percentage = total > 0 ? ((item.count / total) * 100).toFixed(1) : '0.0';
+        html += `
+          <tr>
+            <td>${escapeHtml(item.gender)}</td>
+            <td>${item.count}</td>
+            <td>${percentage}%</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Time Missing</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Time Period</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      report.demographics.timeMissing.forEach(item => {
+        const percentage = total > 0 ? ((item.count / total) * 100).toFixed(1) : '0.0';
+        html += `
+          <tr>
+            <td>${escapeHtml(item.period)}</td>
+            <td>${item.count}</td>
+            <td>${percentage}%</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Status Distribution</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      report.demographics.status.forEach(item => {
+        const percentage = total > 0 ? ((item.count / total) * 100).toFixed(1) : '0.0';
+        const statusColor = item.status.toLowerCase().includes('found') ? '#6fcf6f' : 
+                           item.status.toLowerCase().includes('active') ? '#ffa500' : '#ccc';
+        html += `
+          <tr>
+            <td style="color:${statusColor};">${escapeHtml(item.status)}</td>
+            <td>${item.count}</td>
+            <td>${percentage}%</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+      `;
+
+      // Age by Status breakdown
+      if (report.analysis && report.analysis.ageByStatus && Object.keys(report.analysis.ageByStatus).length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Age Groups by Status</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>0-12</th>
+                <th>13-17</th>
+                <th>18-25</th>
+                <th>26-35</th>
+                <th>36-50</th>
+                <th>51-65</th>
+                <th>65+</th>
+                <th>Unknown</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        Object.entries(report.analysis.ageByStatus).forEach(([status, ages]) => {
+          html += `
+            <tr>
+              <td>${escapeHtml(status)}</td>
+              <td>${ages['0-12'] || 0}</td>
+              <td>${ages['13-17'] || 0}</td>
+              <td>${ages['18-25'] || 0}</td>
+              <td>${ages['26-35'] || 0}</td>
+              <td>${ages['36-50'] || 0}</td>
+              <td>${ages['51-65'] || 0}</td>
+              <td>${ages['65+'] || 0}</td>
+              <td>${ages['Unknown'] || 0}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Gender by Status breakdown
+      if (report.analysis && report.analysis.genderByStatus && Object.keys(report.analysis.genderByStatus).length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Gender by Status</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Male</th>
+                <th>Female</th>
+                <th>Other</th>
+                <th>Unknown</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        Object.entries(report.analysis.genderByStatus).forEach(([status, genders]) => {
+          html += `
+            <tr>
+              <td>${escapeHtml(status)}</td>
+              <td>${genders['Male'] || 0}</td>
+              <td>${genders['Female'] || 0}</td>
+              <td>${genders['Other'] || 0}</td>
+              <td>${genders['Unknown'] || 0}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      return html;
+    }
+
+    function renderWitnessReport(report) {
+      const summary = report.summary;
+      let html = `
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="label">Total Witnesses</div>
+            <div class="value">${summary.totalWitnesses}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">With Statement</div>
+            <div class="value" style="color:#6fcf6f;">${summary.statementAnalysis.withStatement}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Without Statement</div>
+            <div class="value" style="color:#ffa500;">${summary.statementAnalysis.withoutStatement}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Complete Records</div>
+            <div class="value" style="color:#6fcf6f;">${summary.statementAnalysis.complete}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Incomplete Records</div>
+            <div class="value" style="color:#ff6b6b;">${summary.statementAnalysis.incomplete}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">With Contact Info</div>
+            <div class="value" style="color:#6fcf6f;">${summary.statementAnalysis.withContact}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Cases with Witnesses</div>
+            <div class="value">${summary.totalCasesWithWitnesses}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Missing Persons with Witnesses</div>
+            <div class="value">${summary.totalLovedOnesWithWitnesses}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Avg Statement Length</div>
+            <div class="value">${summary.avgStatementLength} chars</div>
+          </div>
+        </div>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Statement Analysis</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>With Statement</td>
+              <td>${summary.statementAnalysis.withStatement}</td>
+              <td>${summary.totalWitnesses > 0 ? ((summary.statementAnalysis.withStatement / summary.totalWitnesses) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Without Statement</td>
+              <td style="color:#ffa500;">${summary.statementAnalysis.withoutStatement}</td>
+              <td>${summary.totalWitnesses > 0 ? ((summary.statementAnalysis.withoutStatement / summary.totalWitnesses) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>With Contact Info</td>
+              <td>${summary.statementAnalysis.withContact}</td>
+              <td>${summary.totalWitnesses > 0 ? ((summary.statementAnalysis.withContact / summary.totalWitnesses) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Without Contact Info</td>
+              <td style="color:#ffa500;">${summary.statementAnalysis.withoutContact}</td>
+              <td>${summary.totalWitnesses > 0 ? ((summary.statementAnalysis.withoutContact / summary.totalWitnesses) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Complete Records</td>
+              <td style="color:#6fcf6f;">${summary.statementAnalysis.complete}</td>
+              <td>${summary.totalWitnesses > 0 ? ((summary.statementAnalysis.complete / summary.totalWitnesses) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Incomplete Records</td>
+              <td style="color:#ff6b6b;">${summary.statementAnalysis.incomplete}</td>
+              <td>${summary.totalWitnesses > 0 ? ((summary.statementAnalysis.incomplete / summary.totalWitnesses) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Witnesses by Time Period</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Time Period</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      report.witnessesByPeriod.forEach(item => {
+        const percentage = summary.totalWitnesses > 0 ? ((item.count / summary.totalWitnesses) * 100).toFixed(1) : '0.0';
+        html += `
+          <tr>
+            <td>${escapeHtml(item.period)}</td>
+            <td>${item.count}</td>
+            <td>${percentage}%</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+      `;
+
+      // Most Active Witnesses
+      if (report.mostActiveWitnesses && report.mostActiveWitnesses.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Most Active Witnesses (Top 20)</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Witness Name</th>
+                <th>Total Statements</th>
+                <th>Unique Cases</th>
+                <th>Unique Missing Persons</th>
+                <th>Has Contact Info</th>
+                <th>Last Statement</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.mostActiveWitnesses.forEach(w => {
+          const contactColor = w.hasContact ? '#6fcf6f' : '#ffa500';
+          html += `
+            <tr>
+              <td>${escapeHtml(w.name)}</td>
+              <td>${w.totalStatements}</td>
+              <td>${w.uniqueCases}</td>
+              <td>${w.uniqueLovedOnes}</td>
+              <td style="color:${contactColor};">${w.hasContact ? 'Yes' : 'No'}</td>
+              <td>${w.lastStatement ? new Date(w.lastStatement).toLocaleDateString() : 'N/A'}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Witnesses by Caseworker
+      if (report.witnessesByCaseworker && report.witnessesByCaseworker.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Witnesses by Caseworker</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Caseworker</th>
+                <th>Total Witnesses</th>
+                <th>With Statement</th>
+                <th>Without Statement</th>
+                <th>Completion Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.witnessesByCaseworker.forEach(cw => {
+          const completionRate = cw.count > 0 ? ((cw.withStatement / cw.count) * 100).toFixed(1) : '0.0';
+          const rateColor = parseFloat(completionRate) >= 80 ? '#6fcf6f' : (parseFloat(completionRate) >= 50 ? '#ffa500' : '#ff6b6b');
+          html += `
+            <tr>
+              <td>${escapeHtml(cw.caseworker)}</td>
+              <td>${cw.count}</td>
+              <td style="color:#6fcf6f;">${cw.withStatement}</td>
+              <td style="color:#ffa500;">${cw.withoutStatement}</td>
+              <td style="color:${rateColor};">${completionRate}%</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Witnesses by Case
+      if (report.witnessesByCase && report.witnessesByCase.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Witnesses by Case (Top 20)</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Case</th>
+                <th>Case Name</th>
+                <th>Witness Count</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.witnessesByCase.slice(0, 20).forEach(item => {
+          html += `
+            <tr>
+              <td>${escapeHtml(item.caseId)}</td>
+              <td>${escapeHtml(item.caseName || 'N/A')}</td>
+              <td>${item.count}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Witnesses by Loved One
+      if (report.witnessesByLovedOne && report.witnessesByLovedOne.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Witnesses by Missing Person (Top 20)</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Missing Person ID</th>
+                <th>Missing Person Name</th>
+                <th>Witness Count</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.witnessesByLovedOne.slice(0, 20).forEach(item => {
+          html += `
+            <tr>
+              <td>${escapeHtml(item.lovedOneId)}</td>
+              <td>${escapeHtml(item.lovedOneName || 'N/A')}</td>
+              <td>${item.count}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Follow-up Needs
+      if (report.followUpNeeds && report.followUpNeeds.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Witnesses Needing Follow-up (Top 50)</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Witness Name</th>
+                <th>Related To</th>
+                <th>Missing Statement</th>
+                <th>Missing Contact</th>
+                <th>Missing Date</th>
+                <th>Reported To</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.followUpNeeds.forEach(w => {
+          html += `
+            <tr>
+              <td>${escapeHtml(w.name)}</td>
+              <td>${escapeHtml(w.relatedTo)}</td>
+              <td style="color:${w.missingStatement ? '#ff6b6b' : '#6fcf6f'};">${w.missingStatement ? '⚠️ Yes' : 'No'}</td>
+              <td style="color:${w.missingContact ? '#ff6b6b' : '#6fcf6f'};">${w.missingContact ? '⚠️ Yes' : 'No'}</td>
+              <td style="color:${w.missingDate ? '#ff6b6b' : '#6fcf6f'};">${w.missingDate ? '⚠️ Yes' : 'No'}</td>
+              <td>${escapeHtml(w.reportedTo)}</td>
+              <td>${w.createdAt ? new Date(w.createdAt).toLocaleDateString() : 'N/A'}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      return html;
+    }
+
+    function renderFamilyReport(report) {
+      const summary = report.summary;
+      let html = `
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="label">Total Families</div>
+            <div class="value">${summary.totalFamilies}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Repeat Applicants</div>
+            <div class="value" style="color:#ffa500;">${summary.repeatApplicantsCount}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Families with Multiple Missing Persons</div>
+            <div class="value" style="color:#ff6b6b;">${summary.familiesWithMultipleMissingPersons}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Families with Support Services</div>
+            <div class="value" style="color:#6fcf6f;">${summary.familiesWithSupport}</div>
+          </div>
+        </div>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Communication Preferences</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>SMS Opt-In</td>
+              <td style="color:#6fcf6f;">${report.communicationAnalysis.smsOptIn}</td>
+              <td>${summary.totalFamilies > 0 ? ((report.communicationAnalysis.smsOptIn / summary.totalFamilies) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>SMS Opt-Out</td>
+              <td style="color:#ffa500;">${report.communicationAnalysis.smsOptOut}</td>
+              <td>${summary.totalFamilies > 0 ? ((report.communicationAnalysis.smsOptOut / summary.totalFamilies) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>SMS Not Set</td>
+              <td>${report.communicationAnalysis.smsNotSet}</td>
+              <td>${summary.totalFamilies > 0 ? ((report.communicationAnalysis.smsNotSet / summary.totalFamilies) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Email Opt-In</td>
+              <td style="color:#6fcf6f;">${report.communicationAnalysis.emailOptIn}</td>
+              <td>${summary.totalFamilies > 0 ? ((report.communicationAnalysis.emailOptIn / summary.totalFamilies) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Email Opt-Out</td>
+              <td style="color:#ffa500;">${report.communicationAnalysis.emailOptOut}</td>
+              <td>${summary.totalFamilies > 0 ? ((report.communicationAnalysis.emailOptOut / summary.totalFamilies) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Email Not Set</td>
+              <td>${report.communicationAnalysis.emailNotSet}</td>
+              <td>${summary.totalFamilies > 0 ? ((report.communicationAnalysis.emailNotSet / summary.totalFamilies) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Has Email Address</td>
+              <td style="color:#6fcf6f;">${report.communicationAnalysis.hasEmail}</td>
+              <td>${summary.totalFamilies > 0 ? ((report.communicationAnalysis.hasEmail / summary.totalFamilies) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Has Phone Number</td>
+              <td style="color:#6fcf6f;">${report.communicationAnalysis.hasPhone}</td>
+              <td>${summary.totalFamilies > 0 ? ((report.communicationAnalysis.hasPhone / summary.totalFamilies) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Has Both Email & Phone</td>
+              <td style="color:#6fcf6f;">${report.communicationAnalysis.hasBoth}</td>
+              <td>${summary.totalFamilies > 0 ? ((report.communicationAnalysis.hasBoth / summary.totalFamilies) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Has Neither Email nor Phone</td>
+              <td style="color:#ff6b6b;">${report.communicationAnalysis.hasNeither}</td>
+              <td>${summary.totalFamilies > 0 ? ((report.communicationAnalysis.hasNeither / summary.totalFamilies) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Families by Time Period</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Time Period</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      report.familiesByPeriod.forEach(item => {
+        const percentage = summary.totalFamilies > 0 ? ((item.count / summary.totalFamilies) * 100).toFixed(1) : '0.0';
+        html += `
+          <tr>
+            <td>${escapeHtml(item.period)}</td>
+            <td>${item.count}</td>
+            <td>${percentage}%</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+      `;
+
+      // Province Distribution
+      if (report.demographics.province && report.demographics.province.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Families by Province</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Province</th>
+                <th>Count</th>
+                <th>Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.demographics.province.forEach(item => {
+          const percentage = summary.totalFamilies > 0 ? ((item.count / summary.totalFamilies) * 100).toFixed(1) : '0.0';
+          html += `
+            <tr>
+              <td>${escapeHtml(item.province)}</td>
+              <td>${item.count}</td>
+              <td>${percentage}%</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Community Distribution (Top 20)
+      if (report.demographics.community && report.demographics.community.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Families by Community (Top 20)</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Community</th>
+                <th>Count</th>
+                <th>Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.demographics.community.forEach(item => {
+          const percentage = summary.totalFamilies > 0 ? ((item.count / summary.totalFamilies) * 100).toFixed(1) : '0.0';
+          html += `
+            <tr>
+              <td>${escapeHtml(item.community)}</td>
+              <td>${item.count}</td>
+              <td>${percentage}%</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Status Distribution
+      if (report.demographics.status && report.demographics.status.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Families by Status</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Count</th>
+                <th>Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.demographics.status.forEach(item => {
+          const percentage = summary.totalFamilies > 0 ? ((item.count / summary.totalFamilies) * 100).toFixed(1) : '0.0';
+          const statusColor = item.status.toLowerCase().includes('active') ? '#6fcf6f' : 
+                             item.status.toLowerCase().includes('closed') ? '#888' : '#ffa500';
+          html += `
+            <tr>
+              <td style="color:${statusColor};">${escapeHtml(item.status)}</td>
+              <td>${item.count}</td>
+              <td>${percentage}%</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Repeat Applicants
+      if (report.repeatApplicants && report.repeatApplicants.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Repeat Applicants (Top 50)</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Identifier</th>
+                <th>Type</th>
+                <th>Case Count</th>
+                <th>Cases</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.repeatApplicants.forEach(item => {
+          const casesList = item.cases.map(c => `${c.id} (${c.status})`).join(', ');
+          html += `
+            <tr>
+              <td>${escapeHtml(item.identifier)}</td>
+              <td>${escapeHtml(item.type)}</td>
+              <td style="color:#ffa500; font-weight:bold;">${item.count}</td>
+              <td style="font-size:0.9rem;">${escapeHtml(casesList)}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Missing Persons per Family
+      if (report.missingPersonsPerFamily && report.missingPersonsPerFamily.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Missing Persons per Family (Top 50)</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Family ID</th>
+                <th>Family Name</th>
+                <th>Missing Persons Count</th>
+                <th>Status</th>
+                <th>Community</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.missingPersonsPerFamily.forEach(item => {
+          const countColor = item.missingPersonsCount > 1 ? '#ff6b6b' : '#6fcf6f';
+          html += `
+            <tr>
+              <td>${escapeHtml(item.familyId)}</td>
+              <td>${escapeHtml(item.familyName || 'N/A')}</td>
+              <td style="color:${countColor}; font-weight:bold;">${item.missingPersonsCount}</td>
+              <td>${escapeHtml(item.status || 'N/A')}</td>
+              <td>${escapeHtml(item.community)}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Support Services
+      if (report.supportServices && report.supportServices.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Support Services Requested</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Service Type</th>
+                <th>Request Count</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.supportServices.forEach(item => {
+          html += `
+            <tr>
+              <td>${escapeHtml(item.type)}</td>
+              <td>${item.count}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Follow-up Needs
+      if (report.followUpNeeds && report.followUpNeeds.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Families Needing Follow-up (Top 50)</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Family ID</th>
+                <th>Family Name</th>
+                <th>Missing Email</th>
+                <th>Missing Phone</th>
+                <th>Missing Comm Prefs</th>
+                <th>Missing Community</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.followUpNeeds.forEach(f => {
+          html += `
+            <tr>
+              <td>${escapeHtml(f.id)}</td>
+              <td>${escapeHtml(f.name)}</td>
+              <td style="color:${f.missingEmail ? '#ff6b6b' : '#6fcf6f'};">${f.missingEmail ? '⚠️ Yes' : 'No'}</td>
+              <td style="color:${f.missingPhone ? '#ff6b6b' : '#6fcf6f'};">${f.missingPhone ? '⚠️ Yes' : 'No'}</td>
+              <td style="color:${f.missingCommPrefs ? '#ff6b6b' : '#6fcf6f'};">${f.missingCommPrefs ? '⚠️ Yes' : 'No'}</td>
+              <td style="color:${f.missingCommunity ? '#ff6b6b' : '#6fcf6f'};">${f.missingCommunity ? '⚠️ Yes' : 'No'}</td>
+              <td>${escapeHtml(f.status)}</td>
+              <td>${f.createdAt ? new Date(f.createdAt).toLocaleDateString() : 'N/A'}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      return html;
+    }
+
+    function renderCommunicationsReport(report) {
+      const summary = report.summary;
+      let html = `
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="label">Total Communications</div>
+            <div class="value">${summary.totalCommunications}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">SMS Sent</div>
+            <div class="value" style="color:#6fcf6f;">${summary.smsCount}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Emails Sent</div>
+            <div class="value" style="color:#6fcf6f;">${summary.emailCount}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Unique Recipients</div>
+            <div class="value">${summary.uniqueRecipients}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Unique Caseworkers</div>
+            <div class="value">${summary.uniqueCaseworkers}</div>
+          </div>
+        </div>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Opt-In Analysis</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Total Applicants</td>
+              <td>${report.optInAnalysis.totalApplicants}</td>
+              <td>100.0%</td>
+            </tr>
+            <tr>
+              <td>SMS Opt-In</td>
+              <td style="color:#6fcf6f;">${report.optInAnalysis.smsOptIn}</td>
+              <td>${report.optInAnalysis.totalApplicants > 0 ? ((report.optInAnalysis.smsOptIn / report.optInAnalysis.totalApplicants) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>SMS Opt-Out</td>
+              <td style="color:#ffa500;">${report.optInAnalysis.smsOptOut}</td>
+              <td>${report.optInAnalysis.totalApplicants > 0 ? ((report.optInAnalysis.smsOptOut / report.optInAnalysis.totalApplicants) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>SMS Not Set</td>
+              <td>${report.optInAnalysis.smsNotSet}</td>
+              <td>${report.optInAnalysis.totalApplicants > 0 ? ((report.optInAnalysis.smsNotSet / report.optInAnalysis.totalApplicants) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Email Opt-In</td>
+              <td style="color:#6fcf6f;">${report.optInAnalysis.emailOptIn}</td>
+              <td>${report.optInAnalysis.totalApplicants > 0 ? ((report.optInAnalysis.emailOptIn / report.optInAnalysis.totalApplicants) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Email Opt-Out</td>
+              <td style="color:#ffa500;">${report.optInAnalysis.emailOptOut}</td>
+              <td>${report.optInAnalysis.totalApplicants > 0 ? ((report.optInAnalysis.emailOptOut / report.optInAnalysis.totalApplicants) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Email Not Set</td>
+              <td>${report.optInAnalysis.emailNotSet}</td>
+              <td>${report.optInAnalysis.totalApplicants > 0 ? ((report.optInAnalysis.emailNotSet / report.optInAnalysis.totalApplicants) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Can Receive SMS</td>
+              <td style="color:#6fcf6f;">${report.optInAnalysis.canReceiveSms}</td>
+              <td>${report.optInAnalysis.totalApplicants > 0 ? ((report.optInAnalysis.canReceiveSms / report.optInAnalysis.totalApplicants) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+            <tr>
+              <td>Can Receive Email</td>
+              <td style="color:#6fcf6f;">${report.optInAnalysis.canReceiveEmail}</td>
+              <td>${report.optInAnalysis.totalApplicants > 0 ? ((report.optInAnalysis.canReceiveEmail / report.optInAnalysis.totalApplicants) * 100).toFixed(1) : '0.0'}%</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Communications by Time Period</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Time Period</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      report.communicationsByPeriod.forEach(item => {
+        const percentage = summary.totalCommunications > 0 ? ((item.count / summary.totalCommunications) * 100).toFixed(1) : '0.0';
+        html += `
+          <tr>
+            <td>${escapeHtml(item.period)}</td>
+            <td>${item.count}</td>
+            <td>${percentage}%</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+      `;
+
+      // Communications by Caseworker
+      if (report.communicationsByCaseworker && report.communicationsByCaseworker.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Communications by Caseworker</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Caseworker</th>
+                <th>SMS Sent</th>
+                <th>Emails Sent</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.communicationsByCaseworker.forEach(cw => {
+          html += `
+            <tr>
+              <td>${escapeHtml(cw.caseworker)}</td>
+              <td style="color:#6fcf6f;">${cw.smsCount}</td>
+              <td style="color:#6fcf6f;">${cw.emailCount}</td>
+              <td style="font-weight:bold;">${cw.totalCount}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Most Contacted Recipients
+      if (report.mostContacted && report.mostContacted.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Most Contacted Recipients (Top 50)</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Case ID</th>
+                <th>Case Name</th>
+                <th>SMS Count</th>
+                <th>Email Count</th>
+                <th>Total</th>
+                <th>SMS Opt-In</th>
+                <th>Email Opt-In</th>
+                <th>Last SMS</th>
+                <th>Last Email</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.mostContacted.forEach(recipient => {
+          const smsOptInColor = recipient.smsOptIn === true ? '#6fcf6f' : (recipient.smsOptIn === false ? '#ffa500' : '#888');
+          const emailOptInColor = recipient.emailOptIn === true ? '#6fcf6f' : (recipient.emailOptIn === false ? '#ffa500' : '#888');
+          html += `
+            <tr>
+              <td>${escapeHtml(recipient.caseId)}</td>
+              <td>${escapeHtml(recipient.caseName || 'N/A')}</td>
+              <td style="color:#6fcf6f;">${recipient.smsCount}</td>
+              <td style="color:#6fcf6f;">${recipient.emailCount}</td>
+              <td style="font-weight:bold;">${recipient.totalCount}</td>
+              <td style="color:${smsOptInColor};">${recipient.smsOptIn === true ? 'Yes' : (recipient.smsOptIn === false ? 'No' : 'Not Set')}</td>
+              <td style="color:${emailOptInColor};">${recipient.emailOptIn === true ? 'Yes' : (recipient.emailOptIn === false ? 'No' : 'Not Set')}</td>
+              <td>${recipient.lastSms ? new Date(recipient.lastSms).toLocaleDateString() : 'Never'}</td>
+              <td>${recipient.lastEmail ? new Date(recipient.lastEmail).toLocaleDateString() : 'Never'}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Communication Frequency Analysis
+      html += `
+        <h3 style="color:#6fcf6f; margin-top:2rem;">Communication Frequency</h3>
+        <table class="caseworker-table">
+          <thead>
+            <tr>
+              <th>Frequency Category</th>
+              <th>Recipient Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1 Communication</td>
+              <td>${report.frequencyAnalysis.recipientsWith1Comm}</td>
+            </tr>
+            <tr>
+              <td>2-5 Communications</td>
+              <td>${report.frequencyAnalysis.recipientsWith2to5Comm}</td>
+            </tr>
+            <tr>
+              <td>6-10 Communications</td>
+              <td>${report.frequencyAnalysis.recipientsWith6to10Comm}</td>
+            </tr>
+            <tr>
+              <td>11-20 Communications</td>
+              <td>${report.frequencyAnalysis.recipientsWith11to20Comm}</td>
+            </tr>
+            <tr>
+              <td>21+ Communications</td>
+              <td style="color:#ffa500; font-weight:bold;">${report.frequencyAnalysis.recipientsWith21PlusComm}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+
+      // Recent Communications
+      if (report.recentCommunications && report.recentCommunications.length > 0) {
+        html += `
+          <h3 style="color:#6fcf6f; margin-top:2rem;">Recent Communications (Last 50)</h3>
+          <table class="caseworker-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Case ID</th>
+                <th>Case Name</th>
+                <th>Description</th>
+                <th>Sent By</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        report.recentCommunications.forEach(comm => {
+          const typeColor = comm.type === 'sms' ? '#6fcf6f' : '#4fa3ff';
+          const typeLabel = comm.type === 'sms' ? 'SMS' : 'Email';
+          const description = comm.description || 'N/A';
+          const truncatedDesc = description.length > 80 ? description.substring(0, 77) + '...' : description;
+          html += `
+            <tr>
+              <td>${comm.timestamp ? new Date(comm.timestamp).toLocaleString() : 'N/A'}</td>
+              <td style="color:${typeColor}; font-weight:bold;">${typeLabel}</td>
+              <td>${escapeHtml(comm.caseId)}</td>
+              <td>${escapeHtml(comm.caseName || 'N/A')}</td>
+              <td style="font-size:0.9rem;">${escapeHtml(truncatedDesc)}</td>
+              <td>${escapeHtml(comm.user || 'Unknown')}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      return html;
+    }
+
+    // Clear report
+    document.getElementById('clearReportBtn').addEventListener('click', () => {
+      document.querySelectorAll('.report-option').forEach(o => o.classList.remove('selected'));
+      document.getElementById('filterSection').style.display = 'none';
+      document.getElementById('reportResults').classList.remove('visible');
+      document.getElementById('startDate').value = '';
+      document.getElementById('endDate').value = '';
+      document.getElementById('statusFilter').value = '';
+      document.getElementById('caseIdsFilter').value = '';
+      document.getElementById('communityFilter').value = '';
+      selectedReportType = null;
+      currentReportData = null;
+      setStatus('');
+    });
+
+    // Export buttons (placeholder - will implement later)
+    document.getElementById('exportPDFBtn').addEventListener('click', () => {
+      setStatus('PDF export coming soon!', false);
+    });
+
+    document.getElementById('exportExcelBtn').addEventListener('click', () => {
+      setStatus('Excel export coming soon!', false);
+    });
+  </script>
+</body>
+</html>
+

@@ -6,6 +6,7 @@
     var settingsLink = document.getElementById('settingsLink');
     var assignCasesLink = document.getElementById('assignCasesLink');
     var auditLogLink = document.getElementById('auditLogLink');
+    var reportsLink = document.getElementById('reportsLink');
     var smsBlastLink = document.getElementById('smsBlastLink');
     var offenderNewsLink = document.getElementById('offenderNewsLink');
     // Get token from cookie first, then localStorage/sessionStorage
@@ -23,6 +24,7 @@
       if (settingsLink) settingsLink.style.display = 'none';
       if (assignCasesLink) assignCasesLink.style.display = 'none';
       if (auditLogLink) auditLogLink.style.display = 'none';
+      if (reportsLink) reportsLink.style.display = 'none';
       if (smsBlastLink) smsBlastLink.style.display = 'none';
       if (offenderNewsLink) offenderNewsLink.style.display = 'none';
       return;
@@ -36,6 +38,7 @@
         if (settingsLink) settingsLink.style.display = '';
         if (assignCasesLink) assignCasesLink.style.display = '';
         if (auditLogLink) auditLogLink.style.display = '';
+        if (reportsLink) reportsLink.style.display = '';
         if (smsBlastLink) smsBlastLink.style.display = '';
         if (offenderNewsLink) offenderNewsLink.style.display = '';
       } else {
@@ -43,6 +46,7 @@
         if (settingsLink) settingsLink.style.display = 'none';
         if (assignCasesLink) assignCasesLink.style.display = 'none';
         if (auditLogLink) auditLogLink.style.display = 'none';
+        if (reportsLink) reportsLink.style.display = 'none';
         if (smsBlastLink) smsBlastLink.style.display = 'none';
         if (offenderNewsLink) offenderNewsLink.style.display = 'none';
       }
@@ -51,6 +55,7 @@
       if (settingsLink) settingsLink.style.display = 'none';
       if (assignCasesLink) assignCasesLink.style.display = 'none';
       if (auditLogLink) auditLogLink.style.display = 'none';
+      if (reportsLink) reportsLink.style.display = 'none';
       if (smsBlastLink) smsBlastLink.style.display = 'none';
       if (offenderNewsLink) offenderNewsLink.style.display = 'none';
     }

@@ -149,6 +149,37 @@
     .fc-event:hover {
       opacity: 0.8;
     }
+    .event-hover-tooltip {
+      position: absolute;
+      background: #23272b;
+      border: 2px solid #6fcf6f;
+      border-radius: 6px;
+      padding: 0.75rem;
+      z-index: 9999;
+      pointer-events: none;
+      max-width: 300px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      display: none;
+    }
+    .event-hover-tooltip.visible {
+      display: block;
+    }
+    .event-hover-tooltip .tooltip-title {
+      color: #6fcf6f;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+    }
+    .event-hover-tooltip .tooltip-detail {
+      color: #ccc;
+      font-size: 0.85rem;
+      margin: 0.25rem 0;
+    }
+    .event-hover-tooltip .tooltip-detail-label {
+      color: #6fcf6f;
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
     .event-details-modal {
       display: none;
       position: fixed;
@@ -235,6 +266,12 @@
 
     <div id="calendar"></div>
 
+    <!-- Event Hover Tooltip -->
+    <div id="eventHoverTooltip" class="event-hover-tooltip">
+      <div class="tooltip-title" id="tooltipTitle"></div>
+      <div id="tooltipBody"></div>
+    </div>
+
     <!-- Event Details Modal -->
     <div id="eventDetailsModal" class="event-details-modal">
       <div class="event-details-content">
@@ -283,6 +320,7 @@
     let calendar;
     let allUsers = [];
     let allCalendarEvents = [];
+    let tooltipTimeout = null;
 
     // Function to force dark theme on calendar header
     function forceDarkHeader() {
@@ -339,7 +377,26 @@
             loadCalendarEvents(fetchInfo.start, fetchInfo.end, successCallback, failureCallback);
           },
           eventClick: function(info) {
+            // Hide tooltip when clicking
+            if (tooltipTimeout) {
+              clearTimeout(tooltipTimeout);
+              tooltipTimeout = null;
+            }
+            hideEventTooltip();
             showEventDetails(info.event);
+          },
+          eventMouseEnter: function(info) {
+            // Small delay before showing tooltip to avoid flicker
+            tooltipTimeout = setTimeout(() => {
+              showEventTooltip(info.event, info.jsEvent);
+            }, 300);
+          },
+          eventMouseLeave: function(info) {
+            if (tooltipTimeout) {
+              clearTimeout(tooltipTimeout);
+              tooltipTimeout = null;
+            }
+            hideEventTooltip();
           },
           dateClick: function(info) {
             console.log('Date clicked:', info.dateStr);
@@ -465,7 +522,119 @@
       }
     }
 
+    function showEventTooltip(event, mouseEvent) {
+      const tooltip = document.getElementById('eventHoverTooltip');
+      const titleEl = document.getElementById('tooltipTitle');
+      const bodyEl = document.getElementById('tooltipBody');
+
+      const props = event.extendedProps;
+      const eventType = props.type || 'unknown';
+
+      titleEl.textContent = event.title;
+      let html = '';
+
+      if (eventType === 'reminder') {
+        html += `
+          <div class="tooltip-detail">
+            <span class="tooltip-detail-label">Type:</span>Reminder
+          </div>
+          <div class="tooltip-detail">
+            <span class="tooltip-detail-label">Priority:</span>${escapeHtml(props.priority || 'medium')}
+          </div>
+          <div class="tooltip-detail">
+            <span class="tooltip-detail-label">Status:</span>${props.completed ? 'Completed' : (props.overdue ? '⚠️ OVERDUE' : 'Active')}
+          </div>
+          <div class="tooltip-detail">
+            <span class="tooltip-detail-label">Due:</span>${formatDate(event.start)}
+          </div>
+        `;
+        if (props.description) {
+          const shortDesc = props.description.length > 100 
+            ? props.description.substring(0, 100) + '...' 
+            : props.description;
+          html += `
+            <div class="tooltip-detail">
+              <span class="tooltip-detail-label">Description:</span>${escapeHtml(shortDesc)}
+            </div>
+          `;
+        }
+        if (props.assignedTo) {
+          html += `
+            <div class="tooltip-detail">
+              <span class="tooltip-detail-label">Assigned:</span>${escapeHtml(props.assignedTo)}
+            </div>
+          `;
+        }
+      } else if (eventType === 'timeline') {
+        html += `
+          <div class="tooltip-detail">
+            <span class="tooltip-detail-label">Type:</span>Timeline Event
+          </div>
+          <div class="tooltip-detail">
+            <span class="tooltip-detail-label">Event:</span>${escapeHtml(props.eventType || 'Unknown')}
+          </div>
+          <div class="tooltip-detail">
+            <span class="tooltip-detail-label">Person:</span>${escapeHtml(props.lovedOneName || 'Unknown')}
+          </div>
+          <div class="tooltip-detail">
+            <span class="tooltip-detail-label">Date:</span>${formatDate(event.start)}
+          </div>
+        `;
+        if (props.description) {
+          const shortDesc = props.description.length > 100 
+            ? props.description.substring(0, 100) + '...' 
+            : props.description;
+          html += `
+            <div class="tooltip-detail">
+              <span class="tooltip-detail-label">Details:</span>${escapeHtml(shortDesc)}
+            </div>
+          `;
+        }
+        if (props.location) {
+          html += `
+            <div class="tooltip-detail">
+              <span class="tooltip-detail-label">Location:</span>${escapeHtml(props.location)}
+            </div>
+          `;
+        }
+      }
+
+      bodyEl.innerHTML = html;
+      tooltip.classList.add('visible');
+
+      // Position tooltip near cursor
+      const tooltipWidth = 300;
+      const tooltipHeight = tooltip.offsetHeight;
+      const x = mouseEvent.clientX;
+      const y = mouseEvent.clientY;
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+
+      // Position to the right of cursor, or left if too close to right edge
+      let left = x + 15;
+      if (left + tooltipWidth > windowWidth) {
+        left = x - tooltipWidth - 15;
+      }
+
+      // Position below cursor, or above if too close to bottom edge
+      let top = y + 15;
+      if (top + tooltipHeight > windowHeight) {
+        top = y - tooltipHeight - 15;
+      }
+
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+    }
+
+    function hideEventTooltip() {
+      const tooltip = document.getElementById('eventHoverTooltip');
+      tooltip.classList.remove('visible');
+    }
+
     function showEventDetails(event) {
+      // Hide tooltip when opening full modal
+      hideEventTooltip();
+      
       const modal = document.getElementById('eventDetailsModal');
       const titleEl = document.getElementById('eventDetailsTitle');
       const bodyEl = document.getElementById('eventDetailsBody');
