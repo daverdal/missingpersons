@@ -820,6 +820,23 @@ async function createIntake(req, res, driver, auditLogger) {
           relationship: data.relationship || ''
         }
       );
+      
+      // Automatically create "CaseOpened" timeline event
+      try {
+        const TimelineEventModel = require('../timelineEventModel');
+        const timelineModel = new TimelineEventModel(driver);
+        const createdBy = req.user?.email || req.user?.preferred_username || req.user?.name || 'system';
+        await timelineModel.addEvent(lovedOneId, {
+          eventType: 'CaseOpened',
+          description: `Case opened for ${data.lovedOneName || 'LovedOne'}`,
+          timestamp: new Date().toISOString(),
+          createdBy,
+          location: data.lovedOneCommunity || null
+        });
+      } catch (eventErr) {
+        console.warn('Failed to create CaseOpened timeline event:', eventErr);
+        // Don't fail the whole request if event creation fails
+      }
     }
     // Add support services as nodes and relationships
     if (Array.isArray(data.support)) {
@@ -1498,6 +1515,24 @@ async function addLovedOne(req, res, driver, auditLogger) {
         relationship: relationship || ''
       }
     );
+    
+    // Automatically create "CaseOpened" timeline event
+    try {
+      const TimelineEventModel = require('../timelineEventModel');
+      const timelineModel = new TimelineEventModel(driver);
+      const createdBy = req.user?.email || req.user?.preferred_username || req.user?.name || 'system';
+      await timelineModel.addEvent(lovedOneId, {
+        eventType: 'CaseOpened',
+        description: `Case opened for ${name.trim()}`,
+        timestamp: new Date().toISOString(),
+        createdBy,
+        location: community || null
+      });
+    } catch (eventErr) {
+      console.warn('Failed to create CaseOpened timeline event:', eventErr);
+      // Don't fail the whole request if event creation fails
+    }
+    
     await session.close();
     await auditLogger.log(req, {
       action: 'loved_one.create',

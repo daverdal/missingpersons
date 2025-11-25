@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timeline - Missing Persons App</title>
+  <link rel="stylesheet" href="retro.css">
+  <script src="navbar.js"></script>
+  <script src="navbar-auth.js"></script>
+  <!-- vis-timeline library -->
+  <script type="text/javascript" src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+  <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+  <header style="position:relative;">
+    <h1 style="text-align:center;">Timeline</h1>
+    <!-- Navigation will be injected here -->
+  </header>
+  <main>
+    <div class="toolbar">
+      <button id="refreshButton">Refresh Timeline</button>
+      <label for="eventTypeFilter">
+        Event Type:
+        <select id="eventTypeFilter">
+          <option value="">All Types</option>
+          <option value="CaseOpened">Case Opened</option>
+          <option value="MissingReported">Missing Reported</option>
+          <option value="LastSeen">Last Seen</option>
+          <option value="Sighting">Sighting</option>
+          <option value="StatusChanged">Status Changed</option>
+          <option value="SearchDispatched">Search Dispatched</option>
+          <option value="TipReceived">Tip Received</option>
+          <option value="NoteAdded">Note Added</option>
+          <option value="Found">Found</option>
+          <option value="CaseClosed">Case Closed</option>
+        </select>
+      </label>
+      <label for="startDateFilter">
+        Start Date:
+        <input type="date" id="startDateFilter">
+      </label>
+      <label for="endDateFilter">
+        End Date:
+        <input type="date" id="endDateFilter">
+      </label>
+      <label for="communityFilter">
+        Community:
+        <input type="text" id="communityFilter" placeholder="Filter by community">
+      </label>
+      <label for="activeCasesOnly">
+        <input type="checkbox" id="activeCasesOnly"> Active Cases Only
+      </label>
+      <span id="statusMessage"></span>
+    </div>
+
+    <div id="testHelper" style="display:none; margin-bottom: 1rem; padding: 1rem; background: #23272b; border: 1px solid #3a3f47; border-radius: 4px;">
+      <h4 style="margin-top: 0; color: #6fcf6f;">Test Helper (Admin Only)</h4>
+      <p style="margin: 0.5rem 0; color: #8fbc8f; font-size: 0.9rem;">Use this to backfill events for existing LovedOnes or test the timeline.</p>
+      <button id="backfillBtn" style="margin-right: 1rem;">Backfill CaseOpened Events</button>
+      <span id="backfillStatus"></span>
+    </div>
+
+    <div id="timelineContainer"></div>
+
+    <section id="eventTypesExplanation">
+      <h3>Timeline Event Types</h3>
+      <div class="event-types-grid">
+        <div class="event-type-item">
+          <strong class="event-type-name">CaseOpened</strong>
+          <p class="event-type-desc">When the LovedOne record is created</p>
+        </div>
+        <div class="event-type-item">
+          <strong class="event-type-name">MissingReported</strong>
+          <p class="event-type-desc">First report that the person is missing</p>
+        </div>
+        <div class="event-type-item">
+          <strong class="event-type-name">LastSeen</strong>
+          <p class="event-type-desc">When known last-seen information is added or updated</p>
+        </div>
+        <div class="event-type-item">
+          <strong class="event-type-name">Sighting</strong>
+          <p class="event-type-desc">Any citizen call, police report, or confirmation</p>
+        </div>
+        <div class="event-type-item">
+          <strong class="event-type-name">StatusChanged</strong>
+          <p class="event-type-desc">Any official status change (e.g., Active → High Risk)</p>
+        </div>
+        <div class="event-type-item">
+          <strong class="event-type-name">SearchDispatched</strong>
+          <p class="event-type-desc">Fire/Police/SAR deployed</p>
+        </div>
+        <div class="event-type-item">
+          <strong class="event-type-name">TipReceived</strong>
+          <p class="event-type-desc">Unverified information, rumors, family notes, etc.</p>
+        </div>
+        <div class="event-type-item">
+          <strong class="event-type-name">NoteAdded</strong>
+          <p class="event-type-desc">Miscellaneous caseworker notes</p>
+        </div>
+        <div class="event-type-item">
+          <strong class="event-type-name">Found</strong>
+          <p class="event-type-desc">Person located (safe or not). This usually triggers notifications</p>
+        </div>
+        <div class="event-type-item">
+          <strong class="event-type-name">CaseClosed</strong>
+          <p class="event-type-desc">Administrative closing</p>
+        </div>
+      </div>
+    </section>
+
+    <div id="eventDetailPanel" style="display:none;">
+      <h3 id="eventDetailTitle"></h3>
+      <div id="eventDetailContent"></div>
+      <div class="event-detail-actions">
+        <button id="editEventBtn">Edit Event</button>
+        <button id="openLovedOneBtn">Open LovedOne</button>
+        <button id="closeDetailBtn">Close</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function getToken() {
+      const match = document.cookie.match(/(^| )token=([^;]+)/);
+      if (match) return match[2];
+      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    function setStatus(message, isError) {
+      const el = document.getElementById('statusMessage');
+      el.textContent = message || '';
+      el.style.color = isError ? '#ff7f7f' : '#6fcf6f';
+    }
+
+    // Event type colors
+    const eventTypeColors = {
+      'CaseOpened': '#4da6ff',
+      'MissingReported': '#ff6b6b',
+      'LastSeen': '#ffd93d',
+      'Sighting': '#6bcf7f',
+      'StatusChanged': '#9b59b6',
+      'SearchDispatched': '#3498db',
+      'TipReceived': '#f39c12',
+      'NoteAdded': '#95a5a6',
+      'Found': '#2ecc71',
+      'CaseClosed': '#34495e'
+    };
+
+    let timeline = null;
+    let currentEvents = [];
+    let currentSelectedEvent = null;
+
+    async function loadTimeline() {
+      const token = getToken();
+      if (!token) {
+        setStatus('Authentication required. Please log in again.', true);
+        return;
+      }
+
+      setStatus('Loading timeline...');
+
+      try {
+        const filters = {};
+        const eventType = document.getElementById('eventTypeFilter').value;
+        const startDate = document.getElementById('startDateFilter').value;
+        const endDate = document.getElementById('endDateFilter').value;
+        const community = document.getElementById('communityFilter').value.trim();
+        const activeOnly = document.getElementById('activeCasesOnly').checked;
+
+        if (eventType) filters.eventType = eventType;
+        if (startDate) filters.startDate = startDate + 'T00:00:00Z';
+        if (endDate) filters.endDate = endDate + 'T23:59:59Z';
+        if (community) filters.community = community;
+
+        const queryParams = new URLSearchParams();
+        Object.keys(filters).forEach(key => {
+          if (filters[key]) queryParams.append(key, filters[key]);
+        });
+
+        const response = await fetch('/api/timeline/events/grouped?' + queryParams.toString(), {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load timeline events.');
+        }
+
+        const data = await response.json();
+        currentEvents = data.grouped || [];
+
+        // Filter active cases if needed
+        let filtered = currentEvents;
+        if (activeOnly) {
+          filtered = currentEvents.filter(item => {
+            const status = item.lovedOne?.status;
+            return status && status !== 'Found' && status !== 'CaseClosed' && status !== 'Closed';
+          });
+        }
+
+        renderTimeline(filtered);
+        setStatus(`Loaded ${filtered.length} case(s) with events.`);
+      } catch (err) {
+        console.error('Error loading timeline:', err);
+        setStatus('Failed to load timeline: ' + (err.message || 'Unknown error'), true);
+      }
+    }
+
+    function renderTimeline(groupedData) {
+      const container = document.getElementById('timelineContainer');
+      container.innerHTML = '';
+
+      if (!groupedData || groupedData.length === 0) {
+        container.innerHTML = '<div class="empty-state">No timeline events found.</div>';
+        return;
+      }
+
+      // Prepare groups (one per LovedOne)
+      const groups = new vis.DataSet(
+        groupedData.map((item, index) => ({
+          id: item.lovedOne.id,
+          content: item.lovedOne.name || 'Unknown',
+          title: `${item.lovedOne.name || 'Unknown'} (${item.lovedOne.community || 'N/A'})`
+        }))
+      );
+
+      // Prepare items (events)
+      const items = new vis.DataSet();
+      groupedData.forEach(item => {
+        item.events.forEach(event => {
+          const eventDate = new Date(event.timestamp);
+          items.add({
+            id: event.eventId,
+            group: item.lovedOne.id,
+            content: event.eventType,
+            start: eventDate,
+            title: `${event.eventType}: ${event.description || ''}`,
+            className: `event-${event.eventType.toLowerCase()}`,
+            data: {
+              event: event,
+              lovedOne: item.lovedOne
+            }
+          });
+        });
+      });
+
+      // Create timeline
+      const options = {
+        groupOrder: 'id',
+        stack: false,
+        editable: false,
+        start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+        end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days ahead
+        zoomMin: 1000 * 60 * 60, // 1 hour
+        zoomMax: 1000 * 60 * 60 * 24 * 365 * 2, // 2 years
+        orientation: 'top',
+        showCurrentTime: true,
+        tooltip: {
+          followMouse: true,
+          overflowMethod: 'cap'
+        }
+      };
+
+      timeline = new vis.Timeline(container, items, groups, options);
+
+      // Handle event click
+      timeline.on('select', function(properties) {
+        if (properties.items && properties.items.length > 0) {
+          const itemId = properties.items[0];
+          const item = items.get(itemId);
+          if (item && item.data) {
+            showEventDetail(item.data.event, item.data.lovedOne);
+          }
+        }
+      });
+    }
+
+    function showEventDetail(event, lovedOne) {
+      currentSelectedEvent = { event, lovedOne };
+      const panel = document.getElementById('eventDetailPanel');
+      const title = document.getElementById('eventDetailTitle');
+      const content = document.getElementById('eventDetailContent');
+
+      title.textContent = `${event.eventType} – ${lovedOne.name || 'Unknown'}`;
+      
+      let html = `
+        <div class="event-detail-item">
+          <strong>Timestamp:</strong> ${new Date(event.timestamp).toLocaleString()}
+        </div>
+        <div class="event-detail-item">
+          <strong>Description:</strong> ${escapeHtml(event.description || 'No description')}
+        </div>
+      `;
+
+      if (event.location) {
+        html += `
+          <div class="event-detail-item">
+            <strong>Location:</strong> ${escapeHtml(event.location)}
+          </div>
+        `;
+      }
+
+      if (event.createdBy) {
+        html += `
+          <div class="event-detail-item">
+            <strong>Created By:</strong> ${escapeHtml(event.createdBy)}
+          </div>
+        `;
+      }
+
+      if (event.metadata && Object.keys(event.metadata).length > 0) {
+        html += `
+          <div class="event-detail-item">
+            <strong>Metadata:</strong>
+            <pre>${JSON.stringify(event.metadata, null, 2)}</pre>
+          </div>
+        `;
+      }
+
+      content.innerHTML = html;
+      panel.style.display = 'block';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Event handlers
+    document.getElementById('refreshButton').addEventListener('click', loadTimeline);
+    document.getElementById('eventTypeFilter').addEventListener('change', loadTimeline);
+    document.getElementById('startDateFilter').addEventListener('change', loadTimeline);
+    document.getElementById('endDateFilter').addEventListener('change', loadTimeline);
+    document.getElementById('communityFilter').addEventListener('input', loadTimeline);
+    document.getElementById('activeCasesOnly').addEventListener('change', loadTimeline);
+
+    document.getElementById('closeDetailBtn').addEventListener('click', function() {
+      document.getElementById('eventDetailPanel').style.display = 'none';
+      currentSelectedEvent = null;
+      if (timeline) {
+        timeline.setSelection([]);
+      }
+    });
+
+    document.getElementById('openLovedOneBtn').addEventListener('click', function() {
+      if (currentSelectedEvent && currentSelectedEvent.lovedOne) {
+        // Navigate to case notes or loved one detail page
+        window.location.href = `casenotes.html?lovedOneId=${encodeURIComponent(currentSelectedEvent.lovedOne.id)}`;
+      }
+    });
+
+    document.getElementById('editEventBtn').addEventListener('click', function() {
+      if (currentSelectedEvent && currentSelectedEvent.event) {
+        // TODO: Implement edit event functionality
+        alert('Edit event functionality coming soon.');
+      }
+    });
+
+    // Backfill button handler
+    const backfillBtn = document.getElementById('backfillBtn');
+    const backfillStatus = document.getElementById('backfillStatus');
+    if (backfillBtn) {
+      backfillBtn.addEventListener('click', async function() {
+        const token = getToken();
+        if (!token) {
+          backfillStatus.textContent = 'Authentication required';
+          backfillStatus.style.color = '#ff7f7f';
+          return;
+        }
+
+        backfillBtn.disabled = true;
+        backfillStatus.textContent = 'Running backfill...';
+        backfillStatus.style.color = '#6fcf6f';
+
+        try {
+          const response = await fetch('/api/timeline/backfill', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+
+          const data = await response.json();
+          
+          if (response.ok) {
+            backfillStatus.textContent = `Success: ${data.message} (${data.created} events created)`;
+            backfillStatus.style.color = '#6fcf6f';
+            // Reload timeline after backfill
+            setTimeout(() => {
+              loadTimeline();
+            }, 1000);
+          } else {
+            backfillStatus.textContent = 'Error: ' + (data.error || 'Failed to backfill');
+            backfillStatus.style.color = '#ff7f7f';
+          }
+        } catch (err) {
+          backfillStatus.textContent = 'Error: ' + err.message;
+          backfillStatus.style.color = '#ff7f7f';
+        } finally {
+          backfillBtn.disabled = false;
+        }
+      });
+    }
+
+    // Show test helper if user is admin (check token roles)
+    function checkIfAdmin() {
+      const token = getToken();
+      if (!token) return false;
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const roles = payload.roles || payload.groups || [];
+        return Array.isArray(roles) && roles.includes('admin');
+      } catch (e) {
+        return false;
+      }
+    }
+
+    if (checkIfAdmin()) {
+      document.getElementById('testHelper').style.display = 'block';
+    }
+
+    // Load timeline on page load
+    loadTimeline();
+  </script>
+</body>
+</html>
+
