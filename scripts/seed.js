@@ -37,26 +37,13 @@ async function run() {
   
   const driver = neo4j.driver(uri, neo4j.auth.basic(user, password), driverConfig);
   
-  // Try to use the specified database, fall back to 'neo4j' if it doesn't exist
-  let session = driver.session({ database });
-  let actualDatabase = database;
+  // Use the specified database from .env
+  const session = driver.session({ database });
   
   try {
     // Test if database exists by trying a simple query
     await session.run('RETURN 1');
-  } catch (err) {
-    if (err.message && err.message.includes('does not exist')) {
-      console.log(`Database '${database}' does not exist. Trying 'neo4j' instead...`);
-      await session.close();
-      actualDatabase = 'neo4j';
-      session = driver.session({ database: actualDatabase });
-    } else {
-      throw err;
-    }
-  }
-  
-  try {
-    console.log(`Seeding database '${actualDatabase}'...`);
+    console.log(`Seeding database '${database}'...`);
     let i = 0;
     for (const q of queries) {
       i += 1;

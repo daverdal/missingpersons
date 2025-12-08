@@ -7,8 +7,8 @@
  * Get all timeline events (global timeline)
  * Supports filtering by eventType, date range, community
  */
-async function getAllTimelineEvents(req, res, driver, auditLogger) {
-  const session = driver.session();
+async function getAllTimelineEvents(req, res, driver, auditLogger, database) {
+  const session = driver.session({ database });
   try {
     const { eventType, startDate, endDate, community, limit } = req.query;
     
@@ -20,7 +20,7 @@ async function getAllTimelineEvents(req, res, driver, auditLogger) {
     if (limit) filters.limit = parseInt(limit, 10);
 
     const TimelineEventModel = require('../timelineEventModel');
-    const timelineModel = new TimelineEventModel(driver);
+    const timelineModel = new TimelineEventModel(driver, database);
     const events = await timelineModel.getAllEvents(filters);
 
     if (auditLogger) {
@@ -54,8 +54,8 @@ async function getAllTimelineEvents(req, res, driver, auditLogger) {
 /**
  * Get events grouped by LovedOne (for timeline visualization)
  */
-async function getTimelineEventsGrouped(req, res, driver, auditLogger) {
-  const session = driver.session();
+async function getTimelineEventsGrouped(req, res, driver, auditLogger, database) {
+  const session = driver.session({ database });
   try {
     const { eventType, startDate, endDate, community } = req.query;
     
@@ -66,7 +66,7 @@ async function getTimelineEventsGrouped(req, res, driver, auditLogger) {
     if (community) filters.community = community;
 
     const TimelineEventModel = require('../timelineEventModel');
-    const timelineModel = new TimelineEventModel(driver);
+    const timelineModel = new TimelineEventModel(driver, database);
     const grouped = await timelineModel.getEventsGroupedByLovedOne(filters);
 
     if (auditLogger) {
@@ -100,12 +100,12 @@ async function getTimelineEventsGrouped(req, res, driver, auditLogger) {
 /**
  * Get events for a specific LovedOne
  */
-async function getLovedOneTimelineEvents(req, res, driver, auditLogger) {
+async function getLovedOneTimelineEvents(req, res, driver, auditLogger, database) {
   const { lovedOneId } = req.params;
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     const TimelineEventModel = require('../timelineEventModel');
-    const timelineModel = new TimelineEventModel(driver);
+    const timelineModel = new TimelineEventModel(driver, database);
     const events = await timelineModel.getEventsByLovedOne(lovedOneId);
 
     if (auditLogger) {
@@ -141,7 +141,7 @@ async function getLovedOneTimelineEvents(req, res, driver, auditLogger) {
 /**
  * Create a new timeline event for a LovedOne
  */
-async function createTimelineEvent(req, res, driver, auditLogger) {
+async function createTimelineEvent(req, res, driver, auditLogger, database) {
   const { lovedOneId } = req.params;
   const { eventType, description, timestamp, location, metadata } = req.body;
 
@@ -169,7 +169,7 @@ async function createTimelineEvent(req, res, driver, auditLogger) {
     });
   }
 
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     // Verify LovedOne exists
     const checkResult = await session.run(
@@ -182,7 +182,7 @@ async function createTimelineEvent(req, res, driver, auditLogger) {
     }
 
     const TimelineEventModel = require('../timelineEventModel');
-    const timelineModel = new TimelineEventModel(driver);
+    const timelineModel = new TimelineEventModel(driver, database);
     
     const createdBy = req.user?.email || req.user?.preferred_username || req.user?.name || 'system';
     const event = await timelineModel.addEvent(lovedOneId, {
@@ -207,6 +207,13 @@ async function createTimelineEvent(req, res, driver, auditLogger) {
     res.status(201).json({ event });
   } catch (err) {
     console.error('Failed to create timeline event:', err);
+    console.error('Error details:', {
+      lovedOneId,
+      eventType,
+      description,
+      error: err.message,
+      stack: err.stack
+    });
     
     if (auditLogger) {
       await auditLogger.log(req, {
@@ -218,7 +225,10 @@ async function createTimelineEvent(req, res, driver, auditLogger) {
       });
     }
 
-    res.status(500).json({ error: 'Failed to create timeline event' });
+    res.status(500).json({ 
+      error: 'Failed to create timeline event',
+      details: err.message 
+    });
   } finally {
     await session.close();
   }
@@ -227,14 +237,14 @@ async function createTimelineEvent(req, res, driver, auditLogger) {
 /**
  * Update an existing timeline event
  */
-async function updateTimelineEvent(req, res, driver, auditLogger) {
+async function updateTimelineEvent(req, res, driver, auditLogger, database) {
   const { eventId } = req.params;
   const { description, location, metadata } = req.body;
 
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     const TimelineEventModel = require('../timelineEventModel');
-    const timelineModel = new TimelineEventModel(driver);
+    const timelineModel = new TimelineEventModel(driver, database);
     
     const updates = {};
     if (description !== undefined) updates.description = description;
@@ -280,12 +290,12 @@ async function updateTimelineEvent(req, res, driver, auditLogger) {
 /**
  * Delete a timeline event
  */
-async function deleteTimelineEvent(req, res, driver, auditLogger) {
+async function deleteTimelineEvent(req, res, driver, auditLogger, database) {
   const { eventId } = req.params;
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     const TimelineEventModel = require('../timelineEventModel');
-    const timelineModel = new TimelineEventModel(driver);
+    const timelineModel = new TimelineEventModel(driver, database);
     
     await timelineModel.deleteEvent(eventId);
 
@@ -322,8 +332,8 @@ async function deleteTimelineEvent(req, res, driver, auditLogger) {
  * Backfill CaseOpened events for existing LovedOnes that don't have any events
  * This is a utility function to populate timeline for existing data
  */
-async function backfillCaseOpenedEvents(req, res, driver, auditLogger) {
-  const session = driver.session();
+async function backfillCaseOpenedEvents(req, res, driver, auditLogger, database) {
+  const session = driver.session({ database });
   try {
     // Find all LovedOnes that don't have any timeline events
     const result = await session.run(
@@ -344,7 +354,7 @@ async function backfillCaseOpenedEvents(req, res, driver, auditLogger) {
     }
 
     const TimelineEventModel = require('../timelineEventModel');
-    const timelineModel = new TimelineEventModel(driver);
+    const timelineModel = new TimelineEventModel(driver, database);
     const createdBy = req.user?.email || req.user?.preferred_username || req.user?.name || 'system';
     
     let created = 0;

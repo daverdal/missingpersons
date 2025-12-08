@@ -7,8 +7,8 @@
  * Get dashboard statistics
  * Returns counts for cases, loved ones, reminders, and recent activity
  */
-async function getDashboardStats(req, res, driver, auditLogger) {
-  const session = driver.session();
+async function getDashboardStats(req, res, driver, auditLogger, database) {
+  const session = driver.session({ database });
   try {
     const userEmail = req.user?.email || req.user?.preferred_username || null;
 
@@ -71,7 +71,7 @@ async function getDashboardStats(req, res, driver, auditLogger) {
 
     // Get recent timeline events (last 10)
     const TimelineEventModel = require('../timelineEventModel');
-    const timelineModel = new TimelineEventModel(driver);
+    const timelineModel = new TimelineEventModel(driver, database);
     const recentEvents = await timelineModel.getAllEvents({ limit: parseInt('10', 10) });
     
     // Sort by timestamp descending (newest first)

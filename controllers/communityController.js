@@ -7,25 +7,9 @@
  * Get all communities
  */
 async function getCommunities(req, res, driver, auditLogger, database) {
-  let session = driver.session({ database });
-  let actualDatabase = database;
+  const session = driver.session({ database });
   try {
-    // Test if database exists
-    await session.run('RETURN 1');
-  } catch (err) {
-    if (err.message && err.message.includes('does not exist') && database !== 'neo4j') {
-      console.log(`[getCommunities] Database '${database}' does not exist. Trying 'neo4j' instead...`);
-      await session.close();
-      actualDatabase = 'neo4j';
-      session = driver.session({ database: actualDatabase });
-    } else {
-      console.error('[getCommunities] Error connecting to database:', err);
-      return res.status(500).json({ error: 'Failed to connect to database', details: err.message });
-    }
-  }
-
-  try {
-    console.log(`[getCommunities] Querying communities from database: ${actualDatabase}`);
+    console.log(`[getCommunities] Querying communities from database: ${database}`);
     const result = await session.run('MATCH (c:Community) RETURN c ORDER BY c.name');
     const communities = result.records.map(r => r.get('c').properties);
     console.log(`[getCommunities] Found ${communities.length} communities`);
@@ -54,20 +38,7 @@ async function createOrUpdateCommunity(req, res, driver, auditLogger, database) 
     });
     return res.status(400).json({ error: 'Name is required' });
   }
-  let session = driver.session({ database });
-  let actualDatabase = database;
-  try {
-    // Test if database exists
-    await session.run('RETURN 1');
-  } catch (err) {
-    if (err.message && err.message.includes('does not exist') && database !== 'neo4j') {
-      await session.close();
-      actualDatabase = 'neo4j';
-      session = driver.session({ database: actualDatabase });
-    } else {
-      throw err;
-    }
-  }
+  const session = driver.session({ database });
 
   try {
     // If id is provided, update existing community

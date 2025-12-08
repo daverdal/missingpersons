@@ -4,8 +4,9 @@
 const neo4j = require('neo4j-driver');
 
 class NewsModel {
-  constructor(driver) {
+  constructor(driver, database = 'neo4j') {
     this.driver = driver;
+    this.database = database;
   }
 
   /**
@@ -14,7 +15,7 @@ class NewsModel {
    */
   async upsertMany(items) {
     if (!Array.isArray(items) || !items.length) return;
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       for (const item of items) {
         const params = {
@@ -51,7 +52,7 @@ class NewsModel {
    * Returns array of { newsItem, applicant, keyword }.
    */
   async findKeywordMatches(limit = 200) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run(
         `
@@ -90,7 +91,7 @@ class NewsModel {
    */
   async findUnnotifiedMatchesForNewsIds(ids) {
     if (!Array.isArray(ids) || !ids.length) return [];
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run(
         `
@@ -128,7 +129,7 @@ class NewsModel {
    * Returns array of news item objects.
    */
   async getAll(limit = 1000) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       // Ensure limit is an integer (Neo4j requires INTEGER, not FLOAT)
       // Use neo4j.int() to create a proper Neo4j integer type
@@ -176,7 +177,7 @@ class NewsModel {
 
     if (!rows.length) return;
 
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       await session.run(
         `

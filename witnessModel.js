@@ -4,8 +4,9 @@
 const { v4: uuidv4 } = require('uuid');
 
 class WitnessModel {
-  constructor(driver) {
+  constructor(driver, database = 'neo4j') {
     this.driver = driver;
+    this.database = database;
   }
 
   /**
@@ -23,7 +24,7 @@ class WitnessModel {
    * @param {object} [witness.metadata] - Additional flexible data
    */
   async createWitness(witness) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const witnessId = uuidv4();
       const params = {
@@ -108,7 +109,7 @@ class WitnessModel {
    * @param {string} [filters.createdBy] - Filter by creator
    */
   async getWitnesses(filters = {}) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       let query = `
         MATCH (w:Witness)
@@ -167,7 +168,7 @@ class WitnessModel {
    * @param {string} witnessId - Witness ID
    */
   async getWitnessById(witnessId) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run(
         `MATCH (w:Witness {witnessId: $witnessId})
@@ -207,7 +208,7 @@ class WitnessModel {
    * @param {object} updates - Fields to update
    */
   async updateWitness(witnessId, updates) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const setClauses = [];
       const params = { witnessId };
@@ -325,7 +326,7 @@ class WitnessModel {
    * @param {string} witnessId - Witness ID
    */
   async deleteWitness(witnessId) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       await session.run(
         `MATCH (w:Witness {witnessId: $witnessId})

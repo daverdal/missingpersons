@@ -115,26 +115,36 @@
     <script>
     // --- Admin role check: redirect non-admins ---
     (function() {
-        // Robust cookie parsing
-        function getToken() {
-        const match = document.cookie.match(/(^| )token=([^;]+)/);
-        if (match) return match[2];
-        return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-        }
-        var token = getToken();
-        if (!token) {
-            window.location.replace('login.html');
-            return;
-        }
-        try {
-            var payload = JSON.parse(atob(token.split('.')[1]));
-            var roles = payload.roles || payload.groups || payload.roles_claim || [];
-            if (!Array.isArray(roles)) roles = [roles];
-            if (!roles.includes('admin')) {
-                window.location.replace('index.html');
+        function checkAdminAndRedirect() {
+            // Robust cookie parsing
+            function getToken() {
+                const match = document.cookie.match(/(^| )token=([^;]+)/);
+                if (match) return match[2];
+                return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
             }
-        } catch (e) {
-            window.location.replace('login.html');
+            var token = getToken();
+            if (!token) {
+                window.location.replace('login.html');
+                return;
+            }
+            try {
+                var payload = JSON.parse(atob(token.split('.')[1]));
+                var roles = payload.roles || payload.groups || payload.roles_claim || [];
+                if (!Array.isArray(roles)) roles = [roles];
+                if (!roles.includes('admin')) {
+                    // Redirect to dashboard instead of index.html to avoid double redirect
+                    window.location.replace('dashboard.html');
+                }
+            } catch (e) {
+                window.location.replace('login.html');
+            }
+        }
+        // Wait for DOM to be ready, then check
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', checkAdminAndRedirect);
+        } else {
+            // Small delay to ensure token is available
+            setTimeout(checkAdminAndRedirect, 100);
         }
     })();
 

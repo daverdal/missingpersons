@@ -46,6 +46,10 @@
         // Run nav logic after insertion
         if (typeof updateAuthLinks === 'function') updateAuthLinks();
         if (typeof setupLogout === 'function') setupLogout();
+        // Show admin links only if user is admin (they're hidden by default)
+        if (typeof window.checkAndShowAdminLinks === 'function') {
+          window.checkAndShowAdminLinks();
+        }
         // Theme toggle logic
         var themeBtn = document.getElementById('themeToggleBtn');
         var body = document.body;

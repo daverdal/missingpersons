@@ -3,8 +3,9 @@
 // Used to persist settings like Offender News email credentials.
 
 class ConfigModel {
-  constructor(driver) {
+  constructor(driver, database = 'neo4j') {
     this.driver = driver;
+    this.database = database;
   }
 
   /**
@@ -12,7 +13,7 @@ class ConfigModel {
    * Returns parsed JSON object or null if not found.
    */
   async get(key) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run(
         'MATCH (c:Config {key: $key}) RETURN c LIMIT 1',
@@ -37,7 +38,7 @@ class ConfigModel {
    * The value object will be stored as JSON string in property "value".
    */
   async set(key, value) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       await session.run(
         `

@@ -8,12 +8,13 @@ const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
 
 class AuditLogModel {
-  constructor(driver) {
+  constructor(driver, database = 'neo4j') {
     this.driver = driver;
+    this.database = database;
   }
 
   async ensureIndexes() {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       await session.run(
         'CREATE INDEX audit_log_timestamp IF NOT EXISTS FOR (a:AuditLog) ON (a.timestamp)'
@@ -48,7 +49,7 @@ class AuditLogModel {
       targetUserName = null
     } = entry || {};
 
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       await session.run(
         `CREATE (a:AuditLog {
@@ -165,7 +166,7 @@ class AuditLogModel {
       whereClauses.push('(a.timestamp < $cursor OR (a.timestamp = $cursor AND a.logId < $cursorLogId))');
     }
 
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const where = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
       const query = `
@@ -195,7 +196,7 @@ class AuditLogModel {
 
   async listActions(limit = 200) {
     const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 200, 1), 1000);
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run(
         'MATCH (a:AuditLog) WHERE a.action IS NOT NULL RETURN DISTINCT a.action AS action ORDER BY action LIMIT $limit',
@@ -211,7 +212,7 @@ class AuditLogModel {
 
   async cleanupOlderThan(cutoffIso) {
     if (!cutoffIso) return;
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       await session.run(
         'MATCH (a:AuditLog) WHERE a.timestamp < $cutoff DETACH DELETE a',

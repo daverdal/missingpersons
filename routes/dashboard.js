@@ -8,11 +8,11 @@ const dashboardController = require('../controllers/dashboardController');
  */
 
 function setupDashboardRoutes(router, dependencies) {
-  const { driver, auditLogger, authMiddleware } = dependencies;
+  const { driver, auditLogger, authMiddleware, neo4jDatabase } = dependencies;
 
   // GET /api/dashboard/stats - Get dashboard statistics
   router.get('/dashboard/stats', authMiddleware, (req, res) => {
-    dashboardController.getDashboardStats(req, res, driver, auditLogger);
+    dashboardController.getDashboardStats(req, res, driver, auditLogger, neo4jDatabase);
   });
 }
 

@@ -5,12 +5,13 @@ const neo4j = require('neo4j-driver');
 const bcrypt = require('bcryptjs');
 
 class UserModel {
-  constructor(driver) {
+  constructor(driver, database = 'neo4j') {
     this.driver = driver;
+    this.database = database;
   }
 
   async getAllUsers() {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run('MATCH (u:User) RETURN u');
       return result.records.map(r => r.get('u').properties);
@@ -20,7 +21,7 @@ class UserModel {
   }
 
   async getUserByEmail(email) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run('MATCH (u:User {email: $email}) RETURN u', { email });
       if (result.records.length === 0) return null;
@@ -31,7 +32,7 @@ class UserModel {
   }
 
   async createUser(user) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       // Hash the password before storing
       const hash = await bcrypt.hash(user.password, 10);
@@ -46,7 +47,7 @@ class UserModel {
   }
 
   async verifyUserPassword(email, password) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run('MATCH (u:User {email: $email}) RETURN u', { email });
       if (result.records.length === 0) return false;
@@ -59,7 +60,7 @@ class UserModel {
   }
 
   async updateUserRoles(email, roles) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       await session.run(
         'MATCH (u:User {email: $email}) SET u.roles = $roles RETURN u',
@@ -75,7 +76,7 @@ class UserModel {
    * Get user preferences
    */
   async getUserPreferences(email) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run(
         'MATCH (u:User {email: $email}) RETURN u.preferences AS preferences',
@@ -98,7 +99,7 @@ class UserModel {
    * Update user preferences
    */
   async updateUserPreferences(email, preferences) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       await session.run(
         'MATCH (u:User {email: $email}) SET u.preferences = $preferences RETURN u',

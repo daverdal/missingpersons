@@ -4,12 +4,13 @@
 const { v4: uuidv4 } = require('uuid');
 
 class CaseEventModel {
-  constructor(driver) {
+  constructor(driver, database = 'neo4j') {
     this.driver = driver;
+    this.database = database;
   }
 
   async addEvent(caseId, event) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const eventId = uuidv4();
       const params = {
@@ -33,7 +34,7 @@ class CaseEventModel {
   }
 
   async getEvents(caseId) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run(
         `MATCH (a:Applicant {id: $id})-[:HAS_EVENT]->(e:CaseEvent)

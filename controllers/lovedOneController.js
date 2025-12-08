@@ -6,7 +6,7 @@
 /**
  * Get loved ones with coordinates (admin and case_worker only)
  */
-async function getLovedOnesWithCoordinates(req, res, driver, auditLogger) {
+async function getLovedOnesWithCoordinates(req, res, driver, auditLogger, database) {
   const rawRoles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
   const roles = (Array.isArray(rawRoles) ? rawRoles : [rawRoles])
     .filter(Boolean)
@@ -14,7 +14,7 @@ async function getLovedOnesWithCoordinates(req, res, driver, auditLogger) {
   const isAllowed = roles.includes('admin') || roles.includes('case_worker');
   if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
   
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     const result = await session.run(
       `MATCH (l:LovedOne)<-[rel:RELATED_TO]-(a:Applicant)
@@ -40,12 +40,12 @@ async function getLovedOnesWithCoordinates(req, res, driver, auditLogger) {
  * Get all loved ones (admin and case_worker only)
  * Simple endpoint to get all loved ones without filters
  */
-async function getAllLovedOnes(req, res, driver, auditLogger) {
+async function getAllLovedOnes(req, res, driver, auditLogger, database) {
   const roles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
   const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
   if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
   
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     const result = await session.run(
       `MATCH (l:LovedOne)
@@ -66,7 +66,7 @@ async function getAllLovedOnes(req, res, driver, auditLogger) {
  * Get loved ones by community (admin and case_worker only)
  * Supports ?expand=true for comprehensive data
  */
-async function getLovedOnesByCommunity(req, res, driver, auditLogger) {
+async function getLovedOnesByCommunity(req, res, driver, auditLogger, database) {
   const { community, expand } = req.query;
   if (!community || !community.trim()) {
     return res.status(400).json({ error: 'community is required' });
@@ -76,7 +76,7 @@ async function getLovedOnesByCommunity(req, res, driver, auditLogger) {
   if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
   
   const includeAll = expand === 'true' || expand === '1';
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     if (includeAll) {
       // Get loved ones with all applicant data
@@ -123,7 +123,7 @@ async function getLovedOnesByCommunity(req, res, driver, auditLogger) {
 /**
  * Get loved ones by date range (admin and case_worker only)
  */
-async function getLovedOnesByDate(req, res, driver, auditLogger) {
+async function getLovedOnesByDate(req, res, driver, auditLogger, database) {
   const { start, end } = req.query;
   if (!start || !end) {
     return res.status(400).json({ error: 'start and end are required (YYYY-MM-DD)' });
@@ -132,7 +132,7 @@ async function getLovedOnesByDate(req, res, driver, auditLogger) {
   const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
   if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
   
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     // dateOfIncident stored as ISO date string; string range compare is valid
     const result = await session.run(
@@ -160,7 +160,7 @@ async function getLovedOnesByDate(req, res, driver, auditLogger) {
  * Get loved ones by province (admin and case_worker only)
  * Supports province code (e.g., 'AB', 'BC') or full name (e.g., 'Alberta', 'British Columbia')
  */
-async function getLovedOnesByProvince(req, res, driver, auditLogger) {
+async function getLovedOnesByProvince(req, res, driver, auditLogger, database) {
   const { province } = req.query;
   if (!province || !province.trim()) {
     return res.status(400).json({ error: 'province is required (e.g., "AB", "Alberta", "BC", "British Columbia")' });
@@ -189,7 +189,7 @@ async function getLovedOnesByProvince(req, res, driver, auditLogger) {
   const provinceLower = province.trim().toLowerCase();
   const provinceCode = provinceMap[provinceLower] || province.trim().toUpperCase();
   
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     const result = await session.run(
       `MATCH (l:LovedOne)<-[rel:RELATED_TO]-(a:Applicant)
@@ -215,7 +215,7 @@ async function getLovedOnesByProvince(req, res, driver, auditLogger) {
 /**
  * Update loved one (admin or assigned case_worker)
  */
-async function updateLovedOne(req, res, driver, auditLogger) {
+async function updateLovedOne(req, res, driver, auditLogger, database) {
   const { id } = req.params;
   const {
     applicantId,
@@ -243,7 +243,7 @@ async function updateLovedOne(req, res, driver, auditLogger) {
   const isAdmin = roles.includes('admin');
   const isCaseWorker = roles.includes('case_worker');
   
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     if (!isAdmin) {
       // For non-admin, require applicantId and ensure user is assigned to that case

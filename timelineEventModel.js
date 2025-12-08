@@ -5,8 +5,9 @@ const { v4: uuidv4 } = require('uuid');
 const neo4j = require('neo4j-driver');
 
 class TimelineEventModel {
-  constructor(driver) {
+  constructor(driver, database = 'neo4j') {
     this.driver = driver;
+    this.database = database;
   }
 
   /**
@@ -21,7 +22,7 @@ class TimelineEventModel {
    * @param {object} [event.metadata] - Optional key/value metadata
    */
   async addEvent(lovedOneId, event) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const eventId = uuidv4();
       const params = {
@@ -35,7 +36,7 @@ class TimelineEventModel {
         metadata: event.metadata ? JSON.stringify(event.metadata) : null
       };
 
-      await session.run(
+      const result = await session.run(
         `MATCH (l:LovedOne {id: $lovedOneId})
          CREATE (e:TimelineEvent {
            eventId: $eventId,
@@ -50,6 +51,10 @@ class TimelineEventModel {
          RETURN e`,
         params
       );
+
+      if (result.records.length === 0) {
+        throw new Error(`Failed to create timeline event: No record returned for LovedOne ${lovedOneId}`);
+      }
 
       // If event is "Found", update LovedOne status to "Found"
       if (event.eventType === 'Found') {
@@ -70,6 +75,14 @@ class TimelineEventModel {
         location: params.location,
         metadata: params.metadata ? JSON.parse(params.metadata) : null
       };
+    } catch (err) {
+      console.error('TimelineEventModel.addEvent error:', {
+        lovedOneId,
+        eventType: event.eventType,
+        error: err.message,
+        database: this.database
+      });
+      throw err;
     } finally {
       await session.close();
     }
@@ -81,7 +94,7 @@ class TimelineEventModel {
    * @returns {Array} Array of event objects
    */
   async getEventsByLovedOne(lovedOneId) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run(
         `MATCH (l:LovedOne {id: $lovedOneId})-[:HAS_TIMELINE_EVENT]->(e:TimelineEvent)
@@ -111,7 +124,7 @@ class TimelineEventModel {
    * @returns {Array} Array of event objects with LovedOne info
    */
   async getAllEvents(filters = {}) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       let query = `
         MATCH (l:LovedOne)-[:HAS_TIMELINE_EVENT]->(e:TimelineEvent)
@@ -183,7 +196,7 @@ class TimelineEventModel {
    * @returns {Array} Array of objects with lovedOne and events
    */
   async getEventsGroupedByLovedOne(filters = {}) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       let query = `
         MATCH (l:LovedOne)-[:HAS_TIMELINE_EVENT]->(e:TimelineEvent)
@@ -251,7 +264,7 @@ class TimelineEventModel {
    * @param {object} updates - Fields to update
    */
   async updateEvent(eventId, updates) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const setClauses = [];
       const params = { eventId };
@@ -307,7 +320,7 @@ class TimelineEventModel {
    * @param {string} eventId - The ID of the event
    */
   async deleteEvent(eventId) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       await session.run(
         `MATCH (e:TimelineEvent {eventId: $eventId})

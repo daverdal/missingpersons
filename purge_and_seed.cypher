@@ -36,6 +36,12 @@ CREATE (m2:LovedOne {id: 'M2', name: 'Michael Smith', dateOfIncident: '2024-11-0
 CREATE (m3:LovedOne {id: 'M3', name: 'Priya Patel', dateOfIncident: '2025-03-10', lastLocation: 'Calgary', province: 'AB', lastLocationLat: 51.0447, lastLocationLon: -114.0719, community: 'Peguis First Nation'});
 CREATE (m4:LovedOne {id: 'M4', name: 'Lucas Chen', dateOfIncident: '2025-05-22', lastLocation: 'Edmonton', province: 'AB', lastLocationLat: 53.5461, lastLocationLon: -113.4938, community: 'Fisher River Cree Nation'});
 
+// Create CaseOpened timeline events for each LovedOne
+MATCH (m1:LovedOne {id: 'M1'}) CREATE (e1:TimelineEvent {eventId: 'M1-CaseOpened-1', eventType: 'CaseOpened', description: 'Case opened for Emily Doe', timestamp: '2025-01-15T00:00:00Z', createdBy: 'system-seed', location: 'Sagkeeng First Nation'}) CREATE (m1)-[:HAS_TIMELINE_EVENT]->(e1);
+MATCH (m2:LovedOne {id: 'M2'}) CREATE (e2:TimelineEvent {eventId: 'M2-CaseOpened-1', eventType: 'CaseOpened', description: 'Case opened for Michael Smith', timestamp: '2024-11-02T00:00:00Z', createdBy: 'system-seed', location: 'Brokenhead Ojibway Nation'}) CREATE (m2)-[:HAS_TIMELINE_EVENT]->(e2);
+MATCH (m3:LovedOne {id: 'M3'}) CREATE (e3:TimelineEvent {eventId: 'M3-CaseOpened-1', eventType: 'CaseOpened', description: 'Case opened for Priya Patel', timestamp: '2025-03-10T00:00:00Z', createdBy: 'system-seed', location: 'Peguis First Nation'}) CREATE (m3)-[:HAS_TIMELINE_EVENT]->(e3);
+MATCH (m4:LovedOne {id: 'M4'}) CREATE (e4:TimelineEvent {eventId: 'M4-CaseOpened-1', eventType: 'CaseOpened', description: 'Case opened for Lucas Chen', timestamp: '2025-05-22T00:00:00Z', createdBy: 'system-seed', location: 'Fisher River Cree Nation'}) CREATE (m4)-[:HAS_TIMELINE_EVENT]->(e4);
+
 
 // ASSIGN CASES
 MATCH (cw:User {email: 'caseworker1@example.com'}), (a:Applicant {id: 'A1'}) CREATE (cw)-[:ASSIGNED_TO]->(a);
@@ -144,6 +150,10 @@ CREATE (a9:Applicant {id: 'A9', name: 'Olivia Green', email: 'olivia.green@examp
 // --- ADDITIONAL LOVED ONES ---
 CREATE (m5:LovedOne {id: 'M5', name: 'Jacob Lee', dateOfIncident: '2025-06-01', lastLocation: 'Winnipeg', province: 'MB', lastLocationLat: 49.8951, lastLocationLon: -97.1384});
 CREATE (m6:LovedOne {id: 'M6', name: 'Ella Brown', dateOfIncident: '2025-07-12', lastLocation: 'Regina', province: 'SK', lastLocationLat: 50.4452, lastLocationLon: -104.6189});
+
+// Create CaseOpened timeline events for additional LovedOnes
+MATCH (m5:LovedOne {id: 'M5'}) CREATE (e5:TimelineEvent {eventId: 'M5-CaseOpened-1', eventType: 'CaseOpened', description: 'Case opened for Jacob Lee', timestamp: '2025-06-01T00:00:00Z', createdBy: 'system-seed', location: null}) CREATE (m5)-[:HAS_TIMELINE_EVENT]->(e5);
+MATCH (m6:LovedOne {id: 'M6'}) CREATE (e6:TimelineEvent {eventId: 'M6-CaseOpened-1', eventType: 'CaseOpened', description: 'Case opened for Ella Brown', timestamp: '2025-07-12T00:00:00Z', createdBy: 'system-seed', location: null}) CREATE (m6)-[:HAS_TIMELINE_EVENT]->(e6);
 
 // --- ASSIGN CASES ---
 MATCH (cw:User {email: 'caseworker4@example.com'}), (a:Applicant {id: 'A7'}) CREATE (cw)-[:ASSIGNED_TO]->(a);

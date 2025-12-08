@@ -4,8 +4,9 @@
 const { v4: uuidv4 } = require('uuid');
 
 class ReminderModel {
-  constructor(driver) {
+  constructor(driver, database = 'neo4j') {
     this.driver = driver;
+    this.database = database;
   }
 
   /**
@@ -23,7 +24,7 @@ class ReminderModel {
    * @param {string} [reminder.reminderType] - 'followup', 'court', 'checkin', 'anniversary', 'other'
    */
   async createReminder(reminder) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const reminderId = uuidv4();
       const params = {
@@ -109,7 +110,7 @@ class ReminderModel {
    * @param {boolean} [filters.overdue] - Show only overdue reminders
    */
   async getReminders(filters = {}) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       let query = `MATCH (r:Reminder) WHERE 1=1`;
       const params = {};
@@ -169,7 +170,7 @@ class ReminderModel {
    * @param {string} reminderId - The reminder ID
    */
   async getReminderById(reminderId) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const result = await session.run(
         `MATCH (r:Reminder {reminderId: $reminderId})
@@ -193,7 +194,7 @@ class ReminderModel {
    * @param {object} updates - Fields to update
    */
   async updateReminder(reminderId, updates) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const setClauses = [];
       const params = { reminderId };
@@ -265,7 +266,7 @@ class ReminderModel {
    * @param {string} reminderId - The reminder ID
    */
   async deleteReminder(reminderId) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       await session.run(
         `MATCH (r:Reminder {reminderId: $reminderId})
@@ -283,7 +284,7 @@ class ReminderModel {
    * @param {string} [assignedTo] - Optional user email filter
    */
   async getUpcomingReminders(days = 7, assignedTo = null) {
-    const session = this.driver.session();
+    const session = this.driver.session({ database: this.database });
     try {
       const now = new Date().toISOString();
       const futureDate = new Date();

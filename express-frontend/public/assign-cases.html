@@ -60,8 +60,18 @@
 
     // Redirect non-admins
     (function guardAdmin() {
-        if (!isAdmin()) {
-            window.location.href = 'index.html';
+        function checkAndRedirect() {
+            if (!isAdmin()) {
+                // Redirect to dashboard instead of index.html to avoid double redirect
+                window.location.href = 'dashboard.html';
+            }
+        }
+        // Wait for DOM to be ready, then check
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', checkAndRedirect);
+        } else {
+            // Small delay to ensure token is available
+            setTimeout(checkAndRedirect, 100);
         }
     })();
 

@@ -15,8 +15,8 @@ function getHealth(req, res) {
 /**
  * Database health check endpoint
  */
-async function getDbHealth(req, res, driver) {
-  const session = driver.session();
+async function getDbHealth(req, res, driver, database) {
+  const session = driver.session({ database });
   try {
     // Run a lightweight query
     await session.run('RETURN 1');
@@ -180,41 +180,8 @@ async function graphCypher(req, res, driver, neo4jDatabase) {
     });
     res.json({ nodes: Object.values(nodes), relationships: Object.values(relationships) });
   } catch (err) {
-    // If database doesn't exist, try default 'neo4j' database
-    if (err.message && err.message.includes('Database does not exist')) {
-      console.log(`[graph-cypher] Database '${neo4jDatabase}' does not exist. Trying 'neo4j' instead...`);
-      await session.close();
-      session = driver.session({ database: 'neo4j' });
-      try {
-        const result = await session.run(cypher, params || {});
-        const nodes = {};
-        const relationships = {};
-        result.records.forEach(record => {
-          record.forEach(val => {
-            if (val && val.identity && val.labels) {
-              nodes[val.identity.toString()] = val.properties;
-              nodes[val.identity.toString()]._id = val.identity.toString();
-              nodes[val.identity.toString()]._labels = val.labels;
-            } else if (val && val.identity && val.type) {
-              relationships[val.identity.toString()] = {
-                id: val.identity.toString(),
-                type: val.type,
-                start: val.start.toString(),
-                end: val.end.toString(),
-                properties: val.properties
-              };
-            }
-          });
-        });
-        res.json({ nodes: Object.values(nodes), relationships: Object.values(relationships) });
-      } catch (retryErr) {
-        console.error('[graph-cypher] Error with fallback database:', retryErr);
-        res.status(500).json({ error: retryErr.message, details: 'Failed to execute query even with fallback database' });
-      }
-    } else {
-      console.error('[graph-cypher] Error:', err);
-      res.status(500).json({ error: err.message, details: 'Failed to execute Cypher query' });
-    }
+    console.error('[graph-cypher] Error:', err);
+    res.status(500).json({ error: err.message, details: 'Failed to execute Cypher query' });
   } finally {
     if (session) {
       await session.close();

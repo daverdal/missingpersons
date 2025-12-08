@@ -47,7 +47,7 @@ function setupUtilityRoutes(router, dependencies) {
 
   // GET /api/health/db - Database health check endpoint
   router.get('/health/db', async (req, res) => {
-    utilityController.getDbHealth(req, res, driver);
+    utilityController.getDbHealth(req, res, driver, neo4jDatabase);
   });
 
   // POST /api/login - Login endpoint

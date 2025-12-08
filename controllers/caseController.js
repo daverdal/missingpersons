@@ -6,9 +6,9 @@
 /**
  * Get all cases/applicants
  */
-async function getAllCases(req, res, driver, auditLogger) {
+async function getAllCases(req, res, driver, auditLogger, database) {
   const expand = req.query.expand === 'true' || req.query.expand === '1';
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     if (expand) {
       // Get all applicants with all related data
@@ -67,14 +67,14 @@ async function getAllCases(req, res, driver, auditLogger) {
 /**
  * Search applicants by name
  */
-async function searchApplicants(req, res, driver, auditLogger) {
+async function searchApplicants(req, res, driver, auditLogger, database) {
   const { name, expand } = req.query;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'name query parameter is required' });
   }
   
   const includeAll = expand === 'true' || expand === '1';
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     if (includeAll) {
       // Search with all related data
@@ -157,12 +157,12 @@ async function searchApplicants(req, res, driver, auditLogger) {
 /**
  * Get applicant by ID
  */
-async function getApplicantById(req, res, driver, auditLogger) {
+async function getApplicantById(req, res, driver, auditLogger, database) {
   const { id } = req.params;
   const includeAll = req.query.includeAll === 'true' || req.query.includeAll === '1';
   
   try {
-    const session = driver.session();
+    const session = driver.session({ database });
     
     if (includeAll) {
       // Get applicant with ALL related data: org, lovedOnes, notes, files, events, community, assigned users
@@ -278,10 +278,10 @@ async function getApplicantById(req, res, driver, auditLogger) {
 /**
  * Get applicant with ALL related data (comprehensive endpoint)
  */
-async function getApplicantComplete(req, res, driver, auditLogger) {
+async function getApplicantComplete(req, res, driver, auditLogger, database) {
   const { id } = req.params;
   try {
-    const session = driver.session();
+    const session = driver.session({ database });
     // Get applicant with ALL related data: org, lovedOnes, notes, files, events, community, assigned users
     const result = await session.run(
       `MATCH (a:Applicant {id: $id})
@@ -371,11 +371,11 @@ async function getApplicantComplete(req, res, driver, auditLogger) {
 /**
  * Get cases assigned to current user
  */
-async function getMyCases(req, res, driver, auditLogger) {
+async function getMyCases(req, res, driver, auditLogger, database) {
   const userEmail = req.user && (req.user.email || req.user.preferred_username);
   if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
   const expand = req.query.expand === 'true' || req.query.expand === '1';
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     if (expand) {
       // Find applicants assigned to this user with all related data
@@ -428,9 +428,9 @@ async function getMyCases(req, res, driver, auditLogger) {
 /**
  * Get cases assigned to a specific case worker
  */
-async function getCaseWorkerCases(req, res, driver, auditLogger) {
+async function getCaseWorkerCases(req, res, driver, auditLogger, database) {
   const { email } = req.params;
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     const result = await session.run(
       `MATCH (u:User {email: $email})-[:ASSIGNED_TO]->(a:Applicant) RETURN a`,
@@ -449,8 +449,8 @@ async function getCaseWorkerCases(req, res, driver, auditLogger) {
 /**
  * Get applicants with phone numbers (admin only)
  */
-async function getApplicantsWithPhoneNumbers(req, res, driver, auditLogger) {
-  const session = driver.session();
+async function getApplicantsWithPhoneNumbers(req, res, driver, auditLogger, database) {
+  const session = driver.session({ database });
   try {
     const result = await session.run(
       `MATCH (a:Applicant)
@@ -487,8 +487,8 @@ async function getApplicantsWithPhoneNumbers(req, res, driver, auditLogger) {
 /**
  * Get applicants with email addresses (admin only)
  */
-async function getApplicantsWithEmailAddresses(req, res, driver, auditLogger) {
-  const session = driver.session();
+async function getApplicantsWithEmailAddresses(req, res, driver, auditLogger, database) {
+  const session = driver.session({ database });
   try {
     const result = await session.run(
       `MATCH (a:Applicant)
@@ -525,7 +525,7 @@ async function getApplicantsWithEmailAddresses(req, res, driver, auditLogger) {
 /**
  * Get applicants by province
  */
-async function getApplicantsByProvince(req, res, driver, auditLogger) {
+async function getApplicantsByProvince(req, res, driver, auditLogger, database) {
   const { province } = req.query;
   if (!province || !province.trim()) {
     return res.status(400).json({ error: 'province is required (e.g., "AB", "Alberta", "BC", "British Columbia")' });
@@ -551,7 +551,7 @@ async function getApplicantsByProvince(req, res, driver, auditLogger) {
   const provinceLower = province.trim().toLowerCase();
   const provinceCode = provinceMap[provinceLower] || province.trim().toUpperCase();
   
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     const result = await session.run(
       `MATCH (a:Applicant)
@@ -573,7 +573,7 @@ async function getApplicantsByProvince(req, res, driver, auditLogger) {
 /**
  * Update applicant/case
  */
-async function updateApplicant(req, res, driver, auditLogger) {
+async function updateApplicant(req, res, driver, auditLogger, database) {
   const { id } = req.params;
   const {
     name,
@@ -614,7 +614,7 @@ async function updateApplicant(req, res, driver, auditLogger) {
       if (!newsKeywordsParam.length) newsKeywordsParam = null;
     }
   }
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     if (!isAdmin) {
       if (!isCaseWorker) {
@@ -760,11 +760,11 @@ async function updateApplicant(req, res, driver, auditLogger) {
 /**
  * Create new case via intake form
  */
-async function createIntake(req, res, driver, auditLogger) {
+async function createIntake(req, res, driver, auditLogger, database) {
   try {
     const data = req.body;
     const staff = req.user.name || req.user.email || '';
-    const session = driver.session();
+    const session = driver.session({ database });
     // Generate a unique id for the applicant (e.g., A + timestamp)
     const applicantId = 'A' + Date.now();
     // Create Applicant node with id
@@ -824,7 +824,7 @@ async function createIntake(req, res, driver, auditLogger) {
       // Automatically create "CaseOpened" timeline event
       try {
         const TimelineEventModel = require('../timelineEventModel');
-        const timelineModel = new TimelineEventModel(driver);
+        const timelineModel = new TimelineEventModel(driver, database);
         const createdBy = req.user?.email || req.user?.preferred_username || req.user?.name || 'system';
         await timelineModel.addEvent(lovedOneId, {
           eventType: 'CaseOpened',
@@ -891,7 +891,7 @@ async function createIntake(req, res, driver, auditLogger) {
 /**
  * Assign case to a case worker (admin only)
  */
-async function assignCase(req, res, driver, auditLogger) {
+async function assignCase(req, res, driver, auditLogger, database) {
   const { caseId } = req.params;
   const { email } = req.body; // case worker email
   console.log('Assigning case', caseId, 'to user', email);
@@ -907,7 +907,7 @@ async function assignCase(req, res, driver, auditLogger) {
     });
     return res.status(400).json({ error: 'Missing caseId or email' });
   }
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     // Remove all existing ASSIGNED_TO relationships for this case
     await session.run(
@@ -973,10 +973,10 @@ async function assignCase(req, res, driver, auditLogger) {
 /**
  * Unassign all case workers from a case (admin only)
  */
-async function unassignCase(req, res, driver, auditLogger) {
+async function unassignCase(req, res, driver, auditLogger, database) {
   const { caseId } = req.params;
   console.log('[DEBUG] Unassign request received for caseId:', caseId);
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     const result = await session.run(
       `MATCH (u:User)-[r:ASSIGNED_TO]->(a:Applicant {id: $caseId}) DELETE r RETURN COUNT(r) AS deletedCount`,
@@ -1081,7 +1081,7 @@ async function getCaseEvents(req, res, caseEventModel, auditLogger) {
 /**
  * Send SMS for a case
  */
-async function sendCaseSms(req, res, driver, smsService, caseEventModel, auditLogger) {
+async function sendCaseSms(req, res, driver, smsService, caseEventModel, auditLogger, database) {
   if (!smsService.isConfigured()) {
     await auditLogger.log(req, {
       action: 'case.sms_send',
@@ -1116,7 +1116,7 @@ async function sendCaseSms(req, res, driver, smsService, caseEventModel, auditLo
   }
 
   if (!isAdmin) {
-    const session = driver.session();
+    const session = driver.session({ database });
     try {
       const result = await session.run(
         'MATCH (a:Applicant {id: $caseId})<-[:ASSIGNED_TO]-(u:User {email: $email}) RETURN a',
@@ -1190,9 +1190,9 @@ async function sendCaseSms(req, res, driver, smsService, caseEventModel, auditLo
 /**
  * Get all files for a case
  */
-async function getCaseFiles(req, res, driver, auditLogger) {
+async function getCaseFiles(req, res, driver, auditLogger, database) {
   const { caseId } = req.params;
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     const result = await session.run(
       `MATCH (a:Applicant {id: $caseId})-[:HAS_FILE]->(f:File)
@@ -1211,7 +1211,7 @@ async function getCaseFiles(req, res, driver, auditLogger) {
 /**
  * Upload file for a case
  */
-async function uploadCaseFile(req, res, driver, upload, auditLogger) {
+async function uploadCaseFile(req, res, driver, upload, auditLogger, database) {
   const { caseId } = req.params;
   if (!req.file) {
     await auditLogger.log(req, {
@@ -1223,7 +1223,7 @@ async function uploadCaseFile(req, res, driver, upload, auditLogger) {
     });
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     // Save file metadata and link to case
     const fileMeta = {
@@ -1298,11 +1298,11 @@ async function uploadCaseFile(req, res, driver, upload, auditLogger) {
 /**
  * Delete file for a case
  */
-async function deleteCaseFile(req, res, driver, auditLogger) {
+async function deleteCaseFile(req, res, driver, auditLogger, database) {
   const { caseId, filename } = req.params;
   const fs = require('fs');
   const path = require('path');
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     // Find and delete File node and relationship
     await session.run(
@@ -1341,11 +1341,11 @@ async function deleteCaseFile(req, res, driver, auditLogger) {
 /**
  * Get all notes for a case
  */
-async function getCaseNotes(req, res, driver, auditLogger) {
+async function getCaseNotes(req, res, driver, auditLogger, database) {
   const { caseId } = req.params;
   const user = req.user;
   try {
-    const session = driver.session();
+    const session = driver.session({ database });
     let canView = false;
     if (user.roles && user.roles.includes('admin')) {
       canView = true;
@@ -1370,7 +1370,7 @@ async function getCaseNotes(req, res, driver, auditLogger) {
 /**
  * Add note to a case
  */
-async function addCaseNote(req, res, driver, auditLogger) {
+async function addCaseNote(req, res, driver, auditLogger, database) {
   const { caseId } = req.params;
   const { text } = req.body;
   const user = req.user;
@@ -1385,7 +1385,7 @@ async function addCaseNote(req, res, driver, auditLogger) {
     return res.status(400).json({ error: 'Note text required' });
   }
   try {
-    const session = driver.session();
+    const session = driver.session({ database });
     let canEdit = false;
     if (user.roles && user.roles.includes('admin')) {
       canEdit = true;
@@ -1436,7 +1436,7 @@ async function addCaseNote(req, res, driver, auditLogger) {
 /**
  * Add loved one to an applicant
  */
-async function addLovedOne(req, res, driver, auditLogger) {
+async function addLovedOne(req, res, driver, auditLogger, database) {
   const { id } = req.params;
   const { name, relationship, incidentDate, lastLocation, community, policeInvestigationNumber, investigation, otherInvestigation, supportSelections, support, otherSupport, additionalNotes, status } = req.body || {};
   const user = req.user;
@@ -1451,7 +1451,7 @@ async function addLovedOne(req, res, driver, auditLogger) {
     });
     return res.status(400).json({ error: 'Loved One name is required' });
   }
-  const session = driver.session();
+  const session = driver.session({ database });
   try {
     // Permission: admin or assigned to this case
     let canEdit = false;
@@ -1519,7 +1519,7 @@ async function addLovedOne(req, res, driver, auditLogger) {
     // Automatically create "CaseOpened" timeline event
     try {
       const TimelineEventModel = require('../timelineEventModel');
-      const timelineModel = new TimelineEventModel(driver);
+      const timelineModel = new TimelineEventModel(driver, database);
       const createdBy = req.user?.email || req.user?.preferred_username || req.user?.name || 'system';
       await timelineModel.addEvent(lovedOneId, {
         eventType: 'CaseOpened',

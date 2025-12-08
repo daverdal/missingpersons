@@ -274,6 +274,10 @@
   padding: 0.25em 0 !important;
   display: inline-block !important;
 }
+/* Hide admin links by default - they will be shown by JavaScript if user is admin */
+#adminLink, #assignCasesLink, #settingsLink, #auditLogLink, #reportsLink, #smsBlastLink, #offenderNewsLink {
+  display: none !important;
+}
 /* Nav highlighting styles */
 .nav-link.active, .nav-link[aria-current="page"] {
   color: #d2691e !important;

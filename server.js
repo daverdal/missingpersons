@@ -272,7 +272,7 @@ app.post('/api/graph-cypher', async (req, res) => {
     if (err.message && err.message.includes('Database does not exist')) {
       console.log(`[graph-cypher] Database '${NEO4J_DATABASE}' does not exist. Trying 'neo4j' instead...`);
       await session.close();
-      session = driver.session({ database: 'neo4j' });
+      session = driver.session({ database: NEO4J_DATABASE });
       try {
         const result = await session.run(cypher, params || {});
         const nodes = {};
@@ -321,7 +321,7 @@ app.get('/api/loved-ones/with-coordinates', authMiddleware, async (req, res) => 
     .map(r => String(r).toLowerCase());
   const isAllowed = roles.includes('admin') || roles.includes('case_worker');
   if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     const result = await session.run(
       `MATCH (l:LovedOne)<-[rel:RELATED_TO]-(a:Applicant)
@@ -389,25 +389,37 @@ const driver = neo4j.driver(
 // Default database selection (for Neo4j multi-database setups)
 const NEO4J_DATABASE = process.env.NEO4J_DATABASE || 'neo4j';
 
+// Verify driver connectivity and store promise
+let driverReady = (async () => {
+  try {
+    await driver.getServerInfo();
+    console.log('✅ Neo4j driver connection verified');
+    return true;
+  } catch (err) {
+    console.error('❌ Neo4j driver connection failed:', err.message);
+    return false;
+  }
+})();
+
 
 const ConfigModel = require('./configModel');
 
 // User model setup
 const UserModel = require('./userModel');
-const userModel = new UserModel(driver);
+const userModel = new UserModel(driver, NEO4J_DATABASE);
 
 // CaseEvent model setup
 const CaseEventModel = require('./caseEventModel');
-const caseEventModel = new CaseEventModel(driver);
+const caseEventModel = new CaseEventModel(driver, NEO4J_DATABASE);
 
 // News model setup (for offender news, RSS, etc.)
-const newsModel = new NewsModel(driver);
+const newsModel = new NewsModel(driver, NEO4J_DATABASE);
 
 // Config model setup (for persisted settings like Offender News email)
-const configModel = new ConfigModel(driver);
+const configModel = new ConfigModel(driver, NEO4J_DATABASE);
 
 const AUDIT_LOG_RETENTION_DAYS = parseInt(process.env.AUDIT_LOG_RETENTION_DAYS || '730', 10);
-const auditLogModel = new AuditLogModel(driver);
+const auditLogModel = new AuditLogModel(driver, NEO4J_DATABASE);
 const auditLogger = new AuditLogger({
   model: auditLogModel,
   retentionDays: Number.isFinite(AUDIT_LOG_RETENTION_DAYS) ? AUDIT_LOG_RETENTION_DAYS : 730
@@ -435,6 +447,12 @@ const setupReportsRoutes = require('./routes/reports');
 
 (async function initialiseAuditLogging() {
   try {
+    // Wait for driver to be ready
+    const isReady = await driverReady;
+    if (!isReady) {
+      console.warn('Skipping audit logging initialization - Neo4j driver not ready');
+      return;
+    }
     await auditLogModel.ensureIndexes();
     await auditLogModel.cleanupOlderThan(auditLogger.getRetentionCutoffIso());
     console.log('Audit logging initialized successfully');
@@ -735,7 +753,7 @@ function requireRole(role) {
 // Community routes are now in routes/communities.js
 /* REMOVED - Now in routes/communities.js
 app.get('/api/communities', async (req, res) => {
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     const result = await session.run('MATCH (c:Community) RETURN c ORDER BY c.name');
     const communities = result.records.map(r => r.get('c').properties);
@@ -761,7 +779,7 @@ app.post('/api/communities', authMiddleware, requireRole('admin'), async (req, r
     });
     return res.status(400).json({ error: 'Name is required' });
   }
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     // If id is provided, update existing community
     if (id) {
@@ -873,7 +891,7 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
     });
     return res.status(400).json({ error: 'ID or name is required' });
   }
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     const matchClause = id ? 'MATCH (c:Community {id: $id})' : 'MATCH (c:Community {name: $name})';
     const params = id ? { id } : { name };
@@ -957,7 +975,7 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
     });
       return res.status(400).json({ error: 'Name is required' });
     }
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     try {
       // If id is provided, update existing organization
       if (id) {
@@ -1054,7 +1072,7 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
   /*
   // Get all Client statuses
   app.get('/api/client-statuses', authMiddleware, async (req, res) => {
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     try {
       const result = await session.run('MATCH (s:ClientStatus) RETURN s ORDER BY s.name');
       const statuses = result.records.map(r => r.get('s').properties);
@@ -1083,7 +1101,7 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       return res.status(400).json({ error: 'Name is required' });
     }
     const trimmedName = name.trim();
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     try {
       // Check for duplicate
       const exists = await session.run('MATCH (s:ClientStatus {name: $name}) RETURN s', { name: trimmedName });
@@ -1143,7 +1161,7 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       return res.status(400).json({ error: 'Name is required' });
     }
     const trimmedName = name.trim();
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     try {
       // Soft delete by setting active: false
       const result = await session.run(
@@ -1181,7 +1199,7 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
   /*
   // Get all Loved One statuses
   app.get('/api/loved-one-statuses', authMiddleware, async (req, res) => {
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     try {
       const result = await session.run('MATCH (s:LovedOneStatus) RETURN s ORDER BY s.name');
       const statuses = result.records.map(r => r.get('s').properties);
@@ -1210,7 +1228,7 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       return res.status(400).json({ error: 'Name is required' });
     }
     const trimmedName = name.trim();
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     try {
       // Check for duplicate
       const exists = await session.run('MATCH (s:LovedOneStatus {name: $name}) RETURN s', { name: trimmedName });
@@ -1270,7 +1288,7 @@ app.delete('/api/communities', authMiddleware, requireRole('admin'), async (req,
       return res.status(400).json({ error: 'Name is required' });
     }
     const trimmedName = name.trim();
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     try {
       // Soft delete by setting active: false
       const result = await session.run(
@@ -1316,7 +1334,7 @@ app.get('/api/health', (req, res) => {
 // REFACTORED: Moved to routes/utility.js
 /*
 app.get('/api/health/db', async (req, res) => {
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     // Run a lightweight query
     await session.run('RETURN 1');
@@ -1409,7 +1427,7 @@ app.post('/api/cases/:caseId/assign', authMiddleware, requireRole('admin'), asyn
     });
     return res.status(400).json({ error: 'Missing caseId or email' });
   }
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     // Remove all existing ASSIGNED_TO relationships for this case
     await session.run(
@@ -1593,7 +1611,7 @@ app.post('/api/cases/:caseId/sms', authMiddleware, async (req, res) => {
   }
 
   if (!isAdmin) {
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     try {
       const result = await session.run(
         'MATCH (a:Applicant {id: $caseId})<-[:ASSIGNED_TO]-(u:User {email: $email}) RETURN a',
@@ -1696,7 +1714,7 @@ app.post('/api/sms-blast', authMiddleware, requireRole('admin'), async (req, res
     return res.status(400).json({ error: 'Message is required' });
   }
 
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     // Get all applicants with phone numbers who have explicitly opted in to SMS
     // NULL is treated as opted-out (privacy-first approach)
@@ -2039,7 +2057,7 @@ app.post('/api/email-blast', authMiddleware, requireRole('admin'), async (req, r
     }
   }
 
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     // Get all applicants with email addresses who have explicitly opted in to email
     // NULL is treated as opted-out (privacy-first approach)
@@ -2387,7 +2405,7 @@ const fs = require('fs');
 /*
 app.delete('/api/cases/:caseId/files/:filename', authMiddleware, async (req, res) => {
   const { caseId, filename } = req.params;
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     // Find and delete File node and relationship
     await session.run(
@@ -2460,7 +2478,7 @@ app.post('/api/cases/:caseId/upload',
       });
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     try {
       // Save file metadata and link to case
       const fileMeta = {
@@ -2563,7 +2581,7 @@ app.post('/api/intake', authMiddleware, async (req, res) => {
   try {
     const data = req.body;
     const staff = req.user.name || req.user.email || '';
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     // Generate a unique id for the applicant (e.g., A + timestamp)
     const applicantId = 'A' + Date.now();
     // Create Applicant node with id
@@ -2685,7 +2703,7 @@ async function initializeClientStatuses() {
     'No Contact'
   ];
 
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     console.log('Checking for default client statuses...');
     for (const statusName of defaultStatuses) {
@@ -2739,7 +2757,7 @@ async function initializeLovedOneStatuses() {
     'Cold Case'
   ];
 
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     console.log('Checking for default Loved One statuses...');
     for (const statusName of defaultStatuses) {
@@ -2787,7 +2805,8 @@ setupPhotoRoutes(photoRouter, {
   driver,
   auditLogger,
   upload,
-  authMiddleware
+  authMiddleware,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', photoRouter);
 
@@ -2795,7 +2814,8 @@ const pdfRouter = express.Router();
 setupPdfRoutes(pdfRouter, {
   driver,
   auditLogger,
-  authMiddleware
+  authMiddleware,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', pdfRouter);
 
@@ -2804,7 +2824,8 @@ setupOrganizationRoutes(organizationRouter, {
   driver,
   auditLogger,
   authMiddleware,
-  requireRole
+  requireRole,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', organizationRouter);
 
@@ -2826,7 +2847,8 @@ setupCaseRoutes(caseRouter, {
   requireRole,
   caseEventModel,
   smsService,
-  upload
+  upload,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', caseRouter);
 
@@ -2836,7 +2858,8 @@ setupUserRoutes(userRouter, {
   auditLogger,
   authMiddleware,
   requireRole,
-  userModel
+  userModel,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', userRouter);
 
@@ -2857,7 +2880,8 @@ setupCommunicationRoutes(communicationRouter, {
   caseEventModel,
   auditLogger,
   authMiddleware,
-  requireRole
+  requireRole,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', communicationRouter);
 
@@ -2865,7 +2889,8 @@ const lovedOnesRouter = express.Router();
 setupLovedOnesRoutes(lovedOnesRouter, {
   driver,
   auditLogger,
-  authMiddleware
+  authMiddleware,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', lovedOnesRouter);
 
@@ -2874,7 +2899,8 @@ setupStatusRoutes(statusRouter, {
   driver,
   auditLogger,
   authMiddleware,
-  requireRole
+  requireRole,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', statusRouter);
 
@@ -2895,7 +2921,8 @@ const publicRouter = express.Router();
 setupPublicRoutes(publicRouter, {
   driver,
   auditLogger,
-  authMiddleware
+  authMiddleware,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', publicRouter);
 
@@ -2904,7 +2931,8 @@ setupTimelineRoutes(timelineRouter, {
   driver,
   auditLogger,
   authMiddleware,
-  requireRole
+  requireRole,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', timelineRouter);
 
@@ -2913,7 +2941,8 @@ setupReminderRoutes(reminderRouter, {
   driver,
   auditLogger,
   authMiddleware,
-  requireRole
+  requireRole,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', reminderRouter);
 
@@ -2922,7 +2951,8 @@ setupDashboardRoutes(dashboardRouter, {
   driver,
   auditLogger,
   authMiddleware,
-  requireRole
+  requireRole,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', dashboardRouter);
 
@@ -2931,7 +2961,8 @@ setupWitnessRoutes(witnessRouter, {
   driver,
   auditLogger,
   authMiddleware,
-  requireRole
+  requireRole,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', witnessRouter);
 
@@ -2940,7 +2971,8 @@ setupCalendarRoutes(calendarRouter, {
   driver,
   auditLogger,
   authMiddleware,
-  requireRole
+  requireRole,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', calendarRouter);
 
@@ -2949,7 +2981,8 @@ setupReportsRoutes(reportsRouter, {
   driver,
   auditLogger,
   authMiddleware,
-  requireRole
+  requireRole,
+  neo4jDatabase: NEO4J_DATABASE
 });
 app.use('/api', reportsRouter);
 
@@ -2995,6 +3028,12 @@ try {
 // Load email config from database asynchronously (non-blocking)
 (async function loadOffenderNewsEmailConfig() {
   try {
+    // Wait for driver to be ready
+    const isReady = await driverReady;
+    if (!isReady) {
+      console.warn('Skipping Offender News email config load - Neo4j driver not ready');
+      return;
+    }
     const stored = await configModel.get('offender_news_email');
     if (stored && typeof stored === 'object') {
       offenderNewsEmailConfig = {
@@ -3035,7 +3074,7 @@ app.get('/api/cases/:caseId/notes', authMiddleware, async (req, res) => {
   const { caseId } = req.params;
   const user = req.user;
   try {
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     let canView = false;
     if (user.roles && user.roles.includes('admin')) {
       canView = true;
@@ -3073,7 +3112,7 @@ app.post('/api/cases/:caseId/notes', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Note text required' });
   }
   try {
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DATABASE });
     let canEdit = false;
     if (user.roles && user.roles.includes('admin')) {
       canEdit = true;
@@ -3125,7 +3164,7 @@ app.post('/api/cases/:caseId/notes', authMiddleware, async (req, res) => {
 app.post('/api/cases/:caseId/unassign', authMiddleware, requireRole('admin'), async (req, res) => {
   const { caseId } = req.params;
   console.log('[DEBUG] Unassign request received for caseId:', caseId);
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     const result = await session.run(
       `MATCH (u:User)-[r:ASSIGNED_TO]->(a:Applicant {id: $caseId}) DELETE r RETURN COUNT(r) AS deletedCount`,
@@ -3197,7 +3236,7 @@ app.post('/api/applicants/:id/loved-ones', authMiddleware, async (req, res) => {
     });
     return res.status(400).json({ error: 'Loved One name is required' });
   }
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     // Permission: admin or assigned to this case
     let canEdit = false;
@@ -3302,7 +3341,7 @@ app.get('/api/loved-ones', authMiddleware, async (req, res) => {
   const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
   if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
   const includeAll = expand === 'true' || expand === '1';
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     if (includeAll) {
       // Get loved ones with all applicant data
@@ -3357,7 +3396,7 @@ app.get('/api/loved-ones/by-date', authMiddleware, async (req, res) => {
   const roles = (req.user && (req.user.roles || req.user.groups || req.user.roles_claim)) || [];
   const isAllowed = Array.isArray(roles) && (roles.includes('admin') || roles.includes('case_worker'));
   if (!isAllowed) return res.status(403).json({ error: 'Forbidden: insufficient role' });
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     // dateOfIncident stored as ISO date string; string range compare is valid
     const result = await session.run(
@@ -3414,7 +3453,7 @@ app.get('/api/loved-ones/by-province', authMiddleware, async (req, res) => {
   const provinceLower = province.trim().toLowerCase();
   const provinceCode = provinceMap[provinceLower] || province.trim().toUpperCase();
   
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     const result = await session.run(
       `MATCH (l:LovedOne)<-[rel:RELATED_TO]-(a:Applicant)
@@ -3485,7 +3524,7 @@ app.put('/api/applicants/:id', authMiddleware, async (req, res) => {
       if (!newsKeywordsParam.length) newsKeywordsParam = null;
     }
   }
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     if (!isAdmin) {
       if (!isCaseWorker) {
@@ -3658,7 +3697,7 @@ app.put('/api/loved-ones/:id', authMiddleware, async (req, res) => {
     .map(r => String(r).toLowerCase());
   const isAdmin = roles.includes('admin');
   const isCaseWorker = roles.includes('case_worker');
-  const session = driver.session();
+  const session = driver.session({ database: NEO4J_DATABASE });
   try {
     if (!isAdmin) {
       // For non-admin, require applicantId and ensure user is assigned to that case
